@@ -1,7 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Xml;
+#if NET10_0_OR_GREATER
+using System.Linq;
+using System.Xml.Linq;
+#endif
 #if !NET10_0_OR_GREATER
 using Metrolib;
 #endif
@@ -19,6 +23,9 @@ namespace Tailviewer.Settings
 			LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
 		private readonly List<QuickFilterId> _activatedQuickFilters;
+#if NET10_0_OR_GREATER
+		private XElement _rawXml;
+#endif
 
 		/// <summary>Whether entries use log-level colors.</summary>
 		public bool ColorByLevel;
@@ -156,6 +163,56 @@ namespace Tailviewer.Settings
 		/// <summary>Writes the existing XML attribute names and child elements.</summary>
 		public void Save(XmlWriter writer)
 		{
+#if NET10_0_OR_GREATER
+			var known = SettingsXml.SaveElement("datasource", SaveKnown);
+			var element = _rawXml == null ? new XElement("datasource") : new XElement(_rawXml);
+			foreach (var attribute in known.Attributes()) element.SetAttributeValue(attribute.Name, attribute.Value);
+			element.Attribute("stringfilter")?.Remove();
+			UpdateReferences(element, known, "activatedquickfilters", "quickfilter");
+			UpdateReferences(element, known, "excludeddatasources", "datasource");
+			SettingsXml.WriteContent(element, writer);
+#else
+			SaveKnown(writer);
+#endif
+		}
+
+#if NET10_0_OR_GREATER
+		private static void UpdateReferences(XElement element, XElement known, string name, string itemName)
+		{
+			var generated = known.Element(name);
+			var containers = element.Elements(name).ToList();
+			if (containers.Count == 0)
+			{
+				if (generated != null) element.Add(new XElement(generated));
+				return;
+			}
+			foreach (var container in containers)
+			{
+				var slots = container.Elements(itemName).Where(item => item.Attribute("id") != null).ToList();
+				var originals = slots.GroupBy(item => Guid.Parse((string)item.Attribute("id")))
+					.ToDictionary(group => group.Key, group => new Queue<XElement>(group));
+				var replacements = new Queue<XElement>();
+				if (generated != null)
+					foreach (var item in generated.Elements(itemName))
+					{
+						var id = Guid.Parse((string)item.Attribute("id"));
+						var replacement = originals.TryGetValue(id, out var matches) && matches.Count > 0
+							? new XElement(matches.Dequeue()) : new XElement(item);
+						replacement.SetAttributeValue("id", item.Attribute("id").Value);
+						replacements.Enqueue(replacement);
+					}
+				foreach (var slot in slots)
+				{
+					if (replacements.Count > 0) slot.ReplaceWith(replacements.Dequeue());
+					else slot.Remove();
+				}
+				container.Add(replacements);
+			}
+		}
+#endif
+
+		private void SaveKnown(XmlWriter writer)
+		{
 			writer.WriteAttributeString("file", File);
 			writer.WriteAttributeBool("followtail", FollowTail);
 			writer.WriteAttributeBool("showlinenumbers", ShowLineNumbers);
@@ -186,15 +243,6 @@ namespace Tailviewer.Settings
 				writer.WriteEndElement();
 			}
 			writer.WriteEndElement();
-			
-			writer.WriteStartElement("activatedquickfilters");
-			foreach (QuickFilterId guid in ActivatedQuickFilters)
-			{
-				writer.WriteStartElement("quickfilter");
-				writer.WriteAttribute("id", guid);
-				writer.WriteEndElement();
-			}
-			writer.WriteEndElement();
 
 			if (ExcludedDataSources.Count > 0)
 			{
@@ -211,6 +259,61 @@ namespace Tailviewer.Settings
 
 		/// <summary>Restores configuration from the existing XML representation.</summary>
 		public void Restore(XmlReader reader, out bool neededPatching)
+		{
+#if NET10_0_OR_GREATER
+			var element = SettingsXml.ReadElement(reader);
+			var candidate = Clone();
+			using (var content = element.CreateReader())
+			{
+				content.MoveToContent();
+				candidate.RestoreAttributes(content, out neededPatching);
+			}
+			foreach (var child in element.Elements())
+			{
+				if (child.Name == "activatedquickfilters")
+				{
+					var references = child.Elements("quickfilter").Where(item => item.Attribute("id") != null)
+						.Select(item => new QuickFilterId(Guid.Parse((string)item.Attribute("id")))).ToList();
+					candidate.ActivatedQuickFilters.Clear();
+					candidate.ActivatedQuickFilters.AddRange(references);
+				}
+				else if (child.Name == "excludeddatasources")
+				{
+					var references = child.Elements("datasource").Where(item => item.Attribute("id") != null)
+						.Select(item => new DataSourceId(Guid.Parse((string)item.Attribute("id")))).ToList();
+					candidate.ExcludedDataSources.Clear();
+					candidate.ExcludedDataSources.UnionWith(references);
+				}
+			}
+			candidate._rawXml = element;
+			CopyFrom(candidate);
+#else
+			RestoreAttributes(reader, out neededPatching);
+
+			reader.MoveToContent();
+
+			XmlReader subtree = reader.ReadSubtree();
+			while (subtree.Read())
+			{
+				switch (subtree.Name)
+				{
+					case "activatedquickfilters":
+						IEnumerable<QuickFilterId> filters = ReadActivatedQuickFilters(reader);
+						ActivatedQuickFilters.Clear();
+						ActivatedQuickFilters.AddRange(filters);
+						break;
+
+					case "excludeddatasources":
+						var excluded = ReadExcludedDataSources(reader);
+						ExcludedDataSources.Clear();
+						ExcludedDataSources.UnionWith(excluded);
+						break;
+				}
+			}
+#endif
+		}
+
+		private void RestoreAttributes(XmlReader reader, out bool neededPatching)
 		{
 			int count = reader.AttributeCount;
 			for (int i = 0; i < count; ++i)
@@ -319,26 +422,6 @@ namespace Tailviewer.Settings
 				neededPatching = false;
 			}
 
-			reader.MoveToContent();
-
-			XmlReader subtree = reader.ReadSubtree();
-			while (subtree.Read())
-			{
-				switch (subtree.Name)
-				{
-					case "activatedquickfilters":
-						IEnumerable<QuickFilterId> filters = ReadActivatedQuickFilters(reader);
-						ActivatedQuickFilters.Clear();
-						ActivatedQuickFilters.AddRange(filters);
-						break;
-
-					case "excludeddatasources":
-						var excluded = ReadExcludedDataSources(reader);
-						ExcludedDataSources.Clear();
-						ExcludedDataSources.UnionWith(excluded);
-						break;
-				}
-			}
 		}
 
 		private IEnumerable<QuickFilterId> ReadActivatedQuickFilters(XmlReader reader)
@@ -400,38 +483,51 @@ namespace Tailviewer.Settings
 		/// <summary>Creates a copy with independent mutable collections and plugin configuration.</summary>
 		public DataSource Clone()
 		{
-			var clone = new DataSource
-			{
-				ColorByLevel = ColorByLevel,
-				CustomDataSourceId = CustomDataSourceId,
-				CustomDataSourceConfiguration = (ICustomDataSourceConfiguration)CustomDataSourceConfiguration?.Clone(),
-				UserDefinedName = UserDefinedName,
-				File = File,
-				FollowTail = FollowTail,
-				HideEmptyLines = HideEmptyLines,
-				HorizontalOffset = HorizontalOffset,
-				Id = Id,
-				IsSingleLine = IsSingleLine,
-				LastViewed = LastViewed,
-				LevelFilter = LevelFilter,
-				Order = Order,
-				LogFileFolderPath = LogFileFolderPath,
-				LogFileSearchPattern = LogFileSearchPattern,
-				Recursive = Recursive,
-				ParentId = ParentId,
-				SearchTerm = SearchTerm,
-				ShowLineNumbers = ShowLineNumbers,
-				ShowDeltaTimes = ShowDeltaTimes,
-				ShowElapsedTime = ShowElapsedTime,
-				VisibleLogLine = VisibleLogLine,
-				IsExpanded = IsExpanded,
-				MergedDataSourceDisplayMode = MergedDataSourceDisplayMode,
-				DisplayName = DisplayName,
-			};
-			clone.ActivatedQuickFilters.AddRange(ActivatedQuickFilters);
-			clone.SelectedLogLines.UnionWith(SelectedLogLines);
-			clone.ExcludedDataSources.UnionWith(ExcludedDataSources);
+			var clone = new DataSource();
+			clone.CopyFrom(this);
 			return clone;
+		}
+
+		private void CopyFrom(DataSource other)
+		{
+			var configuration = (ICustomDataSourceConfiguration)other.CustomDataSourceConfiguration?.Clone();
+#if NET10_0_OR_GREATER
+			var rawXml = other._rawXml == null ? null : new XElement(other._rawXml);
+#endif
+			ColorByLevel = other.ColorByLevel;
+			CustomDataSourceId = other.CustomDataSourceId;
+			CustomDataSourceConfiguration = configuration;
+			UserDefinedName = other.UserDefinedName;
+			File = other.File;
+			FollowTail = other.FollowTail;
+			HideEmptyLines = other.HideEmptyLines;
+			HorizontalOffset = other.HorizontalOffset;
+			Id = other.Id;
+			IsSingleLine = other.IsSingleLine;
+			LastViewed = other.LastViewed;
+			LevelFilter = other.LevelFilter;
+			Order = other.Order;
+			LogFileFolderPath = other.LogFileFolderPath;
+			LogFileSearchPattern = other.LogFileSearchPattern;
+			Recursive = other.Recursive;
+			ParentId = other.ParentId;
+			SearchTerm = other.SearchTerm;
+			ShowLineNumbers = other.ShowLineNumbers;
+			ShowDeltaTimes = other.ShowDeltaTimes;
+			ShowElapsedTime = other.ShowElapsedTime;
+			VisibleLogLine = other.VisibleLogLine;
+			IsExpanded = other.IsExpanded;
+			MergedDataSourceDisplayMode = other.MergedDataSourceDisplayMode;
+			DisplayName = other.DisplayName;
+			ActivatedQuickFilters.Clear();
+			ActivatedQuickFilters.AddRange(other.ActivatedQuickFilters);
+			SelectedLogLines.Clear();
+			SelectedLogLines.UnionWith(other.SelectedLogLines);
+			ExcludedDataSources.Clear();
+			ExcludedDataSources.UnionWith(other.ExcludedDataSources);
+#if NET10_0_OR_GREATER
+			_rawXml = rawXml;
+#endif
 		}
 
 		object ICloneable.Clone()

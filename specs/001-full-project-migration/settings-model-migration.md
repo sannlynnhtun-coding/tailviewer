@@ -236,3 +236,56 @@ integration remain unfinished. Unsupported named quick-filter types still raise
 an error as in the original parser; this change retains the last valid live
 state rather than inventing a fallback filter. It does not establish the whole
 profile's backup/atomic-save/unknown-data acceptance gate.
+
+
+## Slice 9: source configuration XML and identity-owned metadata
+
+Modern DataSource/DataSourceSettings preserve their raw container/record XML
+through clone, edits, reorder, clear and restart. Only direct unqualified source,
+activated-filter and excluded-source records are interpreted. Plugin/future
+payloads, unknown attributes, namespace/QName bindings, CDATA, nested known names
+inside opaque sections and id-less/namespaced reference extensions remain raw.
+Reference extension data follows its GUID when references are reordered or
+removed, rather than being attached to whichever item occupies the old slot.
+Clearing owned references retains unrelated collection extension data.
+
+Both record and collection restore parse candidates before changing live state;
+invalid XML/IDs retain current fields, selection, folder defaults and records.
+Successful record restore retains the mutable collection objects held by callers.
+Clone and restore share the existing deep-copy semantics for plugin config and
+source collections. Sources whose files are unavailable remain configured.
+Missing legacy source IDs are patched once, saved and retained on restart.
+
+Removed the identical duplicate activatedquickfilters write block and reset a
+stale selected source when restoring an empty collection. These two small fixes
+also apply to the shared legacy branch. Imported duplicate reference containers
+are retained with their own opaque extensions; modern edits update their owned
+references consistently. The obsolete stringfilter alias remains readable but is
+removed on modern save so it cannot override an edited searchterm on restart.
+
+Executed evidence:
+
+- Initial source XML cases: **10 failed / 0 passed**.
+- Final regression set adds duplicate/id-less/namespaced extension preservation,
+  successful restore's collection identity and malformed XML protection (13 cases).
+- Affected Core settings/geometry/fixture/source/assembly selection:
+  **339 passed / 0 failed / 0 skipped**. The initial combined source selection
+  also passed all 178 original/modern source tests after the first implementation.
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed**, no failures/skips.
+- net452 shared-source/API compile passes; existing legacy log4net warnings remain.
+- Signed profile source probe reproduces its **4 expected failures / 4 passes**
+  and **5 passing editor cases**. Directory:
+  artifacts/migration/profile-probe/run-2e98e4822c5944c4820ac2dbf1df392e.
+
+Evidence logs under ignored artifacts/migration: t011-source-xml-red.log,
+t011-source-xml-green.log, t011-source-xml-final.log, t011-source-xml-legacy.log,
+t011-source-xml-solution.log, t011-source-xml-profile.log. Reproduce the source
+regressions using FullyQualifiedName~SourceXmlMigrationTest; include that fixture
+and AssemblyTest in the documented Core settings selection for the 339-case run.
+
+This does not activate or convert plugin configurations: raw plugin XML survives,
+but typed configuration Store/Restore and custom-source resolution remain the
+owning plugin tasks. Previously unserialized source selection/Order/UserDefinedName
+fields still require their workspace/story implementation rather than a guessed
+legacy XML schema. ApplicationSettings/IApplicationSettings/root unknown XML,
+remaining leaf extensions and safe file IO remain open; T011 is not complete.
