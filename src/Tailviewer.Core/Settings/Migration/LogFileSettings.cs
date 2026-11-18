@@ -17,7 +17,17 @@ namespace Tailviewer.Settings
 		#region Implementation of ILogFileSettings
 
 		/// <inheritdoc />
-		public Encoding DefaultEncoding { get; set; }
+		public Encoding DefaultEncoding
+		{
+			get { return _defaultEncoding; }
+			set { _defaultEncoding = value; _encodingName = null; }
+		}
+
+		private Encoding _defaultEncoding;
+		private string _encodingName;
+
+		/// <summary>The persisted encoding name, including an unavailable selection.</summary>
+		public string EncodingName => _encodingName ?? DefaultEncoding?.WebName ?? string.Empty;
 
 		#endregion
 
@@ -27,14 +37,15 @@ namespace Tailviewer.Settings
 		{
 			return new LogFileSettings
 			{
-				DefaultEncoding = DefaultEncoding
+				_defaultEncoding = _defaultEncoding,
+				_encodingName = _encodingName
 			};
 		}
 
 		/// <summary>Writes the legacy defaultencoding attribute.</summary>
 		public void Save(XmlWriter writer)
 		{
-			writer.WriteAttributeString("defaultencoding", DefaultEncoding?.WebName ?? string.Empty);
+			writer.WriteAttributeString("defaultencoding", EncodingName);
 		}
 
 		/// <summary>Restores a known encoding, retaining the current value when invalid.</summary>
@@ -47,11 +58,17 @@ namespace Tailviewer.Settings
 				{
 					case "defaultencoding":
 						var encodingName = reader.ReadContentAsString();
+						_encodingName = encodingName;
+						if (string.IsNullOrEmpty(encodingName)) _defaultEncoding = null;
 						if (!string.IsNullOrEmpty(encodingName))
 						{
 							try
 							{
-								DefaultEncoding = Encoding.GetEncoding(encodingName);
+#if NET10_0_OR_GREATER
+								_defaultEncoding = SettingsEncoding.Resolve(encodingName);
+#else
+								_defaultEncoding = Encoding.GetEncoding(encodingName);
+#endif
 							}
 							catch (Exception e)
 							{

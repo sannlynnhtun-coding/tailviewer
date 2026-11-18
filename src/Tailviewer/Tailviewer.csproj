@@ -159,10 +159,10 @@
     <Compile Include="Collections\ObservableCollectionExt.cs" />
     <Compile Include="Collections\ProjectingObservableCollection.cs" />
     <Compile Include="Settings\Bookmarks\IBookmarks.cs" />
-    <Compile Include="Settings\CustomFormats\CustomFormatSettings.cs" />
-    <Compile Include="Settings\CustomFormats\CustomLogFileFormat.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\CustomFormatSettings.cs"><Link>Settings\CustomFormats\CustomFormatSettings.cs</Link></Compile>
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\CustomLogFileFormat.cs"><Link>Settings\CustomFormats\CustomLogFileFormat.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Desktop.cs"><Link>Settings\Desktop.cs</Link></Compile>
-    <Compile Include="Settings\ICustomFormatsSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\ICustomFormatsSettings.cs"><Link>Settings\ICustomFormatsSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\ILogViewerSettings.cs"><Link>Settings\ILogViewerSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\LogFileSettings.cs"><Link>Settings\LogFileSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\LogLevelSettings.cs"><Link>Settings\LogLevelSettings.cs</Link></Compile>

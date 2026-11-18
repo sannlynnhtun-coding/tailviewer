@@ -73,6 +73,17 @@ namespace Tailviewer.Core.Tests.Migration
             Assert.That(settings.DefaultEncoding, Is.EqualTo(Encoding.Unicode));
         }
 
+        [Test]
+        public void UnavailableDefaultEncodingSurvivesSaveAndCloneUntilExplicitChange()
+        {
+            var settings = new LogFileSettings { DefaultEncoding = Encoding.Unicode };
+            Restore(XElement.Parse("<logfile defaultencoding='future-encoding'/>") , settings.Restore);
+            Assert.That(settings.DefaultEncoding, Is.EqualTo(Encoding.Unicode));
+            Assert.That((string)Save("logfile", settings.Clone().Save).Attribute("defaultencoding"), Is.EqualTo("future-encoding"));
+            settings.DefaultEncoding = null;
+            Assert.That((string)Save("logfile", settings.Save).Attribute("defaultencoding"), Is.EqualTo(string.Empty));
+        }
+
         private static XElement Save(string name, Action<XmlWriter> save)
         {
             using var text = new StringWriter();

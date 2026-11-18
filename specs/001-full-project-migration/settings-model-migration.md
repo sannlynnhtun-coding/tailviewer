@@ -105,3 +105,29 @@ dotnet test Tailviewer.Avalonia.slnx -c Release
 Evidence: `artifacts/migration/t011-window-defaults.log`, `t011-window-red.log`, `t011-window-final.log`, `t011-window-adapter.log`, `t011-window-oracle.log`, `t011-window-legacy-verified.log`, `t011-window-solution.log`; profile probe `run-8563553c58554c0e9189b54729681d42`.
 
 The legacy compile probe is a source/API build check, not a complete old desktop/service build. Native Avalonia window capture/restore, display pixel-to-DIP conversion and mixed-DPI/monitor hardware calibration are still owning UI acceptance work; do not interpret state conversion or geometry tests as verification of those native journeys. T011 remains open for the profile/custom-format models and full unknown/plugin XML preservation. No real user window/profile was modified; the WPF oracle window was created without showing it and closed in the test.
+
+## Slice 6: custom-format models and opaque metadata
+
+Moved CustomLogFileFormat/CustomFormatsSettings/ICustomFormatsSettings into Core. Modern plugin identity is the original XML **string value**, avoiding a Core-to-Archiver edge or a duplicate identity wrapper. Legacy desktop compilation still uses its original Archiver PluginId type from the same shared source. The API's ICustomLogFileFormat contract is unchanged. The modern assembly-reference test explicitly rejects an archive reference.
+
+Models now preserve unknown attributes/elements, namespace bindings needed by opaque QName values, CDATA and unavailable encoding names through save/restore/clone. Only direct unqualified customformat children are activated as records; a similarly named node inside an opaque extension stays opaque. Clearing known records retains unrelated container extension data. Clone copies model and extension state independently. Definition edits retain unavailable encoding metadata unless the user explicitly chooses another encoding or automatic detection. Unresolved encoding names participate in value equality/hash semantics.
+
+The real existing CustomFormatViewModel caller now edits from the existing definition, shows an unavailable encoding selection separately from Automatic, persists a name-only edit, replaces the exact edited object in place and ignores stale edits after a definition was removed. This avoids deleting an equivalent sibling with different opaque metadata or resurrecting removed records. Existing plugin-factory error handling remains; this is not a claim that the complete plugin/settings UI has migrated.
+
+A separate regression exposed supported legacy windows-1252 selections being treated as unavailable by plain Encoding.GetEncoding on net10.0. A small shared resolver uses the platform code-page provider as a fallback for both format and global log settings, without registering a global provider or adding a package. Truly unavailable default encoding names also survive clone/save until an explicit user selection changes them; a previously valid live fallback is retained when decoding the new name fails.
+
+### Executed evidence
+
+- Initial six model cases: **1 pass / 5 fail** (extension/encoding loss, nested-node activation and shallow clone). An added nonempty/edit case caught an invalid XML-writer state before the corrected container serialization passed.
+- Source-linked real editor cases first caught **3 failures**, then **2 additional identity/stale-editor failures**. Final editor suite: **5 passed / 0 failed / 0 skipped**.
+- The windows-1252 regression failed before the provider fallback was added.
+- Final affected Core settings/geometry/fixture selection: **300 passed / 0 failed / 0 skipped**. The guarded source-editor tests run separately in the signed Windows source probe; they are not silently counted in that Core total.
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed / 0 failed / 0 skipped**.
+- Expanded net452 source/API probe compiles all shared migrated models plus the edited legacy custom-format view model, encoding view model and registry/application interfaces. Known legacy log4net warnings remain visible; full old desktop integration is not claimed.
+- The signed profile source probe uses the original Tailviewer assembly identity/key to exercise Core's existing internal host boundary; production visibility was not widened. Its original eight profile cases still produce **4 pass / 4 expected failures**, while the five editor cases pass. This is not a green whole-profile gate.
+
+Reproduce with the existing Core settings selection, `dotnet test Tailviewer.Avalonia.slnx -c Release`, `dotnet build specs/001-full-project-migration/probes/windows/LegacyWindow.csproj -c Release`, and `& ./specs/001-full-project-migration/probes/profile/run.ps1`.
+
+Raw evidence: `artifacts/migration/t011-format-red.log`, `t011-format-edit.log`, `t011-format-editor-red.log`, `t011-format-identity-red.log`, `t011-codepage-red.log`, `t011-format-metadata-final.log`, `t011-format-metadata-solution.log`, `t011-formats-legacy-final.log`; final generated profile probe: `artifacts/migration/profile-probe/run-4a9d5c06951940c0a781a04765c4f390/` (its editing TRX verifies the five passing source cases).
+
+T011 remains open: ApplicationSettings/IApplicationSettings, bookmark container persistence and complete profile/source/filter unknown XML preservation still need their owning port. File size/DTD bounds, isolated modern default storage and atomic save remain T012's explicit safety gate before wiring modern profile persistence into the app. Full plugin activation, native settings UI and all historical encoding providers are not validated by these metadata/editor cases.
