@@ -31,8 +31,10 @@ dotnet test Tailviewer.Avalonia.slnx
 
 Core က ဖိုင်ကို index လုပ်ပြီး UI က လိုင်းတစ်လိုင်းလျှင် integer index တစ်ခုသာ သိမ်းသည်။ Virtualized ListBox နှင့် စာသား cache အများဆုံး 8 × 128 လိုင်းကိုသုံးသည်။ Column reads ကို background threads တွင်လုပ်ပြီး UI timer က 100 ms တစ်ကြိမ် update ယူသည်။ ဖိုင်တစ်ခုလုံးကို string တစ်ခုအဖြစ် မတင်ပါ။ Selection/copy သည် **လိုင်းအလိုက်** ဖြစ်ပြီး character အပိုင်းတစ်ခုချင်း ရွေးခြင်း မပါပါ။ ကြီးမားသော selection ကို copy လုပ်လျှင် ထိုစာသားအတွက် memory လိုသည်။
 
-စစ်ထားသည်: real Core + Avalonia headless integration tests ဖြင့် Unicode/BOM၊ whitespace/copy ordering၊ empty file၊ partial-line append၊ selection/clipboard၊ truncation၊ failed-open recovery၊ close during read နှင့် 20,000-line viewport virtualization ကို စမ်းထားသည်။
+စစ်ထားသည်: real Core + Avalonia headless integration tests 13 ခုဖြင့် Unicode/BOM၊ whitespace/copy ordering၊ empty file၊ partial-line append၊ selection/clipboard၊ truncation၊ failed-open recovery၊ close during read နှင့် 20,000-line viewport virtualization ကို စမ်းထားသည်။ Same-size rewrite (timestamps မပြောင်းလဲခြင်းအပါအဝင်)၊ rename rotation မှ ပိုကြီးသောဖိုင်၊ truncate-and-regrow နှင့် ဖိုင်ပျောက်ပြီး မူလ metadata ဖြင့်ပြန်ပေါ်လာခြင်းအတွက် regression tests ပါသည်။ Replacement ဖြစ်လျှင် index/cache/selection ကို ပြန်စပြီး ပုံမှန် append တွင် selection ကို ထိန်းသည်။
 
-မပြီးသေးသည်: Windows native file picker/rendering ကို desktop capture timeout ကြောင့် မျက်မြင်အတည်မပြုနိုင်သေးပါ။ Linux/macOS execution နှင့် 100 MB/1 GB performance comparisons မစမ်းရသေးပါ။ Legacy Core ၏ same-size file replacement/rotation handling ကို ဤ prototype က မဖြေရှင်းထားပါ။ Search၊ parsed columns၊ plugins နှင့် installer သည် နောက်အဆင့်များဖြစ်သည်။
+Rotation detection က metadata အပြင် ဖတ်ပြီးသား bytes ၏ အစ/အဆုံး 4 KiB စီကို polling တိုင်း စစ်သည်။ File access error ဖြစ်လျှင် offsets နှင့် fingerprint ကို ရှင်းပြီး ပြန်ဖတ်သည်။ Sample နေရာများ မပြောင်းသည့် အလယ်ပိုင်း rewrite ကို metadata ကပါ မခွဲနိုင်လျှင် မဖမ်းနိုင်ပါ။ ဖိုင်အသစ်၏ encoding သည် ဖွင့်စဉ် detect လုပ်ထားသည့် encoding ကို ဆက်သုံးသည်။
+
+မပြီးသေးသည်: Windows native file picker/rendering ကို desktop capture timeout ကြောင့် မျက်မြင်အတည်မပြုနိုင်သေးပါ။ Linux/macOS execution နှင့် 100 MB/1 GB performance comparisons မစမ်းရသေးပါ။ Search၊ parsed columns၊ plugins နှင့် installer သည် နောက်အဆင့်များဖြစ်သည်။
 
 Multi-target Core restore တွင် legacy log4net 2.0.12 advisory warning ပြနိုင်သည်။ ဤ executable က `net10.0` graph နှင့် log4net 3.6.0 ကိုသာ သုံးသည်။

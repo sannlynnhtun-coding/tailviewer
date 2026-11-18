@@ -138,6 +138,134 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task TestSameSizeRewriteClearsCachedRowsAndSelection()
+    {
+        const string original = "old-first\nold-second";
+        const string replacement = "new\nmiddle\nlast-line";
+        Encoding.UTF8.GetByteCount(replacement).Should().Be(Encoding.UTF8.GetByteCount(original));
+        File.WriteAllText(_path, original);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            var list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => list.ItemCount == 2 && list.GetVisualDescendants().OfType<TextBlock>()
+                .Any(t => t.Text?.EndsWith("  old-first") == true));
+            list.Selection.Select(1);
+            var modified = File.GetLastWriteTimeUtc(_path);
+            File.WriteAllText(_path, replacement);
+            File.SetLastWriteTimeUtc(_path, modified.AddSeconds(2));
+            await WaitUntil(() => list.ItemCount == 3 && list.Selection.SelectedIndexes.Count == 0 &&
+                list.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.EndsWith("  middle") == true));
+
+            list.Selection.Select(1);
+            var copy = window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "_Copy selected"));
+            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "middle");
+            File.AppendAllText(_path, "\nnew-tail");
+            await WaitUntil(() => list.ItemCount == 4);
+            list.Selection.SelectedIndexes.Should().Equal(new[] { 1 },
+                "because ordinary appends after replacement must preserve selection");
+            await WaitUntil(() => list.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.EndsWith("  new-tail") == true));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task TestRenameRotationToLargerFile()
+    {
+        File.WriteAllText(_path, "old-first\nold-second");
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 2; });
+        var cached = document.GetLine(0);
+        await WaitUntil(() => cached.Text == "old-first");
+        var created = File.GetCreationTimeUtc(_path);
+        var modified = File.GetLastWriteTimeUtc(_path);
+        var rotated = _path + ".rotated";
+        var incoming = _path + ".incoming";
+        try
+        {
+            File.WriteAllText(incoming, "rotated-first\nrotated-second\nrotated-third");
+            File.SetCreationTimeUtc(incoming, created.AddMinutes(1));
+            File.SetLastWriteTimeUtc(incoming, modified);
+            File.Move(_path, rotated);
+            File.Move(incoming, _path);
+            await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 3; });
+            (await document.CopyTextAsync(new[] { 0, 1, 2 })).Should().Be(
+                string.Join(Environment.NewLine, "rotated-first", "rotated-second", "rotated-third"),
+                "because a larger replacement must not reuse offsets into the old file");
+            var current = document.GetLine(0);
+            current.Should().NotBeSameAs(cached, "because a replacement invalidates cached rows");
+            await WaitUntil(() => current.Text == "rotated-first");
+            File.AppendAllText(_path, "\ncontinued");
+            await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 4; });
+            (await document.CopyTextAsync(new[] { 3 })).Should().Be("continued");
+        }
+        finally
+        {
+            File.Delete(rotated);
+            File.Delete(incoming);
+        }
+    }
+
+    [AvaloniaTest]
+    public async Task TestMissingFileReappearsWithOriginalMetadata()
+    {
+        File.WriteAllText(_path, "old-first\nold-second");
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 2; });
+        var created = File.GetCreationTimeUtc(_path);
+        var modified = File.GetLastWriteTimeUtc(_path);
+        File.Delete(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Error != null && document.Lines.Count == 0; });
+        File.WriteAllText(_path, "new\nmiddle\nlast-line");
+        File.SetCreationTimeUtc(_path, created);
+        File.SetLastWriteTimeUtc(_path, modified);
+        await WaitUntil(() => { document.Refresh(); return document.Error == null && document.Lines.Count == 3; });
+        (await document.CopyTextAsync(new[] { 0, 1, 2 })).Should().Be(
+            string.Join(Environment.NewLine, "new", "middle", "last-line"),
+            "because an observed disappearance invalidates both the fingerprint and read offsets");
+    }
+
+    [AvaloniaTest]
+    public async Task TestSameSizeRewriteWithPreservedMetadata()
+    {
+        File.WriteAllText(_path, "first\nsecond");
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 2; });
+        var cached = document.GetLine(0);
+        await WaitUntil(() => cached.Text == "first");
+        var created = File.GetCreationTimeUtc(_path);
+        var modified = File.GetLastWriteTimeUtc(_path);
+        var length = new FileInfo(_path).Length;
+        File.WriteAllText(_path, "new\nrow\nlast");
+        File.SetCreationTimeUtc(_path, created);
+        File.SetLastWriteTimeUtc(_path, modified);
+        new FileInfo(_path).Length.Should().Be(length, "because this regression must not rely on file size changing");
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 3; });
+        document.GetLine(0).Should().NotBeSameAs(cached, "because byte changes must invalidate rows even when metadata matches");
+        (await document.CopyTextAsync(new[] { 0, 1, 2 })).Should().Be(string.Join(Environment.NewLine, "new", "row", "last"));
+    }
+
+    [AvaloniaTest]
+    public async Task TestCopyTruncateRegrowthWithUnchangedHeader()
+    {
+        var header = new string('h', 5000);
+        File.WriteAllText(_path, header + "\nold-first\nold-second");
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 3; });
+        var cached = document.GetLine(1);
+        await WaitUntil(() => cached.Text == "old-first");
+        File.WriteAllText(_path, header + "\nnew\nmiddle\nlast-line\nnew-tail");
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 5; });
+        document.GetLine(1).Should().NotBeSameAs(cached,
+            "because a truncate-and-regrow between polls must reset even when the first 4 KiB stay the same");
+        (await document.CopyTextAsync(new[] { 1, 2, 3, 4 })).Should().Be(
+            string.Join(Environment.NewLine, "new", "middle", "last-line", "new-tail"));
+    }
+
+    [AvaloniaTest]
     public async Task TestFailedOpenKeepsCurrentFileAndError()
     {
         File.WriteAllText(_path, "keep this file");

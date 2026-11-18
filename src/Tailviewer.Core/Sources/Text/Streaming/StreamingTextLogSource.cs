@@ -55,6 +55,7 @@ namespace Tailviewer.Core
 		private FileFingerprint _lastFingerprint;
 		private long _lastLineOffsetStreamPosition;
 		private long _lastStreamPosition;
+		private byte[] _checkpoint = new byte[0];
 
 		private const int BufferSize = 4096 * 4;
 
@@ -285,40 +286,31 @@ namespace Tailviewer.Core
 
 		private bool ReadEntireFile(CancellationToken cancellationToken)
 		{
-			if (!HasFileChanged(out var currentFingerprint, out var previousFingerprint))
-			{
-				if (Log.IsDebugEnabled)
-					Log.DebugFormat("File {0} remains unchanged (Fingerprint: {1}), nothing to do...", _fileName, currentFingerprint);
-				return false;
-			}
-
+			var metadataChanged = HasFileChanged(out var currentFingerprint, out var previousFingerprint);
 			var start = DateTime.UtcNow;
-			if (Log.IsDebugEnabled)
-				Log.DebugFormat("File {0} change detected (Fingerprint: {1}), scanning for new lines...", _fileName, currentFingerprint);
-
-			if (previousFingerprint?.Size > currentFingerprint.Size)
-			{
-				if (Log.IsDebugEnabled)
-					Log.DebugFormat("File {0} size reduced from {1}bytes to {2} bytes, starting all over", _fileName, previousFingerprint.Size, currentFingerprint.Size);
-
-				Clear();
-			}
 
 			using (var stream = _filesystem.Open(_fileName,
 			                                     FileMode.Open,
 			                                     FileAccess.Read,
 			                                     FileShare.ReadWrite | FileShare.Delete))
 			{
+				var contentChanged = !ArrayExtensions.Equals(_checkpoint, ReadCheckpoint(stream, _lastStreamPosition));
+				if (!metadataChanged && !contentChanged)
+					return false;
+
+				if (contentChanged || (previousFingerprint != null &&
+				    (previousFingerprint.Size >= currentFingerprint.Size || previousFingerprint.Created != currentFingerprint.Created)))
+				{
+					Log.DebugFormat("File {0} was rewritten, replaced or truncated, starting all over", _fileName);
+					Clear();
+				}
 				_propertiesBuffer.SetValue(Core.Properties.EmptyReason, null);
 
 				var startOffset = _lastLineOffsetStreamPosition;
+				stream.Position = startOffset;
 				if (startOffset == 0)
 				{
 					AddFirstLineIfNecessary(stream);
-				}
-				else
-				{
-					stream.Position = startOffset;
 				}
 
 				var detector = new LineOffsetDetector(stream, _encoding);
@@ -339,6 +331,7 @@ namespace Tailviewer.Core
 
 				AddLines(buffer, Percentage.HundredPercent, startOffset);
 				_lastStreamPosition = stream.Position;
+				_checkpoint = ReadCheckpoint(stream, _lastStreamPosition);
 			}
 
 			if (Log.IsDebugEnabled)
@@ -348,6 +341,19 @@ namespace Tailviewer.Core
 			}
 
 			return true;
+		}
+
+		// shortcut: bounded probes can miss edits outside sampled regions; hash all previously read bytes if arbitrary rewrites must be detected.
+		private byte[] ReadCheckpoint(Stream stream, long length)
+		{
+			var count = (int)Math.Min(4096, length);
+			using (var reader = new BinaryReader(stream, _encoding, leaveOpen: true))
+			{
+				stream.Position = 0;
+				var prefix = reader.ReadBytes(count);
+				stream.Position = length - count;
+				return prefix.Concat(reader.ReadBytes(count)).ToArray();
+			}
 		}
 
 		private void AddFirstLineIfNecessary(Stream stream)
@@ -476,7 +482,11 @@ namespace Tailviewer.Core
 			lock (_index)
 			{
 				_index.Clear();
+				_lastStreamPosition = 0;
+				_lastLineOffsetStreamPosition = 0;
 			}
+			_lastFingerprint = null;
+			_checkpoint = new byte[0];
 
 			SynchronizeProperties();
 			_listeners.Reset();
