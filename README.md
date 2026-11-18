@@ -20,9 +20,9 @@ The UI reads text in background batches and caches up to 1,024 lines. It keeps a
 
 ## Download preview
 
-The latest Avalonia preview is **v2.0.0-alpha.2** for **Windows x64**. Download the portable ZIP and `SHA256SUMS.txt` from the [GitHub release](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v2.0.0-alpha.2), extract the ZIP, and run `Tailviewer.Avalonia.exe`. The package includes .NET 10.0.15, so no separate .NET installation is required.
+The latest Avalonia preview is **v2.0.0-alpha.2** for **Windows x64**. Choose the single portable EXE, portable ZIP, or setup EXE, and download `SHA256SUMS.txt` from the [GitHub release](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v2.0.0-alpha.2), run the portable EXE directly, extract the ZIP and run `Tailviewer.Avalonia.exe`, or install with the setup EXE (current user, no administrator required). The package includes .NET 10.0.15, so no separate .NET installation is required.
 
-This is an unsigned prerelease with the prototype limitations listed below. Linux/macOS packages and an installer are not included. See the [release notes](docs/releases/v2.0.0-alpha.2.md).
+This is an unsigned prerelease with the prototype limitations listed below. Linux/macOS packages are not included. The single EXE extracts its bundled runtime and license notices to the .NET cache on first launch. See the [release notes](docs/releases/v2.0.0-alpha.2.md).
 
 ## Run from source
 
@@ -78,7 +78,7 @@ Current validation on Windows: **14 Avalonia headless integration tests passed**
 - Rotation detection checks metadata and the first/last 4 KiB of previously read content. Rewrites outside those sampled regions can be missed if metadata does not distinguish them. Reopen the file to force a fresh index.
 - A rotated file continues to use the encoding detected when the file was opened. Reopen it if the encoding changes.
 - Copying a large selection requires memory for the selected text.
-- Search, filtering, merged sources, bookmarks, parsed columns, plugins, and an installer have not yet been migrated into the Avalonia prototype.
+- Search, filtering, merged sources, bookmarks, parsed columns, plugins, and automatic updates have not yet been migrated into the Avalonia prototype.
 
 API/Core temporarily target both .NET Framework 4.5 and .NET 10 to support the remaining legacy projects. Multi-target restore may report the existing `NU1902` advisory for legacy `log4net 2.0.12`; the Avalonia executable uses `log4net 3.6.0` through its .NET 10 dependency graph.
 
