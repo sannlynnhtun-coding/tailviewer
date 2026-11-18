@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Tailviewer.Api/Tailviewer.Api.csproj" />
+  <Project Path="src/Tailviewer.Core/Tailviewer.Core.csproj" />
+  <Project Path="src/Tailviewer.Avalonia/Tailviewer.Avalonia.csproj" />
+  <Project Path="src/Tailviewer.Avalonia.Tests/Tailviewer.Avalonia.Tests.csproj" />
+</Solution>

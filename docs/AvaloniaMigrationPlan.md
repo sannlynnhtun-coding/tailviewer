@@ -32,6 +32,8 @@ dotnet list src/Tailviewer.Core/Tailviewer.Core.csproj package --framework net10
 
 ## စစ်ဆေးမှုအဆင့်နှင့် အထောက်အထား
 
+Prototype အဆင့်ကို `src/Tailviewer.Avalonia` နှင့် `Tailviewer.Avalonia.slnx` တွင် ထည့်ထားသည်။ File open၊ virtualized scrolling၊ line selection/copy၊ follow/pause နှင့် Core live tailing ကို လုပ်နိုင်သည်။ Real Core + headless UI tests 8 ခု အောင်သည်။ အသုံးပြုပုံနှင့် ကန့်သတ်ချက်များကို [prototype README](../src/Tailviewer.Avalonia/README.md) တွင် ကြည့်နိုင်သည်။ Native Windows capture က timeout ဖြစ်သောကြောင့် native dialogs/rendering ကို မျက်မြင်အတည်မပြုနိုင်သေးပါ; large-file performance gate နှင့် Linux/macOS execution မပြီးသေးပါ။
+
 - `src/**/packages.config` ရှိ package ID/version ၂၃ မျိုးလုံး၏ NuGet archive များကို download လုပ်ပြီး `lib/`, `ref/`, `runtimes/`, `build/` target များ စစ်ထားသည်။ Repository ထဲတွင် package files မသိမ်းထားပါ။
 - `.csproj` references၊ application startup၊ custom log rendering၊ plugin loader/updater၊ repository service၊ installer၊ tests နှင့် API NuGet manifest ကို စစ်ထားသည်။
 - ဤသည် metadata/source compatibility audit ဖြစ်သည်။ Restore/build/run ဖြင့် compatibility အတည်ပြုထားခြင်း မဟုတ်ပါ။ .NET Standard asset ရှိခြင်းသည် OS အားလုံးတွင် runtime အလုပ်လုပ်ကြောင်း အာမခံမဟုတ်ပါ။

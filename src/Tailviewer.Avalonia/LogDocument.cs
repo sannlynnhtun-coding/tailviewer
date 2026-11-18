@@ -1,0 +1,166 @@
+using System.ComponentModel;
+using System.Text;
+using Avalonia.Collections;
+using Tailviewer.Api;
+using Tailviewer.Core;
+
+namespace Tailviewer.Avalonia;
+
+public sealed class LogDocument : IDisposable, ILogSourceListener
+{
+    private const int PageSize = 128;
+    private const int MaxPages = 8;
+    private readonly DefaultTaskScheduler _scheduler = new();
+    private readonly ILogSource _source;
+    private readonly Dictionary<int, LogLine[]> _pages = new();
+    private readonly Dictionary<int, LogLine[]> _loading = new();
+    private volatile bool _disposed;
+    private int _changed;
+    private int _reset;
+    private int _generation;
+    private string? _readError;
+
+    public string FileName { get; }
+    // shortcut: one integer per indexed line, use a lazy IList if index memory becomes a bottleneck.
+    public AvaloniaList<int> Lines { get; } = new();
+    public string? Error => _source.GetProperty(Core.Properties.EmptyReason)?.Explanation ?? _readError;
+
+    public LogDocument(string fileName)
+    {
+        try
+        {
+            FileName = Path.GetFullPath(fileName);
+            using var stream = new FileStream(FileName, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            reader.Peek();
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            _source = factory.OpenRead(FileName, LogFileFormats.GenericText, reader.CurrentEncoding);
+            _source.AddListener(this, TimeSpan.Zero, 10000);
+        }
+        catch
+        {
+            _source?.Dispose();
+            _scheduler.Dispose();
+            throw;
+        }
+    }
+
+    public void OnLogFileModified(ILogSource logSource, LogSourceModification modification)
+    {
+        if (modification.IsReset())
+            Interlocked.Exchange(ref _reset, 1);
+        Interlocked.Exchange(ref _changed, 1);
+    }
+
+    // Called on the UI thread; Core scanning and column reads stay on background threads.
+    public bool Refresh()
+    {
+        if (_disposed)
+            return false;
+        var previousCount = Lines.Count;
+        var count = _source.GetProperty(Core.Properties.LogEntryCount);
+        var changed = Interlocked.Exchange(ref _changed, 0) != 0;
+        var reset = Interlocked.Exchange(ref _reset, 0) != 0 || count < previousCount;
+        if (reset)
+        {
+            ++_generation;
+            _pages.Clear();
+            _loading.Clear();
+            Lines.Clear();
+        }
+        if (count > Lines.Count)
+            Lines.AddRange(Enumerable.Range(Lines.Count, count - Lines.Count));
+
+        foreach (var (page, rows) in _pages.ToArray())
+        {
+            if ((changed && page == Math.Max(0, previousCount - 1) / PageSize) ||
+                rows.Any(row => row.Index < count && row.Text == null))
+                _ = LoadPageAsync(page, rows);
+        }
+        return changed || reset || count != previousCount;
+    }
+
+    public LogLine GetLine(int index)
+    {
+        if (index < 0 || index >= Lines.Count)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        var page = index / PageSize;
+        if (!_pages.TryGetValue(page, out var rows))
+        {
+            if (_pages.Count >= MaxPages)
+                _pages.Remove(_pages.Keys.First());
+            rows = Enumerable.Range(page * PageSize, PageSize).Select(i => new LogLine(i)).ToArray();
+            _pages.Add(page, rows);
+            _ = LoadPageAsync(page, rows);
+        }
+        return rows[index % PageSize];
+    }
+
+    private async Task LoadPageAsync(int page, LogLine[] rows)
+    {
+        if (_loading.TryGetValue(page, out var pending) && ReferenceEquals(rows, pending))
+            return;
+        _loading[page] = rows;
+        var generation = _generation;
+        try
+        {
+            var section = new LogSourceSection(page * PageSize, Math.Min(PageSize, Lines.Count - page * PageSize));
+            var text = await Task.Run(() => _source.GetColumn(section, Core.Columns.RawContent,
+                new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
+            if (_disposed || generation != _generation)
+                return;
+            for (var i = 0; i < text.Length; ++i)
+                rows[i].SetText(text[i]);
+            _readError = null;
+        }
+        catch (Exception ex)
+        {
+            if (!_disposed)
+                _readError = ex.Message;
+        }
+        finally
+        {
+            if (_loading.TryGetValue(page, out var current) && ReferenceEquals(rows, current))
+                _loading.Remove(page);
+        }
+    }
+
+    public async Task<string> CopyTextAsync(IEnumerable<int> selection)
+    {
+        var indices = selection.Distinct().Order().Select(i => new LogLineIndex(i)).ToArray();
+        var generation = _generation;
+        var text = await Task.Run(() => _source.GetColumn(indices, Core.Columns.RawContent,
+            new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
+        if (_disposed || generation != _generation || text.Any(line => line == null))
+            throw new IOException("The file changed or could not be read. Select the lines and try again.");
+        return string.Join(Environment.NewLine, text);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _source.RemoveListener(this);
+        _source.Dispose();
+        _scheduler.Dispose();
+        _pages.Clear();
+    }
+}
+
+public sealed class LogLine(int index) : INotifyPropertyChanged
+{
+    public int Index { get; } = index;
+    public string? Text { get; private set; }
+    public string DisplayText => $"{Index + 1,7}  {Text ?? "Loading…"}";
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal void SetText(string? text)
+    {
+        if (Text == text)
+            return;
+        Text = text;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayText)));
+    }
+}
