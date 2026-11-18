@@ -20,9 +20,9 @@ The UI reads text in background batches and caches up to 1,024 lines. It keeps a
 
 ## Download preview
 
-The first Avalonia preview is **v2.0.0-alpha.1** for **Windows x64**. Download the portable ZIP and `SHA256SUMS.txt` from the [GitHub release](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v2.0.0-alpha.1), extract the ZIP, and run `Tailviewer.Avalonia.exe`. The package includes .NET 10.0.15, so no separate .NET installation is required.
+The latest Avalonia preview is **v2.0.0-alpha.2** for **Windows x64**. Download the portable ZIP and `SHA256SUMS.txt` from the [GitHub release](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v2.0.0-alpha.2), extract the ZIP, and run `Tailviewer.Avalonia.exe`. The package includes .NET 10.0.15, so no separate .NET installation is required.
 
-This is an unsigned prerelease with the prototype limitations listed below. Linux/macOS packages and an installer are not included. See the [release notes](docs/releases/v2.0.0-alpha.1.md).
+This is an unsigned prerelease with the prototype limitations listed below. Linux/macOS packages and an installer are not included. See the [release notes](docs/releases/v2.0.0-alpha.2.md).
 
 ## Run from source
 
