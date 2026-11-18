@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T003 complete, remaining tasks pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T004 complete, remaining tasks pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -28,7 +28,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 - [X] T001 Run current modern build/Avalonia/API/Core suites and an isolated legacy build attempt using `specs/001-full-project-migration/quickstart.md`; record commit/environment/failures/skips in `artifacts/migration/baseline.md`, never label unavailable legacy tooling as passing. **Depends**: none.
 - [X] T002 Expand `specs/001-full-project-migration/feature-inventory.md` to exact menu/shortcut/CLI/settings/extension options and baseline tests; reconcile every project/reference with `specs/001-full-project-migration/dependency-inventory.md`. **Depends**: T001.
 - [X] T003 Reuse/add deterministic log/profile/plugin/repository fixture definitions, expected values/order and hashes in `src/Tailviewer.Core.Tests/Migration/Fixtures/manifest.json`; generate large logs, do not commit huge binaries or real tokens. **Depends**: T002.
-- [ ] T004 Map every legacy host/Archiver/Serilog/repository/acceptance/system fixture and shared helper to a modern owner in `specs/001-full-project-migration/feature-inventory.md`; record replacements for WpfUnit cases without dropping behavior. **Depends**: T003.
+- [X] T004 Map every legacy host/Archiver/Serilog/repository/acceptance/system fixture and shared helper to a modern owner in `specs/001-full-project-migration/feature-inventory.md`; record replacements for WpfUnit cases without dropping behavior. **Depends**: T003.
 - [ ] T005 Capture actual transitive/native/framework usage and advisory timestamp per target in `artifacts/migration/dependencies.md`; inspect code before removing EF/SQLite/protobuf/PE or other declared packages. **Depends**: T004.
 
 ## Phase 2: Foundational — project edges and profile substrate (P01/P02)
@@ -124,7 +124,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 - [ ] T040 [US2] Port quick/text/level include-exclude behavior to `src/Tailviewer.Core/Filters/Migration/` and `src/Tailviewer.Avalonia/Views/FiltersView.cs`. **Depends**: T034, T039.
 - [ ] T041 [US2] Restore time/expression rules, composition precedence and cancellable reevaluation in `src/Tailviewer.Avalonia/Views/FiltersView.cs`, reusing existing Core filters. **Depends**: T040.
 - [ ] T042 [US2] Port persistent rule ID/priority/colors/enabled state to `src/Tailviewer.Core/Filters/Migration/HighlighterCollection.cs` and bind `src/Tailviewer.Avalonia/Views/HighlightersView.cs`. **Depends**: T041, T035.
-- [ ] T043 [US2] Wire existing Core parsers/registry and legacy factories through `src/Tailviewer.Core/Sources/Migration/ParsingLogSourceFactory.cs`; plugin provider boundary remains empty until US4. **Depends**: T036, T042.
+- [ ] T043 [US2] Wire existing Core parsers/registry and legacy factories through `src/Tailviewer.Avalonia/Plugins/ParsingLogSourceFactory.cs`; plugin provider boundary remains empty until US4. **Depends**: T036, T042.
 - [ ] T044 [US2] Restore custom format detection/editor choices in `src/Tailviewer.Avalonia/Views/CustomFormatsView.cs`; preserve IDs/defaults and unavailable-plugin placeholders. **Depends**: T043.
 - [ ] T045 [US2] Restore parsed column typed defaults/visibility/order/width in `src/Tailviewer.Avalonia/Views/LogColumnsView.cs`; navigation/copy retains source position. **Depends**: T044.
 - [ ] T046 [US2] Port merged/group source time-offset factory to `src/Tailviewer.Core/Sources/Migration/MergedSourceFactory.cs`, reusing Core merge algorithms and revision invalidation. **Depends**: T037, T043.
@@ -191,9 +191,9 @@ One small buildable behavior/project slice with callers and tests per Convention
 ### Implementation / verification
 
 - [ ] T071 [US4] Wire custom source/config and custom view/navigation adapters in `src/Tailviewer.Avalonia/Plugins/CustomSourceAdapter.cs`, retaining serialized source/settings identity. **Depends**: T070.
-- [ ] T072 [US4] Wire source-parser plugins in `src/Tailviewer.Core/Sources/Migration/PluginLogSourceFactory.cs`; pass representative recovery/error/lifecycle fixture. **Depends**: T071.
-- [ ] T073 [US4] Wire entry-parser plugins in `src/Tailviewer.Core/Sources/Migration/LogEntryParserFactory.cs`; preserve parsed fields/multiline and recoverable plugin errors. **Depends**: T072.
-- [ ] T074 [US4] Wire matcher and custom-format-creator adapters in `src/Tailviewer.Core/Sources/Migration/PluginFormatRegistry.cs`; test each interface and persist stable IDs. **Depends**: T073.
+- [ ] T072 [US4] Wire source-parser plugins in `src/Tailviewer.Avalonia/Plugins/PluginLogSourceFactory.cs`; pass representative recovery/error/lifecycle fixture. **Depends**: T071.
+- [ ] T073 [US4] Wire entry-parser plugins in `src/Tailviewer.Avalonia/Plugins/LogEntryParserFactory.cs`; preserve parsed fields/multiline and recoverable plugin errors. **Depends**: T072.
+- [ ] T074 [US4] Wire matcher and custom-format-creator adapters in `src/Tailviewer.Avalonia/Plugins/PluginFormatRegistry.cs`; test each interface and persist stable IDs. **Depends**: T073.
 - [ ] T075 [US4] Wire issues plugin/listener/analyser adapter in `src/Tailviewer.Avalonia/Plugins/IssuesAdapter.cs`; assert updates and source-position navigation independently of final panel. **Depends**: T074.
 - [ ] T076 [US4] Wire outline plugin/viewmodel adapter in `src/Tailviewer.Avalonia/Plugins/OutlineAdapter.cs`; assert navigation/disposal independently of final panel. **Depends**: T075.
 - [ ] T077 [US4] Wire property presenter/custom UI callbacks in `src/Tailviewer.Avalonia/Plugins/PropertyPresenterAdapter.cs`; preserve readonly/editable behavior and UI-thread update constraints, reject obsolete WPF binaries clearly. **Depends**: T076.

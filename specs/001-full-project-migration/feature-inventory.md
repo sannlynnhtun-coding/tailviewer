@@ -42,6 +42,8 @@ Every public menu/command, shipping plugin contract, settings element and compan
 
 - [T001 baseline](baseline.md): fresh modern build/tests and failed isolated legacy build attempts, with explicit limitations and raw artifact fingerprints.
 - [T002 declared surface](legacy-surface.md): 106 source groups and 414 concrete command/binding/schema/CLI/interface expressions, stable fixture IDs and candidate existing tests. These source findings do not establish runtime parity.
+- [T003 fixture manifest](../../src/Tailviewer.Core.Tests/Migration/Fixtures/manifest.json): 14 small/reused fixtures, 106 source-case identities and seven generated-workload recipes; byte hashes/line/XML expectations are checked by `FixtureManifestTest`.
+- [T004 test ownership](test-ownership.md): all 175 legacy C# fixture/helper/metadata files have proposed modern owners; no legacy fixture is claimed ported by this mapping.
 - Preserve proxy/DPAPI credentials safely, delta/elapsed/empty-line/display choices, folder regex/recursive settings, and `git-get-changes` author tooling. Dormant dashboard schema must round-trip without activating playground-only features.
 
 ## Complete desktop source checklist

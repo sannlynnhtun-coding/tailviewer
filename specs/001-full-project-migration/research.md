@@ -18,6 +18,8 @@
 
 **Rationale**: Desktop, repository and legacy installer depend on Archiver. A simple project retarget would retain PresentationCore/Metrolib and old assembly loading assumptions. Existing legacy log4net advisory must not leak into modern outputs.
 
+**T004 boundary correction**: Legacy source/parser factories use Archiver `IPluginWithDescription` metadata. Their composition adapters belong in `Tailviewer.Avalonia/Plugins`, not Core: Archiver already references Core. Core receives API-only plugin behavior where needed; do not introduce a Core-to-Archiver cycle when porting apparently UI-independent factory code.
+
 **Alternatives considered**: Keep WPF inside the modern app (breaks chosen migration), discard Archiver (drops author/repository functions), modernize every dependency in one commit (hard to review).
 
 **Probe gate**: In P01 restore/build/run a minimal operation per converted project, inspect resolved assets and native dependencies; classify unused EF6/SQLite/protobuf references by actual source usage before removal. Packages.config alone is not proof of a storage API dependency.
