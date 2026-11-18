@@ -16,19 +16,21 @@ namespace Tailviewer.Archiver.Tests
 	{
 		private string _pluginFolder;
 		private InMemoryFilesystem _filesystem;
+		private string PluginPath => Path.Combine(_pluginFolder, "Installed");
+		private string DownloadedPluginsPath => Path.Combine(_pluginFolder, "Downloaded");
 
 		[SetUp]
 		public void Setup()
 		{
-			_pluginFolder = Path.Combine(Path.GetDirectoryName(AssemblyFileName), "Plugins", "PluginArchiveLoaderTest");
+			_pluginFolder = Path.Combine(AssemblySetup.WorkDirectory, "PluginArchiveLoaderTest");
 			if (!Directory.Exists(_pluginFolder))
 				Directory.CreateDirectory(_pluginFolder);
 			else
 				DeleteContents(_pluginFolder);
 
 			_filesystem = new InMemoryFilesystem();
-			_filesystem.AddRoot(Path.GetPathRoot(Constants.PluginPath));
-			_filesystem.CreateDirectory(Constants.PluginPath);
+			_filesystem.AddRoot(Path.GetPathRoot(PluginPath));
+			_filesystem.CreateDirectory(PluginPath);
 		}
 
 		private static void DeleteContents(string pluginFolder)
@@ -45,17 +47,14 @@ namespace Tailviewer.Archiver.Tests
 		{
 			get
 			{
-				string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-				UriBuilder uri = new UriBuilder(codeBase);
-				string path = Uri.UnescapeDataString(uri.Path);
-				return path;
+				return Assembly.GetExecutingAssembly().Location;
 			}
 		}
 
 		[Test]
 		public void TestGetPluginStatusForNonPlugin()
 		{
-			using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+			using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 			{
 				var status = loader.GetStatus(null);
 				status.Should().NotBeNull();
@@ -76,9 +75,9 @@ namespace Tailviewer.Archiver.Tests
 			using (var stream = new MemoryStream())
 			{
 				var id = CreatePlugin(stream);
-				_filesystem.Write(Path.Combine(Constants.PluginPath, $"{id}.2.tvp"), stream);
+				_filesystem.Write(Path.Combine(PluginPath, $"{id}.2.tvp"), stream);
 
-				using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+				using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 				{
 					loader.Plugins.Should().HaveCount(1, "because one plugin should've been loaded");
 					var status = loader.GetStatus(id);
@@ -105,9 +104,9 @@ namespace Tailviewer.Archiver.Tests
 				}
 
 				stream.Position = 0;
-				_filesystem.Write(Path.Combine(Constants.PluginPath, "Kittyfisto.UniquePluginId.2.0.tvp"), stream);
+				_filesystem.Write(Path.Combine(PluginPath, "Kittyfisto.UniquePluginId.2.0.tvp"), stream);
 
-				using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+				using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 				{
 					loader.Plugins.Should().HaveCount(1, "because one plugin should've been loaded");
 					var description = loader.Plugins.First();
@@ -126,9 +125,9 @@ namespace Tailviewer.Archiver.Tests
 		[Description("Verifies that ReflectPlugin() doesn't throw when a plugin couldn't be loaded and instead returns a descriptor with as much information as can be obtained")]
 		public void TestReflect2()
 		{
-			var path = Path.Combine(Constants.PluginPath, "BrokenPlugin.1.0.2.4.tvp");
+			var path = Path.Combine(PluginPath, "BrokenPlugin.1.0.2.4.tvp");
 			_filesystem.CreateFile(path);
-			using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+			using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 			{
 				loader.Plugins.Should().HaveCount(1, "because we've created one plugin");
 				var description = loader.Plugins.First();
@@ -162,9 +161,9 @@ namespace Tailviewer.Archiver.Tests
 			}
 
 			stream.Position = 0;
-			_filesystem.Write(Path.Combine(Constants.PluginPath, "Kittyfisto.UniquePluginId.2.0.tvp"), stream);
+			_filesystem.Write(Path.Combine(PluginPath, "Kittyfisto.UniquePluginId.2.0.tvp"), stream);
 
-			using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+			using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 			{
 				loader.Plugins.Should().HaveCount(1, "because one plugin should've been loaded");
 				var description = loader.Plugins.First();
@@ -192,10 +191,10 @@ namespace Tailviewer.Archiver.Tests
 				}
 
 				stream.Position = 0;
-				var path = Path.Combine(Constants.PluginPath, "Kittyfisto.Simon.1.0.tvp");
+				var path = Path.Combine(PluginPath, "Kittyfisto.Simon.1.0.tvp");
 				_filesystem.WriteAllBytes(path, stream.ToArray());
 
-				using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+				using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 				{
 					var plugins = loader.LoadAllOfType<ILogEntryParserPlugin>();
 					plugins.Should().HaveCount(1, "because we've added one plugin which implements the IFileFormatPlugin interface");
@@ -218,10 +217,10 @@ namespace Tailviewer.Archiver.Tests
 				}
 
 				stream.Position = 0;
-				var path = Path.Combine(Constants.PluginPath, "Kittyfisto.Simon.1.0.tvp");
+				var path = Path.Combine(PluginPath, "Kittyfisto.Simon.1.0.tvp");
 				_filesystem.WriteAllBytes(path, stream.ToArray());
 
-				using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+				using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 				{
 					var pluginsWithDescription = loader.LoadAllOfTypeWithDescription<ILogEntryParserPlugin>();
 					pluginsWithDescription.Should().HaveCount(1, "because we've added one plugin which implements the IFileFormatPlugin interface");
@@ -240,7 +239,7 @@ namespace Tailviewer.Archiver.Tests
 			CreatePlugin("Kittyfisto", "Foobar", new Version(1, 0));
 			CreatePlugin("Kittyfisto", "Foobar", new Version(1, 1));
 
-			using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+			using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 			{
 				loader.Plugins.Should().HaveCount(1);
 				loader.Plugins.First().Version.Should().Be(new Version(1, 1));
@@ -265,9 +264,9 @@ namespace Tailviewer.Archiver.Tests
 				}
 
 				stream.Position = 0;
-				_filesystem.Write(Path.Combine(Constants.PluginPath, "Kittyfisto.SomePlugin.1.tvp"), stream);
+				_filesystem.Write(Path.Combine(PluginPath, "Kittyfisto.SomePlugin.1.tvp"), stream);
 
-				using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+				using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 				{
 					var plugins = loader.LoadAllOfType<ILogEntryParserPlugin>()?.ToList();
 					plugins.Should().NotBeNull();
@@ -307,7 +306,7 @@ namespace Tailviewer.Archiver.Tests
 			CreatePlugin<ILogEntryParserPlugin>(new PluginId("Another.Plugin"),
 			                                    new Version(2, 4, 12));
 
-			using (var loader = new PluginArchiveLoader(_filesystem, Constants.PluginPath))
+			using (var loader = new PluginArchiveLoader(_filesystem, PluginPath))
 			{
 				var pluginsWithDescription = loader.LoadAllOfTypeWithDescription<ILogEntryParserPlugin>();
 				pluginsWithDescription.Should().HaveCount(2, "because there a two different plugins implementing that interface");
@@ -331,13 +330,13 @@ namespace Tailviewer.Archiver.Tests
 		{
 			var id = new PluginId("Kittyfisto.Simon");
 			var version = new Version(4, 3, 2);
-			CreatePlugin<ILogEntryParserPlugin>(Constants.PluginPath, id, version);
-			CreatePlugin<ILogEntryParserPlugin>(Constants.DownloadedPluginsPath, id, version);
+			CreatePlugin<ILogEntryParserPlugin>(PluginPath, id, version);
+			CreatePlugin<ILogEntryParserPlugin>(DownloadedPluginsPath, id, version);
 
 			using (var loader = new PluginArchiveLoader(_filesystem, new []
 			{
-				Constants.PluginPath,
-				Constants.DownloadedPluginsPath
+				PluginPath,
+				DownloadedPluginsPath
 			}))
 			{
 				var pluginsWithDescription = loader.LoadAllOfTypeWithDescription<ILogEntryParserPlugin>();
@@ -362,7 +361,7 @@ namespace Tailviewer.Archiver.Tests
 
 		private void CreatePlugin<T>(PluginId actualId, Version actualVersion, PluginId fakeId, Version fakeVersion) where T : IPlugin
 		{
-			CreatePlugin<T>(Constants.PluginPath, actualId, actualVersion, fakeId, fakeVersion);
+			CreatePlugin<T>(PluginPath, actualId, actualVersion, fakeId, fakeVersion);
 		}
 
 		private void CreatePlugin<T>(string pluginFolder, PluginId actualId, Version actualVersion, PluginId fakeId, Version fakeVersion) where T : IPlugin
@@ -419,7 +418,7 @@ namespace Tailviewer.Archiver.Tests
 				}
 
 				stream.Position = 0;
-				var fileName = Path.Combine(Constants.PluginPath, string.Format("{0}.{1}.{2}.tvp", @namespace, name, version));
+				var fileName = Path.Combine(PluginPath, string.Format("{0}.{1}.{2}.tvp", @namespace, name, version));
 				_filesystem.Write(fileName, stream);
 			}
 		}

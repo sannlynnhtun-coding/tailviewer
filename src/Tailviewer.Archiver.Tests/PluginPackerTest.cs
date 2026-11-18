@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Drawing;
+using SkiaSharp;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -27,7 +27,7 @@ namespace Tailviewer.Archiver.Tests
 			if (File.Exists(_fname))
 				File.Delete(_fname);
 
-			_testData = Path.Combine(AssemblyDirectory, "..", "src", "Tailviewer.Archiver.Tests", "TestData");
+			_testData = Path.Combine(AssemblyDirectory, "TestData");
 		}
 
 		[Test]
@@ -152,13 +152,13 @@ namespace Tailviewer.Archiver.Tests
 			var bFilePath = Path.Combine(directory, bFileName);
 			using (var packer = CreatePacker(_fname))
 			{
-				var aBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("A"), AssemblyBuilderAccess.Save);
+				var aBuilder = new PersistedAssemblyBuilder(new AssemblyName("A"), typeof(object).Assembly);
 				var aModule = aBuilder.DefineDynamicModule(aFileName);
 				var aType = aModule.DefineType("A_Dummy", TypeAttributes.Class | TypeAttributes.Public);
 				aType.CreateType();
 				aBuilder.Save(aFileName);
 
-				var bBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("B"), AssemblyBuilderAccess.Save);
+				var bBuilder = new PersistedAssemblyBuilder(new AssemblyName("B"), typeof(object).Assembly);
 				var bModule = bBuilder.DefineDynamicModule(bFileName);
 				var bType = bModule.DefineType("B_Dummy", TypeAttributes.Class | TypeAttributes.Public, Assembly.LoadFile(aFilePath).ExportedTypes.First());
 				bType.CreateType();
@@ -237,7 +237,7 @@ namespace Tailviewer.Archiver.Tests
 				var stream = reader.ReadIcon();
 				stream.Should().NotBeNull();
 
-				using (var image = new Bitmap(stream))
+				using (var image = SKImage.FromEncodedData(stream))
 				{
 					image.Width.Should().Be(16);
 					image.Height.Should().Be(16);
@@ -317,10 +317,7 @@ namespace Tailviewer.Archiver.Tests
 		{
 			get
 			{
-				string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-				UriBuilder uri = new UriBuilder(codeBase);
-				string path = Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path));
-				return path;
+				return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			}
 		}
 	}

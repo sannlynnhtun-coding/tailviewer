@@ -97,10 +97,10 @@ namespace Tailviewer.Archiver.Applications
 				return ExitCode.UnhandledException;
 			}
 #else
-            Log.Error("Legacy SharpRemote publishing is unavailable on .NET 10; repository transport migration is pending (P10). Local pack/list commands remain available.");
-            return ExitCode.ConnectionError;
+			Log.Error("Legacy SharpRemote publishing is unavailable on .NET 10; repository transport migration is pending (P10). Local pack/list commands remain available.");
+			return ExitCode.ConnectionError;
 #endif
-        }
+		}
 
 		private static void LogFileNamesToPublish(IReadOnlyList<string> fileNames)
 		{

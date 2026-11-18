@@ -9,7 +9,7 @@ namespace Tailviewer.Archiver.Tests
 {
 	public sealed class PluginBuilder
 	{
-		private readonly AssemblyBuilder _assembly;
+		private readonly PersistedAssemblyBuilder _assembly;
 		private readonly ModuleBuilder _module;
 		private readonly string _pluginName;
 		private readonly string _fileName;
@@ -47,8 +47,8 @@ namespace Tailviewer.Archiver.Tests
 				else
 					attributes.Add(CreateAttribute<PluginVersionAttribute>(version.Major, version.Minor, version.Build, version.Revision));
 			}
-			_assembly = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Save, attributes);
-			_module = _assembly.DefineDynamicModule(pluginName, _fileName);
+			_assembly = new PersistedAssemblyBuilder(assemblyName, typeof(object).Assembly, attributes);
+			_module = _assembly.DefineDynamicModule(pluginName);
 
 			_dependencies = new List<string>();
 			_types = new List<TypeBuilder>();
@@ -57,7 +57,7 @@ namespace Tailviewer.Archiver.Tests
 
 		public void AddDependency(string filePath)
 		{
-			var assembly = Assembly.LoadFile(filePath);
+			var assembly = Assembly.LoadFrom(filePath);
 			var name = $"Dependency{_dependencies.Count}";
 			_referencer.DefineField(name, assembly.GetExportedTypes().First(),
 				FieldAttributes.Static | FieldAttributes.Public);

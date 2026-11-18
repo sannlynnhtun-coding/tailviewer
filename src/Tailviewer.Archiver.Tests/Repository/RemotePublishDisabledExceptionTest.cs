@@ -8,10 +8,13 @@ namespace Tailviewer.Archiver.Tests.Repository
 	public sealed class RemotePublishDisabledExceptionTest
 	{
 		[Test]
-		public void TestRoundtrip()
+		public void TestExceptionMetadata()
 		{
-			BinaryFormatterExtensions.Roundtrip(new RemotePublishDisabledException())
-			                          .Should().BeOfType<RemotePublishDisabledException>();
+			var inner = new System.InvalidOperationException("cause");
+			var exception = new RemotePublishDisabledException("disabled", inner);
+			exception.Message.Should().Be("disabled");
+			exception.InnerException.Should().BeSameAs(inner);
+			new RemotePublishDisabledException().Message.Should().Be("Remote publishing is disabled in this repository");
 		}
 	}
 }

@@ -6,23 +6,31 @@ using NUnit.Framework;
 namespace Tailviewer.Archiver.Tests
 {
 	[SetUpFixture]
-	[Parallelizable(ParallelScope.Fixtures)]
 	public sealed class AssemblySetup
 	{
+		public static string WorkDirectory { get; private set; }
+		private string _previousDirectory;
+
 		[OneTimeSetUp]
 		public void SetUp()
 		{
-			Directory.SetCurrentDirectory(AssemblyDirectory);
+			_previousDirectory = Directory.GetCurrentDirectory();
+			WorkDirectory = Path.Combine(AssemblyDirectory, "Run-" + Guid.NewGuid().ToString("N"));
+			Directory.CreateDirectory(WorkDirectory);
+			Directory.SetCurrentDirectory(WorkDirectory);
+		}
+
+		[OneTimeTearDown]
+		public void TearDown()
+		{
+			Directory.SetCurrentDirectory(_previousDirectory);
 		}
 
 		public static string AssemblyDirectory
 		{
 			get
 			{
-				string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-				UriBuilder uri = new UriBuilder(codeBase);
-				string path = Uri.UnescapeDataString(uri.Path);
-				return Path.GetDirectoryName(path);
+				return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			}
 		}
 	}

@@ -9,6 +9,11 @@
     <LangVersion>latest</LangVersion>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../../sig/key.snk</AssemblyOriginatorKeyFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <!-- shortcut: retain the visible legacy log4net advisory until the net452 consumers migrate. -->
+  <PropertyGroup Condition="'$(TargetFramework)' != 'net10.0'">
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902</WarningsNotAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net452'">
     <OutputPath>../../bin/</OutputPath>
