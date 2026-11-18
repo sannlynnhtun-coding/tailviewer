@@ -30,6 +30,7 @@ $tf*/
 *.nupkg
 .vs/
 /.idea/
+/artifacts/
 
 /packages
 /Live

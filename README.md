@@ -16,6 +16,12 @@ The current Avalonia application is a **working prototype**, not a stable releas
 
 The UI reads text in background batches and caches up to 1,024 lines. It keeps an integer index per line rather than loading the entire file into a text control.
 
+## Download preview
+
+The first Avalonia preview is **v2.0.0-alpha.1** for **Windows x64**. Download the portable ZIP and `SHA256SUMS.txt` from the [GitHub release](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v2.0.0-alpha.1), extract the ZIP, and run `Tailviewer.Avalonia.exe`. The package includes .NET 10.0.15, so no separate .NET installation is required.
+
+This is an unsigned prerelease with the prototype limitations listed below. Linux/macOS packages and an installer are not included. See the [release notes](docs/releases/v2.0.0-alpha.1.md).
+
 ## Run from source
 
 Requirements: the **.NET 10 SDK** matching [global.json](global.json), currently pinned to **10.0.302** with patch roll-forward. The prototype uses **Avalonia 12.1.6**.
@@ -32,7 +38,7 @@ To open a file immediately:
 dotnet run --project src/Tailviewer.Avalonia -- "C:\logs\application.log"
 ```
 
-Use the appropriate local file path on Linux or macOS. Those platforms have not yet been validated for this application. No packaged Avalonia release is currently published.
+Use the appropriate local file path on Linux or macOS. Those platforms have not yet been validated for this application.
 
 ## Controls
 
