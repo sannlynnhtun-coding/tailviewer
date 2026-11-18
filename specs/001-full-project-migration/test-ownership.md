@@ -192,3 +192,5 @@
 
 - 175 tracked C# files assigned, including fixture classes, inherited/shared helpers and assembly metadata.
 - No source is marked ported. Each owning task must update this mapping with actual test destination, executed command/result and any necessary split.
+
+T006/T007 additionally introduce `src/Tailviewer.Archiver.Tests/Migration/MetadataTest.cs` (portable linked-source harness, four passing cases) and `src/Tailviewer.Tests/Ui/InstalledPluginIconTest.cs` (legacy WPF compatibility regression, four cases executed in an isolated .NET 10 WPF runner). These new tests are outside the original 175-file snapshot; they do not imply the original full-framework suites have been ported. See [boundary evidence](metadata-boundary.md).

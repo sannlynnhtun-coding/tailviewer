@@ -71,6 +71,8 @@ dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework n
 
 Current validation on Windows: **14 Avalonia headless integration tests passed**, plus **6,641 Core tests passed** with 5 existing skips. Integration coverage includes file reading, Unicode/BOM, scrolling and virtualization, selection/clipboard, live tailing, replacement/rotation, error recovery, closing during a pending read, and logo resources in light/dark themes with real Skia rendering.
 
+The modern solution also includes **4 passing Archiver metadata tests** for encoded icons and the WPF boundary. Four legacy icon adapter cases passed separately in a .NET 10 WPF runner; full legacy Archiver/desktop conversion is still pending. See the [boundary evidence](specs/001-full-project-migration/metadata-boundary.md).
+
 ## Known limits
 
 - Windows native rendering and the file picker still need manual verification; desktop capture timed out during automated verification.

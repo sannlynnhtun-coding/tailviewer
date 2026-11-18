@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; Setup T001-T005 complete; foundation and user-story tasks pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T007 complete; next T008 full Archiver project conversion. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -40,11 +40,11 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Tests / contract checks
 
-- [ ] T006 Port encoded-icon/metadata round-trip and WPF boundary tests into `src/Tailviewer.Archiver.Tests/Migration/MetadataTest.cs`; modern shared metadata exposes no WPF/Metrolib types. **Depends**: T005.
+- [X] T006 Port encoded-icon/metadata round-trip and WPF boundary tests into `src/Tailviewer.Archiver.Tests/Migration/MetadataTest.cs`; modern shared metadata exposes no WPF/Metrolib types. **Depends**: T005.
 
 ### Implementation / verification
 
-- [ ] T007 Replace WPF metadata/icon types in `src/Tailviewer.Archiver/Plugins/Description/IPluginDescription.cs`, `src/Tailviewer.Archiver/Plugins/Description/PluginDescription.cs`, `src/Tailviewer.Archiver/Plugins/PluginGroup.cs` and packer callers with bytes/plain values; condition legacy adapters until their callers migrate. **Depends**: T006.
+- [X] T007 Replace WPF metadata/icon types in `src/Tailviewer.Archiver/Plugins/Description/IPluginDescription.cs`, `src/Tailviewer.Archiver/Plugins/Description/PluginDescription.cs`, `src/Tailviewer.Archiver/Plugins/PluginGroup.cs` and packer callers with bytes/plain values; condition legacy adapters until their callers migrate. **Depends**: T006.
 - [ ] T008 Convert `src/Tailviewer.Archiver/Tailviewer.Archiver.csproj` and `src/Tailviewer.Archiver.Tests/Tailviewer.Archiver.Tests.csproj` to SDK modern targets, isolate legacy-only loader/RPC implementations until US4, port shared helpers and add projects to `Tailviewer.Avalonia.slnx`; prove build plus metadata smoke. **Depends**: T007.
 - [ ] T009 Use a disposable net10 probe in `artifacts/migration/storage-probe/` to open/export/reopen copied IsabelDb records; record ID/count/package/icon hashes and retain-or-neutral-export/SQLite fallback in `specs/001-full-project-migration/research.md` before storage implementation. **Depends**: T008.
 

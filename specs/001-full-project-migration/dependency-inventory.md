@@ -4,6 +4,8 @@
 
 The fresh [T005 resolved dependency baseline](dependency-baseline.md) records six modern target graphs, native/RID declarations, advisory feed provenance and actual legacy source usage. It does not establish old-package runtime compatibility.
 
+After that snapshot, T006 adds `src/Tailviewer.Archiver.Tests/Migration/Tailviewer.Archiver.Metadata.Tests.csproj`: a net10.0 test-only linked-source harness referencing the API project and existing NUnit 4.5.1 / adapter 5.0.0 / Test SDK 17.14.1 versions. It adds no shipping runtime dependency and replaces no full Archiver project yet. See [boundary evidence](metadata-boundary.md).
+
 ## Every project
 
 | Project | Current target | Scope | Project references |
