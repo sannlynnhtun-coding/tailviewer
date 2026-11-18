@@ -29,6 +29,7 @@ _ReSharper*/
 $tf*/
 *.nupkg
 .vs/
+/.idea/
 
 /packages
 /Live
