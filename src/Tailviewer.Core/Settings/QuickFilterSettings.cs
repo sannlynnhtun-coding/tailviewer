@@ -1,6 +1,10 @@
-﻿using System;
+using System;
 using System.Diagnostics.Contracts;
 using System.Xml;
+#if NET10_0_OR_GREATER
+using System.Xml.Linq;
+using Tailviewer.Settings;
+#endif
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -13,6 +17,10 @@ namespace Tailviewer.Core
 		: ICloneable
 		, ISerializableType
 	{
+#if NET10_0_OR_GREATER
+		private XElement _rawXml;
+#endif
+
 		/// <summary>
 		///     The id of this quick filter.
 		///     Is used to define for each data source which quick filter is active or not.
@@ -62,6 +70,36 @@ namespace Tailviewer.Core
 		/// <returns></returns>
 		public bool Restore(XmlReader reader)
 		{
+#if NET10_0_OR_GREATER
+			var element = SettingsXml.ReadElement(reader);
+			var candidate = Clone();
+			using (var content = element.CreateReader())
+			{
+				content.MoveToContent();
+				if (!candidate.RestoreKnown(content)) return false;
+			}
+			candidate._rawXml = element;
+			CopyFrom(candidate);
+			return true;
+#else
+			return RestoreKnown(reader);
+#endif
+		}
+
+#if NET10_0_OR_GREATER
+		private void CopyFrom(QuickFilterSettings other)
+		{
+			Id = other.Id;
+			IgnoreCase = other.IgnoreCase;
+			IsInverted = other.IsInverted;
+			MatchType = other.MatchType;
+			Value = other.Value;
+			_rawXml = other._rawXml == null ? null : new XElement(other._rawXml);
+		}
+#endif
+
+		private bool RestoreKnown(XmlReader reader)
+		{
 			var count = reader.AttributeCount;
 			for (var i = 0; i < count; ++i)
 			{
@@ -103,11 +141,21 @@ namespace Tailviewer.Core
 		/// <param name="writer"></param>
 		public void Save(XmlWriter writer)
 		{
+#if NET10_0_OR_GREATER
+			var element = _rawXml == null ? new XElement("quickfilter") : new XElement(_rawXml);
+			element.SetAttributeValue("id", Id.Value);
+			element.SetAttributeValue("type", MatchType.ToString());
+			element.SetAttributeValue("value", Value ?? "");
+			element.SetAttributeValue("ignorecase", XmlConvert.ToString(IgnoreCase));
+			element.SetAttributeValue("isinclude", XmlConvert.ToString(IsInverted));
+			SettingsXml.WriteContent(element, writer);
+#else
 			writer.WriteAttribute("id", Id);
 			writer.WriteAttributeString("type", MatchType.ToString());
 			writer.WriteAttributeString("value", Value);
 			writer.WriteAttributeString("ignorecase", XmlConvert.ToString(IgnoreCase));
 			writer.WriteAttributeString("isinclude", XmlConvert.ToString(IsInverted));
+#endif
 		}
 
 		/// <summary>
@@ -118,6 +166,9 @@ namespace Tailviewer.Core
 		{
 			return new QuickFilterSettings
 			{
+#if NET10_0_OR_GREATER
+				_rawXml = _rawXml == null ? null : new XElement(_rawXml),
+#endif
 				Id = Id,
 				IgnoreCase = IgnoreCase,
 				IsInverted = IsInverted,

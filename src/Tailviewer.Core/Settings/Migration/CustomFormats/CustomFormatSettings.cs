@@ -35,23 +35,8 @@ namespace Tailviewer.Settings.CustomFormats
 		{
 #if NET10_0_OR_GREATER
 			var element = _rawXml == null ? new XElement("customformats") : new XElement(_rawXml);
-			var replacements = new Queue<XElement>(this.Select(item =>
-			{
-				var document = new XDocument();
-				using (var content = document.CreateWriter())
-				{
-					content.WriteStartElement("customformat");
-					item.Save(content);
-					content.WriteEndElement();
-				}
-				return document.Root;
-			}));
-			foreach (var child in element.Elements("customformat").ToList())
-			{
-				if (replacements.Count > 0) child.ReplaceWith(replacements.Dequeue());
-				else child.Remove();
-			}
-			element.Add(replacements);
+			SettingsXml.ReplaceChildren(element, "customformat",
+				this.Select(item => SettingsXml.SaveElement("customformat", item.Save)));
 			SettingsXml.WriteContent(element, writer);
 #else
 			foreach (var customLogFileFormat in this)

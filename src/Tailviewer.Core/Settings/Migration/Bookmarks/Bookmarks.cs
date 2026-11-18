@@ -192,23 +192,8 @@ namespace Tailviewer.Settings.Bookmarks
 		{
 #if NET10_0_OR_GREATER
 			var element = _rawXml == null ? new XElement("xml") : new XElement(_rawXml);
-			var replacements = new Queue<XElement>(this.Select(bookmark =>
-			{
-				var document = new XDocument();
-				using (var content = document.CreateWriter())
-				{
-					content.WriteStartElement("bookmark");
-					bookmark.Save(content);
-					content.WriteEndElement();
-				}
-				return document.Root;
-			}));
-			foreach (var child in element.Elements("bookmark").ToList())
-			{
-				if (replacements.Count > 0) child.ReplaceWith(replacements.Dequeue());
-				else child.Remove();
-			}
-			element.Add(replacements);
+			SettingsXml.ReplaceChildren(element, "bookmark",
+				this.Select(bookmark => SettingsXml.SaveElement("bookmark", bookmark.Save)));
 			SettingsXml.WriteContent(element, writer);
 #else
 			foreach (BookmarkSettings bookmark in this)

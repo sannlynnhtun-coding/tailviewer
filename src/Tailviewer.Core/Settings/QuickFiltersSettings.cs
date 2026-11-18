@@ -1,7 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
+#if NET10_0_OR_GREATER
+using System.Xml.Linq;
+using Tailviewer.Settings;
+#endif
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -16,6 +20,9 @@ namespace Tailviewer.Core
 		, ICloneable
 	{
 		private TimeFilterSettings _timeFilter;
+#if NET10_0_OR_GREATER
+		private XElement _rawXml;
+#endif
 
 		/// <summary>
 		/// 
@@ -41,6 +48,29 @@ namespace Tailviewer.Core
 		/// <param name="reader"></param>
 		public void Restore(XmlReader reader)
 		{
+#if NET10_0_OR_GREATER
+			var element = SettingsXml.ReadElement(reader);
+			var quickfilters = new List<QuickFilterSettings>();
+			var timeFilter = _timeFilter.Clone();
+			foreach (var child in element.Elements())
+			{
+				using (var content = child.CreateReader())
+				{
+					content.MoveToContent();
+					if (child.Name == "quickfilter")
+					{
+						var filter = new QuickFilterSettings();
+						if (!filter.Restore(content)) throw new XmlException("Quick filter has an empty identity.");
+						quickfilters.Add(filter);
+					}
+					else if (child.Name == "timefilter") timeFilter.Restore(content);
+				}
+			}
+			Clear();
+			AddRange(quickfilters);
+			_timeFilter.CopyFrom(timeFilter);
+			_rawXml = element;
+#else
 			var quickfilters = new List<QuickFilterSettings>();
 			var subtree = reader.ReadSubtree();
 			while (subtree.Read())
@@ -59,6 +89,7 @@ namespace Tailviewer.Core
 
 			Clear();
 			AddRange(quickfilters);
+#endif
 		}
 
 		/// <summary>
@@ -67,6 +98,14 @@ namespace Tailviewer.Core
 		/// <param name="writer"></param>
 		public void Save(XmlWriter writer)
 		{
+#if NET10_0_OR_GREATER
+			var element = _rawXml == null ? new XElement("quickfilters") : new XElement(_rawXml);
+			SettingsXml.ReplaceChildren(element, "quickfilter",
+				this.Select(filter => SettingsXml.SaveElement("quickfilter", filter.Save)));
+			SettingsXml.ReplaceChildren(element, "timefilter",
+				new[] { SettingsXml.SaveElement("timefilter", _timeFilter.Save) });
+			SettingsXml.WriteContent(element, writer);
+#else
 			foreach (var dataSource in this)
 			{
 				writer.WriteStartElement("quickfilter");
@@ -77,6 +116,7 @@ namespace Tailviewer.Core
 			writer.WriteStartElement("timefilter");
 			_timeFilter.Save(writer);
 			writer.WriteEndElement();
+#endif
 		}
 
 		/// <summary>
@@ -88,6 +128,9 @@ namespace Tailviewer.Core
 			var filters = new QuickFiltersSettings();
 			filters.AddRange(this.Select(x => x.Clone()));
 			filters._timeFilter = _timeFilter.Clone();
+#if NET10_0_OR_GREATER
+			filters._rawXml = _rawXml == null ? null : new XElement(_rawXml);
+#endif
 			return filters;
 		}
 

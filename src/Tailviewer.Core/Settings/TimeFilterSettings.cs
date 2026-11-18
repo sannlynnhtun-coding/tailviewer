@@ -1,7 +1,11 @@
-﻿using System;
+using System;
 using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Xml;
+#if NET10_0_OR_GREATER
+using System.Xml.Linq;
+using Tailviewer.Settings;
+#endif
 using Tailviewer.Api;
 using Tailviewer.Core.Filters.ExpressionEngine;
 
@@ -15,6 +19,10 @@ namespace Tailviewer.Core
 	public sealed class TimeFilterSettings
 		: ICloneable
 	{
+#if NET10_0_OR_GREATER
+		private XElement _rawXml;
+#endif
+
 		/// <summary>
 		/// 
 		/// </summary>
@@ -42,6 +50,9 @@ namespace Tailviewer.Core
 		{
 			return new TimeFilterSettings
 			{
+#if NET10_0_OR_GREATER
+				_rawXml = _rawXml == null ? null : new XElement(_rawXml),
+#endif
 				Mode = Mode,
 				SpecialInterval = SpecialInterval,
 				Minimum = Minimum,
@@ -60,6 +71,35 @@ namespace Tailviewer.Core
 		/// <param name="reader"></param>
 		/// <returns></returns>
 		public bool Restore(XmlReader reader)
+		{
+#if NET10_0_OR_GREATER
+			var element = SettingsXml.ReadElement(reader);
+			var candidate = Clone();
+			using (var content = element.CreateReader())
+			{
+				content.MoveToContent();
+				if (!candidate.RestoreKnown(content)) return false;
+			}
+			candidate._rawXml = element;
+			CopyFrom(candidate);
+			return true;
+#else
+			return RestoreKnown(reader);
+#endif
+		}
+
+#if NET10_0_OR_GREATER
+		internal void CopyFrom(TimeFilterSettings other)
+		{
+			Mode = other.Mode;
+			SpecialInterval = other.SpecialInterval;
+			Minimum = other.Minimum;
+			Maximum = other.Maximum;
+			_rawXml = other._rawXml == null ? null : new XElement(other._rawXml);
+		}
+#endif
+
+		private bool RestoreKnown(XmlReader reader)
 		{
 			var count = reader.AttributeCount;
 			for (var i = 0; i < count; ++i)
@@ -97,12 +137,21 @@ namespace Tailviewer.Core
 		/// <param name="writer"></param>
 		public void Save(XmlWriter writer)
 		{
+#if NET10_0_OR_GREATER
+			var element = _rawXml == null ? new XElement("timefilter") : new XElement(_rawXml);
+			element.SetAttributeValue("mode", Mode.ToString());
+			element.SetAttributeValue("range", SpecialInterval.ToString());
+			element.SetAttributeValue("start", Minimum?.Ticks.ToString(CultureInfo.InvariantCulture));
+			element.SetAttributeValue("end", Maximum?.Ticks.ToString(CultureInfo.InvariantCulture));
+			SettingsXml.WriteContent(element, writer);
+#else
 			writer.WriteAttributeString("mode", Mode.ToString());
 			writer.WriteAttributeString("range", SpecialInterval.ToString());
 			if (Minimum != null)
 				writer.WriteAttributeString("start", Minimum.Value.Ticks.ToString(CultureInfo.InvariantCulture));
 			if (Maximum != null)
 				writer.WriteAttributeString("end", Maximum.Value.Ticks.ToString(CultureInfo.InvariantCulture));
+#endif
 		}
 
 		/// <summary>

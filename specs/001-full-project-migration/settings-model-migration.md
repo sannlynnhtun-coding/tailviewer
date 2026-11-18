@@ -1,4 +1,4 @@
-# T011 — portable settings model migration (in progress)
+# T011 â€” portable settings model migration (in progress)
 
 ## Slice 1: export destination and default encoding
 
@@ -183,3 +183,56 @@ integration. Legacy business-layer RemoveBookmark/Clear currently fail to remove
 persisted records, and reset handling discards records; those callers still need
 their owning bookmark migration tests and implementation. This slice ports
 persistence, not the complete bookmark UI/business workflow.
+
+
+## Slice 8: quick-filter and time-filter XML
+
+Modern QuickFilterSettings/TimeFilterSettings retain per-record unknown XML
+attributes, nested payload/CDATA and namespace bindings through clone, edits and
+restart. Clearing an optional time bound removes its owned start/end attribute,
+so stale raw values cannot return after restart. QuickFiltersSettings retains
+container extensions, edits/reorders/deletions retain each surviving record's
+own metadata, and only direct unqualified quickfilter/timefilter children apply.
+Legacy XML names, case/inversion semantics and DateTime ticks stay unchanged.
+The existing ISerializableType transport shape is unchanged by this XML slice.
+
+Restores parse candidate leaves/collections before committing. Invalid IDs,
+unknown named filter types or invalid time ticks keep the previous live state;
+explicit empty filter IDs reject the modern collection rather than silently
+discarding data. The existing legacy target behavior is retained. Successful
+container restore updates the existing time-filter object because business
+callers hold that reference. Collection/leaf clones own independent raw XML.
+
+Extracted the existing XDocument serialization and owned-child replacement
+pattern into SettingsXml and reused it for filters, custom formats and bookmarks;
+this removes the duplicated loops rather than adding a parallel serializer.
+
+### Verification
+
+- Initial filter regression run: **8 failed / 1 passed**. Final cases additionally
+  cover empty IDs and partially-mutating leaf restores (11 cases total).
+- Broad Core run initially found the outdated TestNamespaces rule from the
+  earlier model moves: **6958 passed / 1 failed / 5 skipped**. The rule now
+  explicitly permits the three retained settings namespaces on net10.0 only;
+  unrelated namespaces remain rejected. Portable-reference assertions now also
+  reject System.Windows.Forms, System.Drawing.Common and archive. No production
+  model was renamed merely to satisfy the old assertion.
+- Final full Core run after the namespace-rule correction: **6959 passed /
+  0 failed / 5 pre-existing skips**, 6964 total. The skips remain visible;
+  no case was disabled by this slice.
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed**, no failures/skips.
+- net452 shared-source/API compile passes with the existing visible legacy
+  log4net warnings.
+- Signed profile source probe still reproduces **4 expected failures / 4 passes**
+  plus **5 passing source-linked editor cases**. Directory:
+  artifacts/migration/profile-probe/run-83cedab082204ee99c3e934096b7a929.
+
+Logs: artifacts/migration/t011-filter-red.log, t011-filter-green.log,
+t011-filter-core-full.log, t011-filter-core-verified.log,
+t011-filter-legacy.log, t011-filter-solution.log, t011-filter-profile.log.
+
+The profile root/source XML port, safe file store and modern settings/filter UI
+integration remain unfinished. Unsupported named quick-filter types still raise
+an error as in the original parser; this change retains the last valid live
+state rather than inventing a fallback filter. It does not establish the whole
+profile's backup/atomic-save/unknown-data acceptance gate.
