@@ -131,3 +131,55 @@ Reproduce with the existing Core settings selection, `dotnet test Tailviewer.Ava
 Raw evidence: `artifacts/migration/t011-format-red.log`, `t011-format-edit.log`, `t011-format-editor-red.log`, `t011-format-identity-red.log`, `t011-codepage-red.log`, `t011-format-metadata-final.log`, `t011-format-metadata-solution.log`, `t011-formats-legacy-final.log`; final generated profile probe: `artifacts/migration/profile-probe/run-4a9d5c06951940c0a781a04765c4f390/` (its editing TRX verifies the five passing source cases).
 
 T011 remains open: ApplicationSettings/IApplicationSettings, bookmark container persistence and complete profile/source/filter unknown XML preservation still need their owning port. File size/DTD bounds, isolated modern default storage and atomic save remain T012's explicit safety gate before wiring modern profile persistence into the app. Full plugin activation, native settings UI and all historical encoding providers are not validated by these metadata/editor cases.
+
+
+## Slice 7: bookmark container and extension preservation
+
+Moved Bookmarks/IBookmarks into the same shared Core migration source directory,
+with legacy host source links retaining the original type ownership. Modern
+Create uses LocalApplicationData/Tailviewer.Avalonia/bookmarks.xml; the old host
+keeps its original path. Tests inspect the default path without reading or
+writing an actual user profile. Original bookmark tests now use unique owned
+scratch directories instead of a shared temporary file.
+
+Modern restore reads a complete XML document into a candidate before replacing
+live records and accepts only direct unqualified bookmark children. Unknown
+container/record attributes, namespace bindings, nested elements and CDATA
+survive clone, edits, clear and repeated save/restart. Missing source identities
+are retained. A failed restore preserves the previous in-memory collection and
+blocks Save (including cloned/queued snapshots made afterwards) until a
+successful restore; invalid bytes are not silently replaced. Exact-reference
+removal preserves an equivalent unselected sibling, with value removal retained
+for detached callers. Async saves retain independent model/opaque snapshots.
+
+Executed evidence:
+
+- Initial seven regression cases: **5 failed / 2 passed**. These exposed nested
+  activation, extension loss, overwrite after failed restore and wrong-sibling
+  removal. An enumerable Count assertion was corrected after implementation;
+  it was a test API error, not suppressed production behavior.
+- Added wrong-root/trailing-document rejection and successful-restore recovery
+  cases, plus a clone save-block assertion.
+- Final Core settings/geometry/fixture selection: **313 passed / 0 failed /
+  0 skipped** (includes nine new persistence cases and four original bookmark
+  container cases).
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed**, no skips/failures.
+- Expanded net452 shared-source/API compile: passed, known legacy log4net
+  advisory remains visible.
+- Signed profile probe still verifies **4 expected failures / 4 passes** and
+  **5 passing editor regressions**, not a green whole-profile migration gate.
+  Probe directory: artifacts/migration/profile-probe/run-3119f3f373e541b1bea79956febb6f37.
+
+Logs under ignored artifacts/migration: t011-bookmark-red.log,
+t011-bookmark-final.log, t011-bookmark-legacy.log, t011-bookmark-solution.log,
+t011-bookmark-profile.log. Add FullyQualifiedName~BookmarkPersistenceMigrationTest
+to the documented Core selection when reproducing this slice.
+
+T011 remains open for ApplicationSettings/IApplicationSettings and complete
+source/filter/profile XML preservation. The current bookmark writer still uses
+the original direct file write; bounded reads, atomic replacement, crash and
+concurrent-save safety remain T012's required gate before modern application
+integration. Legacy business-layer RemoveBookmark/Clear currently fail to remove
+persisted records, and reset handling discards records; those callers still need
+their owning bookmark migration tests and implementation. This slice ports
+persistence, not the complete bookmark UI/business workflow.

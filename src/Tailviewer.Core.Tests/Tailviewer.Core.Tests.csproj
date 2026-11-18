@@ -13,6 +13,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Include="../Tailviewer.Tests/Settings/Bookmarks/BookmarksTest.cs" Link="Migration/LegacyBookmarksTest.cs" />
     <Compile Include="../Tailviewer.Tests/Settings/MainWindowSettingsTest.cs" Link="Migration/LegacyMainWindowSettingsTest.cs" />
     <Compile Include="../Tailviewer.Tests/DesktopTest.cs" Link="Migration/LegacyDesktopTest.cs" />
     <Compile Include="../Tailviewer.Tests/RectangleTest.cs" Link="Migration/LegacyRectangleTest.cs" />

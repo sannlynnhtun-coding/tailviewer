@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using FluentAssertions;
 using NUnit.Framework;
@@ -10,10 +10,20 @@ namespace Tailviewer.Tests.Settings.Bookmarks
 	[TestFixture]
 	public sealed class BookmarksTest
 	{
+		private string _folder;
+		[SetUp]
+		public void SetUp()
+		{
+			_folder = Path.Combine(Path.GetTempPath(), "tailviewer-bookmarks-" + Guid.NewGuid().ToString("N"));
+			Directory.CreateDirectory(_folder);
+		}
+		[TearDown]
+		public void TearDown() => Directory.Delete(_folder, true);
+
 		[Test]
 		public void TestCloneEmpty()
 		{
-			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks("");
+			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks(Path.Combine(_folder, "bookmarks.xml"));
 			var clone = bookmarks.Clone();
 			clone.Should().NotBeNull();
 			clone.Should().NotBeSameAs(bookmarks);
@@ -23,7 +33,7 @@ namespace Tailviewer.Tests.Settings.Bookmarks
 		[Test]
 		public void TestCloneOneBookmark()
 		{
-			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks("");
+			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks(Path.Combine(_folder, "bookmarks.xml"));
 			bookmarks.Add(new BookmarkSettings(DataSourceId.CreateNew(), new LogLineIndex(42)));
 			var clone = bookmarks.Clone();
 			clone.Should().NotBeNull();
@@ -36,7 +46,7 @@ namespace Tailviewer.Tests.Settings.Bookmarks
 		[Test]
 		public void TestRestoreNoSuchFile()
 		{
-			var filePath = "dawlnkn lknklawdnkwad";
+			var filePath = Path.Combine(_folder, "not-created.xml");
 			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks(filePath);
 			new Action(() => bookmarks.Restore()).Should().NotThrow();
 			bookmarks.Should().BeEmpty();
@@ -45,7 +55,7 @@ namespace Tailviewer.Tests.Settings.Bookmarks
 		[Test]
 		public void TestRoundtrip()
 		{
-			var filePath = Path.Combine(Path.GetTempPath(), "Tailviewer", "Tests", "bookmarks.xml");
+			var filePath = Path.Combine(_folder, "bookmarks.xml");
 
 			var bookmarks = new Tailviewer.Settings.Bookmarks.Bookmarks(filePath);
 			bookmarks.Add(new BookmarkSettings(DataSourceId.CreateNew(), new LogLineIndex(101)));

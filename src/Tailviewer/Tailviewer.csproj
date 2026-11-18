@@ -158,7 +158,7 @@
     <Compile Include="Language.cs" />
     <Compile Include="Collections\ObservableCollectionExt.cs" />
     <Compile Include="Collections\ProjectingObservableCollection.cs" />
-    <Compile Include="Settings\Bookmarks\IBookmarks.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\IBookmarks.cs"><Link>Settings\Bookmarks\IBookmarks.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\CustomFormatSettings.cs"><Link>Settings\CustomFormats\CustomFormatSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\CustomLogFileFormat.cs"><Link>Settings\CustomFormats\CustomLogFileFormat.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Desktop.cs"><Link>Settings\Desktop.cs</Link></Compile>
@@ -221,7 +221,7 @@
     <Compile Include="Resource.cs" />
     <Compile Include="..\Tailviewer.Core\Settings\Migration\AutoUpdateSettings.cs"><Link>Settings\AutoUpdateSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\BookmarkSettings.cs"><Link>Settings\Bookmarks\BookmarkSettings.cs</Link></Compile>
-    <Compile Include="Settings\Bookmarks\Bookmarks.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\Bookmarks.cs"><Link>Settings\Bookmarks\Bookmarks.cs</Link></Compile>
     <Compile Include="Settings\Dashboard\LayoutSettings.cs" />
     <Compile Include="Settings\Dashboard\Widgets\WidgetSettings.cs" />
     <Compile Include="..\Tailviewer.Core\Settings\Migration\DataSource.cs"><Link>Settings\DataSource.cs</Link></Compile>
