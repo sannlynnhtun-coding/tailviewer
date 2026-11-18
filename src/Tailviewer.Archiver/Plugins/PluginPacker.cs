@@ -90,7 +90,7 @@ namespace Tailviewer.Archiver.Plugins
 			try
 			{
 				_currentDirectory = Path.GetDirectoryName(pluginFilePath) ?? Directory.GetCurrentDirectory();
-				var assembly = AddAssembly(PluginArchive.PluginAssemblyEntryName, pluginFilePath);
+				var assembly = AddAssembly(PluginArchive.PluginAssemblyEntryName, pluginFilePath, true);
 				var assemblyLoader = new PluginAssemblyLoader();
 				var description = assemblyLoader.ReflectPlugin(assembly, pluginFilePath);
 				UpdateIndex(description);
@@ -168,24 +168,24 @@ namespace Tailviewer.Archiver.Plugins
 			Log.InfoFormat("Adding icon...");
 
 #if NETFRAMEWORK
-            using (var image = new Bitmap(icon))
-            {
-                icon.Position = 0;
-                AddFile(PluginArchive.IconEntryName, icon);
-            }
+			using (var image = new Bitmap(icon))
+			{
+				icon.Position = 0;
+				AddFile(PluginArchive.IconEntryName, icon);
+			}
 #else
-            using (var buffer = new MemoryStream())
-            {
-                icon.CopyTo(buffer);
-                var bytes = buffer.ToArray();
-                using (var image = SKImage.FromEncodedData(bytes))
-                {
-                    if (image == null)
-                        throw new PackException("The plugin icon is not a valid encoded image");
-                }
-                using (var content = new MemoryStream(bytes))
-                    AddFile(PluginArchive.IconEntryName, content);
-            }
+			using (var buffer = new MemoryStream())
+			{
+				icon.CopyTo(buffer);
+				var bytes = buffer.ToArray();
+				using (var image = SKImage.FromEncodedData(bytes))
+				{
+					if (image == null)
+						throw new PackException("The plugin icon is not a valid encoded image");
+				}
+				using (var content = new MemoryStream(bytes))
+					AddFile(PluginArchive.IconEntryName, content);
+			}
 #endif
 		}
 
@@ -213,13 +213,13 @@ namespace Tailviewer.Archiver.Plugins
 		/// </summary>
 		/// <param name="entryName">The relative name of the resulting file in the archive</param>
 		/// <param name="assemblyFileName"></param>
-		private Assembly AddAssembly(string entryName, string assemblyFileName)
+		private Assembly AddAssembly(string entryName, string assemblyFileName, bool loadPlugin = false)
 		{
 			using (var content = File.OpenRead(assemblyFileName))
 			{
 				var header = ReadHeader(content);
 				content.Position = 0;
-				return AddAssembly(entryName, content, header);
+				return AddAssembly(entryName, content, header, loadPlugin);
 			}
 		}
 
@@ -229,7 +229,7 @@ namespace Tailviewer.Archiver.Plugins
 		/// <param name="entryName">The relative name of the resulting file in the archive</param>
 		/// <param name="content"></param>
 		/// <param name="header"></param>
-		private Assembly AddAssembly(string entryName, Stream content, PeHeader header)
+		private Assembly AddAssembly(string entryName, Stream content, PeHeader header, bool loadPlugin = false)
 		{
 			#if NETFRAMEWORK
 			if (!header.Is32BitHeader)
@@ -239,8 +239,21 @@ namespace Tailviewer.Archiver.Plugins
 				throw new PackException("Assemblies must be compiled for x86 or AnyCPU");
 
 			byte[] rawAssembly;
+#if NET10_0_OR_GREATER
+			using (var buffer = new MemoryStream())
+			{
+				content.CopyTo(buffer);
+				rawAssembly = buffer.ToArray();
+			}
+			string frameworkName;
+			var assemblyDescription = AssemblyDescription.FromRawData(rawAssembly, out frameworkName);
+			var targetFramework = frameworkName == null ? null : new TargetFrameworkAttribute(frameworkName);
+			var assembly = loadPlugin ? Assembly.Load(rawAssembly) : null;
+#else
 			var assembly = LoadAssemblyFrom(content, out rawAssembly);
 			var targetFramework = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
+			var assemblyDescription = AssemblyDescription.FromAssembly(assembly);
+#endif
 			var version = ParseVersion(targetFramework);
 			// This attribute has been added with .NET 4.0. Tailviewer should obviously
 			// support adding assemblies which target older .NET frameworks where this attribute
@@ -249,7 +262,6 @@ namespace Tailviewer.Archiver.Plugins
 				if (targetFramework.FrameworkName.StartsWith(".NETFramework,") && version > MaximumNetFrameworkVersion)
 					throw new PackException($"Assemblies may only target frameworks of up to .NET {MaximumNetFrameworkVersion}");
 
-			var assemblyDescription = AssemblyDescription.FromAssembly(assembly);
 			assemblyDescription.EntryName = entryName;
 			AddFile(entryName, rawAssembly);
 			_index.Assemblies.Add(assemblyDescription);
@@ -347,12 +359,14 @@ namespace Tailviewer.Archiver.Plugins
 				case "PE":
 					return false;
 
-                default:
-                    var assembly = Assembly.Load(dependency);
+				default:
 #if NET10_0_OR_GREATER
-                    if (Path.GetDirectoryName(assembly.Location) == Path.GetDirectoryName(typeof(object).Assembly.Location))
-                        return false;
+					if (File.Exists(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), dependency.Name + ".dll")))
+						return false;
+					if (File.Exists(Path.Combine(_currentDirectory, dependency.Name + ".dll")))
+						return true;
 #endif
+					var assembly = Assembly.Load(dependency);
 					var attribute = assembly.GetCustomAttribute<AssemblyProductAttribute>();
 					if (attribute == null)
 						return true;
@@ -364,24 +378,24 @@ namespace Tailviewer.Archiver.Plugins
 			}
 		}
 
-        private static PeHeader ReadHeader(Stream content)
-        {
+		private static PeHeader ReadHeader(Stream content)
+		{
 #if NETFRAMEWORK
-            PeHeader header;
-            PortableExecutable.TryReadHeader(content, out header, leaveOpen: true);
-            return header;
+			PeHeader header;
+			PortableExecutable.TryReadHeader(content, out header, leaveOpen: true);
+			return header;
 #else
-            try
-            {
-                using (var reader = new PEReader(content, PEStreamOptions.LeaveOpen))
-                    return reader.PEHeaders;
-            }
-            catch (BadImageFormatException)
-            {
-                return null;
-            }
+			try
+			{
+				using (var reader = new PEReader(content, PEStreamOptions.LeaveOpen))
+					return reader.PEHeaders;
+			}
+			catch (BadImageFormatException)
+			{
+				return null;
+			}
 #endif
-        }
+		}
 
 		private void AddFileRaw(string entryName, Stream content)
 		{

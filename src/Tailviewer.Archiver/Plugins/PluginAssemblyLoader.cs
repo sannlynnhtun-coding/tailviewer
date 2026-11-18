@@ -111,6 +111,8 @@ namespace Tailviewer.Archiver.Plugins
 		public IPluginDescription ReflectPlugin(string pluginPath)
 		{
 			Log.InfoFormat("Loading plugin '{0}'...", pluginPath);
+			if (pluginPath != null && pluginPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+				throw new ArgumentException("Plugin path contains invalid characters", nameof(pluginPath));
 
 			var assembly = Assembly.LoadFrom(pluginPath);
 			return ReflectPlugin(assembly, pluginPath);

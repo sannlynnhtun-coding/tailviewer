@@ -57,6 +57,12 @@ namespace Tailviewer.Archiver.Tests.Migration
 		}
 
 		[Test]
+		public void TestMalformedAssemblyMetadataIsRejected()
+		{
+			Assert.Throws<BadImageFormatException>(() => AssemblyDescription.FromRawData(new byte[] { 1, 2, 3 }));
+		}
+
+		[Test]
 		public void TestLegacyPublishFailsExplicitlyUntilTransportMigration()
 		{
 			Assert.That(new Publish().Run(new PublishOptions()), Is.EqualTo(ExitCode.ConnectionError));
