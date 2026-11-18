@@ -8,6 +8,19 @@
 
 **Input**: Migrate the full Tailviewer project to .NET 10 + Avalonia, including all missing legacy features, settings, plugins, and updates. Keep changes small and explain in Burmese.
 
+## Clarifications
+
+### Session 2026-11-18
+
+- Q: Which platforms must pass acceptance for the first full migration release? → A: Windows x64 first; Linux/macOS are a later milestone and do not gate this release.
+- Q: Must legacy plugins run unchanged in the migrated application? → A: Legacy plugins may require rebuilding/porting; preserve their settings and migrate all extension types and bundled plugins. Unchanged legacy binary compatibility is not required.
+- Q: How should users import legacy settings? → A: On first launch, detect legacy settings and offer an optional import; back up the source and create a separate migrated profile without modifying the original. Allow later import from Settings.
+- Q: What should happen automatically when an update is available? → A: Check automatically and notify; require user action before downloading and before installing, and never restart without consent. Automatic checks can be enabled or disabled in Settings.
+
+### Session 2026-11-19
+
+- Q: Must the first full release include a publicly hosted plugin repository? → A: Migrate the repository service and tools and verify publish/list/download in a controlled test environment; defer public hosting to a later milestone and support local plugin installation in the first release.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Read and navigate existing logs (Priority: P1)
@@ -48,9 +61,10 @@ As a returning user, I retain my sources, preferences, bookmarks and custom form
 
 **Acceptance Scenarios**:
 
-1. **Given** an existing legacy profile, **When** I import it, **Then** a backup is retained and sources/groups, bookmarks, filters, highlighting, custom formats, encodings, column/view settings, window layout, export preferences and update preferences are restored where supported.
+1. **Given** an existing legacy profile on first launch, **When** I accept the offered import, **Then** a backup and separate migrated profile are created without changing the original, and sources/groups, bookmarks, filters, highlighting, custom formats, encodings, column/view settings, window layout, export preferences and update preferences are restored where supported.
 2. **Given** malformed settings or unavailable sources/plugins, **When** I start the app, **Then** usable settings load, unresolved values are preserved and actionable warnings identify affected items.
 3. **Given** selected or filtered entries, **When** I export using the available legacy export choices, **Then** output matches the documented content/order/encoding, reports progress and handles cancellation or overwrite decisions without damaging existing files.
+4. **Given** a declined first-launch import, **When** I continue, **Then** the app works with defaults and import remains available from Settings; a later import reports conflicts before replacing migrated settings.
 
 ### User Story 4 - Use formats, plugins and supporting tools (Priority: P2)
 
@@ -64,8 +78,10 @@ As a user or plugin author, I can use custom sources, parsers, formats and analy
 
 1. **Given** supported built-in/custom formats and the bundled Serilog format, **When** I open matching logs, **Then** timestamps, levels, multiline entries, properties and columns are parsed and displayed as expected.
 2. **Given** compatible plugins, **When** I install and enable them, **Then** their source, parser, format, property, issue, outline and custom-view capabilities are accessible; removal explains effects on active sources.
-3. **Given** an incompatible old plugin, missing dependency or failed plugin operation, **When** it is encountered, **Then** compatibility and recovery guidance are shown, persisted configuration is retained and other sources remain usable where recovery is possible.
-4. **Given** the plugin-author samples, **When** I follow the updated instructions, **Then** I can create and inspect a valid plugin archive and publish/list/download it using the migrated repository tools and service.
+3. **Given** an incompatible old plugin, missing dependency or failed plugin operation, **When** it is encountered, **Then** rebuild/port and recovery guidance are shown, persisted configuration is retained for reuse or conversion by a migrated plugin, and other sources remain usable where recovery is possible.
+4. **Given** the plugin-author samples, **When** I follow the updated instructions, **Then** I can create and inspect a valid plugin archive and publish/list/download it using the migrated repository tools and service in a controlled test environment; a public deployment is not required for this milestone.
+
+5. **Given** no public plugin repository is configured or reachable, **When** I install a compatible local plugin package, **Then** installation and its capabilities work without a public service and online discovery shows an actionable unavailable state.
 
 ### User Story 5 - Install and update safely (Priority: P2)
 
@@ -77,8 +93,8 @@ As a desktop user, I can choose portable or installed distribution, check for up
 
 **Acceptance Scenarios**:
 
-1. **Given** an installed or portable copy, **When** I check manually or enable scheduled checks, **Then** current/newer-version, selected stable/preview channel, offline and failed-check states are clear.
-2. **Given** an eligible update, **When** I accept it, **Then** version, platform and package integrity are validated before replacement; cancellation, insufficient space, locked files or interruption preserve a usable existing version and settings.
+1. **Given** an installed or portable copy, **When** I check manually or enable scheduled checks, **Then** current/newer-version, selected stable/preview channel, offline and failed-check states are clear; an automatic check only notifies, and downloads start only after user action.
+2. **Given** an eligible update, **When** I explicitly choose to download and then install it, **Then** version, platform and package integrity are validated before replacement and restart requires consent; cancellation, insufficient space, locked files or interruption preserve a usable existing version and settings.
 3. **Given** installation or upgrade completion, **When** I reopen the app, **Then** settings and plugins are preserved; uninstall removes application files without deleting user logs or profiles by default.
 
 ### User Story 6 - Complete desktop workflow and project parity (Priority: P2)
@@ -115,12 +131,12 @@ As a user or maintainer, I can use the remaining desktop panels and verify each 
 - **FR-005**: Restore merged-source ordering, provenance, grouping and supported timestamp adjustments; verify ties and missing timestamps using Story 2.
 - **FR-006**: Restore format detection, custom formats, timestamp/level parsing, encodings, multiline handling and configurable parsed columns; verify using Stories 1 and 4.
 - **FR-007**: Restore bookmarks and navigation, properties, outline/issues, quick navigation, action center, notifications, settings, help/about/changelog and all other shipping panels found by FR-001; verify using Stories 3 and 6.
-- **FR-008**: Import legacy settings after preserving an original backup; save changes safely, preserve unknown/unavailable-extension settings, support repeatable imports and recover from malformed or unwritable profiles without destroying the last valid profile; verify Story 3.
+- **FR-008**: On first launch, detect legacy settings and ask whether to import; declining MUST leave the app usable with defaults and permit later import from Settings. Import MUST preserve a backup and create a separate migrated profile without modifying the legacy original. Repeated imports MUST identify conflicts and obtain the user’s choice before replacing existing migrated settings. Save changes safely, preserve unknown/unavailable-extension settings and recover from malformed or unwritable profiles without destroying the last valid profile; verify Story 3.
 - **FR-009**: Restore export choices, source/filter scope, ordering, progress, cancellation and overwrite handling; verify Story 3 with expected-output files.
-- **FR-010**: Restore plugin discovery, metadata, install/update/disable/remove and every legacy extension category; label unsupported binaries with rebuild/port guidance rather than promising old binary compatibility; verify Story 4.
-- **FR-011**: Migrate the plugin packaging/inspection tools, bundled plugins and creator samples, repository client/library/service and distribution metadata; retain existing repository behaviors and persisted records or provide a verified conversion; verify Story 4 end-to-end.
-- **FR-012**: Offer portable EXE, portable ZIP and installer for Windows x64, correct icons/licenses/version metadata, per-user installation, upgrade and uninstall without default user-data deletion; verify Story 5.
-- **FR-013**: Restore manual/automatic update checks, remembered update preferences, release-channel selection, progress/cancellation, consent before installation and recoverable failure; direct updates to this repository's releases rather than the original upstream; verify Story 5.
+- **FR-010**: Restore plugin discovery, metadata, install/update/disable/remove and every legacy extension category, including UI extensions. Rebuild/port bundled plugins and provide author migration guidance for external plugins; unchanged legacy binary compatibility is not required. Preserve existing plugin settings, including settings for unavailable/incompatible plugins, and verify their reuse or conversion by a migrated plugin in Story 4.
+- **FR-011**: Migrate the plugin packaging/inspection tools, bundled plugins and creator samples, repository client/library/service and distribution metadata; retain existing repository behaviors and persisted records or provide a verified conversion. Verify publish/list/download end-to-end in a controlled test environment, including client integration. Public hosting is deferred to a later milestone and does not gate this release; local plugin installation MUST work without it, and absent/unreachable online discovery MUST show an actionable unavailable state; verify Story 4.
+- **FR-012**: For the first full migration release, offer portable EXE, portable ZIP and installer for Windows x64, correct icons/licenses/version metadata, per-user installation, upgrade and uninstall without default user-data deletion; verify Story 5.
+- **FR-013**: Restore manual checks and enable automatic update checks by default for a new profile; retain the imported automatic-check preference for migrated profiles. Automatic checks MUST only check and notify, never download or install. Require user action before downloading and before installing; never restart without consent. Allow automatic checks to be enabled/disabled in Settings, persist preferences and release-channel selection, show progress/cancellation and recoverable failure, and direct updates to this repository’s releases rather than the original upstream; verify Story 5.
 - **FR-014**: Validate update provenance and integrity before execution; preserve a working version on failed application and do not bypass a failed validation; verify modified, incomplete and wrong-platform packages in Story 5.
 - **FR-015**: Keep local log reading usable offline. Logs/profile contents must not be uploaded by migration, update checks or diagnostics without explicit user action; verify with network observation during Stories 1, 3 and 5.
 - **FR-016**: Preserve keyboard workflows, meaningful accessible names, readable light/dark states, loading/error/progress feedback and a responsive interface during background work; verify Story 6 and timed outcomes below.
@@ -139,14 +155,14 @@ As a user or maintainer, I can use the remaining desktop panels and verify each 
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of shipping legacy capabilities/projects have inventory entries and passing mapped acceptance evidence before full migration is declared; no unexplained omissions or regressions remain.
+- **SC-001**: 100% of shipping legacy capabilities/projects have inventory entries and passing mapped acceptance evidence on Windows x64 before the first full migration release is declared complete; no unexplained omissions or regressions remain. Linux/macOS acceptance and public plugin repository hosting belong to later milestones; service/tool migration and controlled end-to-end repository acceptance remain required.
 - **SC-002**: All representative legacy profiles import and survive two restarts without loss of supported settings; original files remain unchanged, and corrupt/unavailable-extension cases retain recoverable data.
 - **SC-003**: Search/filter/merge/format/export fixtures produce 100% of expected entries, ordering, parsed values and original text; all file-recovery scenarios show the final current contents without stale entries.
 - **SC-004**: On a recorded Windows x64 reference machine (at least 4 CPU cores, 16 GB RAM and local SSD), users see the first page of a 100 MB log within 3 seconds and a 1 GB log within 10 seconds in three warm-cache runs; these are acceptance targets, not current results.
 - **SC-005**: On that machine, 95% of scroll/navigation/pause interactions respond within 200 ms during indexing; complete indexing of the 1 GB plain-text fixture peaks below 1 GB application memory, measured separately from explicitly requested large copy/export results.
 - **SC-006**: During a five-minute 1,000-lines/second append workload, new output becomes visible within 1 second for 95% of samples and no entries are lost; rotation/replacement fixtures converge within 3 seconds after the final write.
-- **SC-007**: Each supported plugin category has a passing representative integration case, all bundled plugins pass, incompatible packages show guidance, and invalid archives write zero files outside their installation destination.
-- **SC-008**: Portable/install/upgrade/uninstall and interrupted/tampered/offline update cases pass with zero user-log/profile loss and no execution of failed-integrity packages.
+- **SC-007**: Every legacy plugin extension category has a passing migrated representative integration case, all bundled plugins pass, retained settings are successfully reused or converted after a plugin is ported, incompatible packages show rebuild/port guidance, and invalid archives write zero files outside their installation destination. Repository publish/list/download and client integration pass in a controlled environment, and local package installation passes with no public repository configured.
+- **SC-008**: Portable/install/upgrade/uninstall and interrupted/tampered/offline update cases pass with zero user-log/profile loss and no execution of failed-integrity packages. Automatic-check cases download zero update packages without user action, and installation/restart never proceeds without consent.
 - **SC-009**: All mapped reading, investigation, settings, plugin and update journeys can be completed with keyboard access in both light and dark themes; every failed operation presents an actionable outcome.
 - **SC-010**: Every shipping project builds under the supported migration toolchain and relevant automated tests pass; existing skips are individually documented and cannot hide a missing acceptance capability.
 
@@ -155,8 +171,8 @@ As a user or maintainer, I can use the remaining desktop panels and verify each 
 - The user-selected implementation constraint is .NET 10 with Avalonia. This specification defines user outcomes; implementation choices and dependency decisions belong in the plan.
 - The baseline is the shipping legacy source at commit `6bc9c575`, compared with the current Avalonia preview. Source/tests define parity where a runnable legacy baseline is unavailable; that validation limitation must be recorded.
 - Full project includes API/Core, desktop, Archiver, PluginRepository library/service, bundled plugins/creator, installer/updater and relevant tests. Playground prototypes are reviewed for shipping dependencies but not promoted into new product features.
-- Windows x64 is the first complete release acceptance platform, matching existing distributions. Linux/macOS portability must be assessed and platform limitations recorded; validated packages for those platforms are a subsequent milestone, not a claim of this release.
-- Legacy plugin authors may need to rebuild or port plugins and UI integrations. Behavioral capability parity is required; unchanged legacy binary compatibility is not assumed.
-- The existing public repository is the release source. A runnable legacy plugin repository or a controlled equivalent is needed for service compatibility checks; unavailable services must be reported, not counted as passing.
+- The first full migration release MUST pass all applicable acceptance criteria on Windows x64. Linux/macOS belong to a later milestone and do not gate this release; their support must not be claimed before validation. Windows ARM64 is outside this first-release acceptance scope.
+- Legacy plugins require rebuilding or porting where needed, including UI integrations. All legacy extension types and bundled plugins MUST be migrated, and existing plugin settings MUST be preserved for the migrated plugin to reuse or convert. Unchanged legacy binary compatibility is not required; incompatible binaries must not be presented as supported.
+- The existing public GitHub repository is the application release/update source. The plugin repository service/tools remain in scope, with publish/list/download and client integration verified in a controlled environment. Public plugin repository hosting is a later milestone; local plugin installation is required for this release. Unavailable external services must be reported, not counted as passing.
 - No existing log or profile may be deleted to simplify migration. Source files remain read-only unless a user explicitly chooses an existing supported write/export action.
 - The generated constitution is an unratified template and supplies no additional project policy. Existing session instructions and repository rules apply; no new approval requirements are inferred from its examples.
