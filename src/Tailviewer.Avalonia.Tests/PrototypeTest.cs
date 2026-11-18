@@ -8,6 +8,8 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Avalonia;
@@ -19,7 +21,8 @@ namespace Tailviewer.Avalonia.Tests;
 public static class TestAppBuilder
 {
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
-        .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+        .UseSkia()
+        .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }
 
 [TestFixture]
@@ -32,6 +35,31 @@ public sealed class PrototypeTest
 
     [TearDown]
     public void TearDown() => File.Delete(_path);
+
+    [AvaloniaTest]
+    public void TestLogoLoadsInLightAndDarkThemes()
+    {
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            var window = new MainWindow { RequestedThemeVariant = theme, Width = 640, Height = 400 };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                var image = window.GetVisualDescendants().OfType<Image>().Single();
+                image.Source.Should().BeOfType<Bitmap>("because the packaged logo resource must load in either theme");
+                ((Bitmap)image.Source!).PixelSize.Should().Be(new PixelSize(64, 64));
+                image.Bounds.Width.Should().Be(28, "because branding must remain compact at the minimum window width");
+                window.Icon.Should().NotBeNull("because the title bar and taskbar need the same branding");
+                using var screenshot = new RenderTargetBitmap(new PixelSize(640, 400));
+                screenshot.Render(window);
+                var screenshotPath = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"branding-{theme}.png");
+                screenshot.Save(screenshotPath, new PngBitmapEncoderOptions());
+                TestContext.AddTestAttachment(screenshotPath);
+            }
+            finally { window.Close(); }
+        }
+    }
 
     [AvaloniaTest]
     public async Task TestCoreReadingAndCopyOrder()

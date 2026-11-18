@@ -9,6 +9,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
@@ -30,6 +32,12 @@ public sealed class MainWindow : Window
     public MainWindow(string? fileName = null)
     {
         Title = "Tailviewer — Avalonia prototype";
+        using var logoStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
+        var logo = new Bitmap(logoStream);
+        using var iconStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
+        Icon = new WindowIcon(iconStream);
+        var brandImage = new Image { Source = logo, Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(brandImage, "Tailviewer logo");
         Width = 1100;
         Height = 700;
         MinWidth = 640;
@@ -51,7 +59,7 @@ public sealed class MainWindow : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing = 12,
-            Children = { _open, _copy, _follow }
+            Children = { brandImage, _open, _copy, _follow }
         };
         var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), Margin = new Thickness(12), RowSpacing = 8 };
         layout.Children.Add(toolbar);
@@ -81,6 +89,7 @@ public sealed class MainWindow : Window
             _closed = true;
             _timer.Stop();
             _document?.Dispose();
+            logo.Dispose();
         };
         _timer.Start();
         if (fileName != null)

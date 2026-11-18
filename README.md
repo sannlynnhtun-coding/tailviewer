@@ -1,5 +1,7 @@
 # Tailviewer
 
+<img src="assets/branding/icon-256.png" width="96" height="96" alt="Tailviewer — log lines flowing into a tail" />
+
 Tailviewer is an open-source log file viewer. This repository is migrating the original WPF application to **.NET 10 and Avalonia**.
 
 The current Avalonia application is a **working prototype**, not a stable release or a complete replacement for the legacy application. It uses the migrated Tailviewer Core to index and tail local log files.
@@ -67,7 +69,7 @@ To run the migrated Core suite separately:
 dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework net10.0
 ```
 
-Current validation on Windows: **13 Avalonia headless integration tests passed**, plus **6,641 Core tests passed** with 5 existing skips. Integration coverage includes file reading, Unicode/BOM, scrolling and virtualization, selection/clipboard, live tailing, replacement/rotation, error recovery, and closing during a pending read.
+Current validation on Windows: **14 Avalonia headless integration tests passed**, plus **6,641 Core tests passed** with 5 existing skips. Integration coverage includes file reading, Unicode/BOM, scrolling and virtualization, selection/clipboard, live tailing, replacement/rotation, error recovery, closing during a pending read, and logo resources in light/dark themes with real Skia rendering.
 
 ## Known limits
 
@@ -84,6 +86,7 @@ API/Core temporarily target both .NET Framework 4.5 and .NET 10 to support the r
 
 - [Migration plan and dependency compatibility audit](docs/AvaloniaMigrationPlan.md) — Burmese
 - [Prototype usage and implementation notes](src/Tailviewer.Avalonia/README.md) — Burmese
+- [Logo master, icon exports and generation brief](assets/branding/README.md)
 - [Legacy plugin development guide](docs/DevelopingPlugins.md)
 - [Legacy contribution guide](CONTRIBUTING.md)
 
