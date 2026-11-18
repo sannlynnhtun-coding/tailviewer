@@ -398,3 +398,7 @@ Evidence: artifacts/migration/t011-dashboard-red.log, t011-settings-final.log,
 t011-settings-legacy-final.log, t011-settings-solution-final.log,
 t011-settings-probe-final.log; the latter two retain the final modern solution
 and signed source-runner outcomes. No real profile, credential or log was changed.
+
+Final closeout results: **103 modern solution cases passed** (81 Archiver + 22
+Avalonia); signed source runner **8 profile + 5 editor cases passed**, evidence
+artifacts/migration/profile-probe/run-cee6caa6a22142ada91692a2f1574f0a.
