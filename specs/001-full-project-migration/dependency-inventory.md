@@ -4,7 +4,7 @@
 
 The fresh [T005 resolved dependency baseline](dependency-baseline.md) records six modern target graphs, native/RID declarations, advisory feed provenance and actual legacy source usage. It does not establish old-package runtime compatibility.
 
-After that snapshot, T006 adds `src/Tailviewer.Archiver.Tests/Migration/Tailviewer.Archiver.Metadata.Tests.csproj`: a net10.0 test-only linked-source harness referencing the API project and existing NUnit 4.5.1 / adapter 5.0.0 / Test SDK 17.14.1 versions. It adds no shipping runtime dependency and replaces no full Archiver project yet. See [boundary evidence](metadata-boundary.md).
+T006 temporarily added a metadata-only linked-source test project. T008 has retired it and converted `src/Tailviewer.Archiver/Tailviewer.Archiver.csproj` to SDK `net452;net10.0` and `src/Tailviewer.Archiver.Tests/Tailviewer.Archiver.Tests.csproj` to SDK `net10.0`. Modern PE inspection uses platform metadata APIs and icon validation reuses SkiaSharp 3.119.4; WPF/Metrolib/PE/SharpRemote references are confined to the legacy production target. The full suite has no legacy host/test project references. The tables below retain their original baseline snapshot; see [current T008 evidence](archiver-sdk-migration.md).
 
 ## Every project
 

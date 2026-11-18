@@ -19,20 +19,20 @@
 | F13 | Action center, progress, notifications, errors, help/about/changelog, explorer actions | src/Tailviewer/{BusinessLogic/ActionCenter,BusinessLogic/FileExplorer,Ui/ActionCenter,Ui/About} | FR-007 | P07 | status/error text only |
 | F14 | Profile import/backup/conflicts, window/layout, source and view settings | src/Tailviewer/Settings; src/Tailviewer/Ui/Settings | FR-008 | P02 | not ported |
 | F15 | Export selected/filtered entries, options, progress/cancel, file overwrite | src/Tailviewer/{BusinessLogic/Exporter,Settings/ExportSettings.cs,Ui/ActionCenter/ExportViewModel.cs} | FR-009 | P07 | not ported |
-| F16 | Plugin metadata/archive/discovery/dependencies/install/update/disable/remove | src/Tailviewer.Archiver; src/Tailviewer/BusinessLogic/Plugins; src/Tailviewer/Ui/Plugins | FR-010 | P08/P09 | legacy-only |
+| F16 | Plugin metadata/archive/discovery/dependencies/install/update/disable/remove | src/Tailviewer.Archiver; src/Tailviewer/BusinessLogic/Plugins; src/Tailviewer/Ui/Plugins | FR-010 | P08/P09 | partial: SDK archive/loader basics pass; lifecycle/versioned isolation pending |
 | F17 | Custom source plugin and serialized source configuration | src/Tailviewer.Api/Plugins/ICustomDataSourcePlugin.cs; src/Tailviewer.Api/Ui/ICustomDataSourceViewModel.cs | FR-010 | P09 | legacy host only |
 | F18 | Source parser, entry parser, format matcher and custom format creator plugins | src/Tailviewer.Api/Plugins/{ILogSourceParserPlugin,ILogEntryParserPlugin,ILogFileFormatMatcherPlugin,ICustomLogFileFormatCreatorPlugin}.cs | FR-010 | P09 | legacy host only |
 | F19 | Issue analyser and outline plugins/listeners | src/Tailviewer.Api/Plugins/{ILogFileIssuesPlugin,ILogFileOutlinePlugin}.cs | FR-010 | P09 | legacy host only |
 | F20 | Property presenter and custom UI/view-model/navigation extensions | src/Tailviewer.Api/Ui; src/Tailviewer.Api/Plugins/ICustomDataSourcePlugin.cs | FR-010 | P09 | WPF UI contract port needed |
 | F21 | Serilog bundled format, creator utility and LogLevelPlugin example | src/Plugins; examples/Tailviewer.LogLevelPlugin | FR-011 | P09 | legacy-only |
-| F22 | Archive CLI pack/inspect/test-load/metadata, author packaging and NuGet | src/Tailviewer.Archiver; src/Tailviewer.Api/Tailviewer.Api.nuspec; docs/DevelopingPlugins.md | FR-011 | P08 | legacy-only |
+| F22 | Archive CLI pack/inspect/test-load/metadata, author packaging and NuGet | src/Tailviewer.Archiver; src/Tailviewer.Api/Tailviewer.Api.nuspec; docs/DevelopingPlugins.md | FR-011 | P08 | partial: DLL pack/changelog CLI pass; author packaging and baseline stubs pending |
 | F23 | Repository publish/list/download/icons/changes, user/token admin, remove/export/configuration | src/Tailviewer.PluginRepository; src/Tailviewer.Archiver/Repository | FR-011 | P10 | SharpRemote/IsabelDb legacy service |
 | F24 | Windows service lifecycle, configuration and controlled client integration | src/Tailviewer.PluginRepository.Service | FR-011 | P10 | ServiceBase legacy-only |
 | F25 | Portable EXE/ZIP, installer, upgrade/uninstall, icon/license/version | installer/Tailviewer.Avalonia.iss; src/Installer; src/Tailviewer.Avalonia/Properties/PublishProfiles | FR-012 | P12 | alpha packaging exists; full lifecycle incomplete |
 | F26 | Update check/preference/channel, consent/download/verify/install/restart/recovery | src/Tailviewer/{BusinessLogic/AutoUpdates,Ui/AutoUpdateViewModel.cs,Settings/AutoUpdateSettings.cs} | FR-013/014 | P11/P12 | not ported; old upstream endpoints |
 | F27 | Offline operation, log privacy, archive path validation, update provenance | src/Tailviewer.Archiver; src/Tailviewer/BusinessLogic/AutoUpdates | FR-014/015 | P08/P11 | requires boundary tests |
 | F28 | Keyboard/menu shortcuts, accessibility, themes, native dialogs and progress states | src/Tailviewer/Ui; src/Tailviewer.Avalonia/MainWindow.cs | FR-016 | P03-P13 | basic controls only |
-| F29 | All shipping project builds, tests, samples, docs and required notices | dependency-inventory.md; src/*Tests; docs; assets/branding | FR-001/017/018 | P00-P13 | modern subset only |
+| F29 | All shipping project builds, tests, samples, docs and required notices | dependency-inventory.md; src/*Tests; docs; assets/branding | FR-001/017/018 | P00-P13 | partial: API/Core/Avalonia/Archiver modern subset; remaining shipping projects pending |
 
 ## Inventory closure rule
 
@@ -44,8 +44,10 @@ Every public menu/command, shipping plugin contract, settings element and compan
 - [T002 declared surface](legacy-surface.md): 106 source groups and 414 concrete command/binding/schema/CLI/interface expressions, stable fixture IDs and candidate existing tests. These source findings do not establish runtime parity.
 - [T003 fixture manifest](../../src/Tailviewer.Core.Tests/Migration/Fixtures/manifest.json): 14 small/reused fixtures, 106 source-case identities and seven generated-workload recipes; byte hashes/line/XML expectations are checked by `FixtureManifestTest`.
 - [T004 test ownership](test-ownership.md): all 175 legacy C# fixture/helper/metadata files have proposed modern owners; no legacy fixture is claimed ported by this mapping.
-- [T006/T007 metadata boundary](metadata-boundary.md): encoded icon metadata, a portable four-test harness, and separately executed legacy WPF adapter regressions. Full Archiver loader/packer integration remains T008 work.
+- [T006/T007 metadata boundary](metadata-boundary.md): encoded icon metadata, a portable four-test harness, and separately executed legacy WPF adapter regressions. The historical metadata harness is now folded into the full suite by T008.
 - Preserve proxy/DPAPI credentials safely, delta/elapsed/empty-line/display choices, folder regex/recursive settings, and `git-get-changes` author tooling. Dormant dashboard schema must round-trip without activating playground-only features.
+
+[T008 SDK migration evidence](archiver-sdk-migration.md) records 81 Archiver passes, 14 Avalonia passes, conditional legacy dependency isolation, metadata-only dependency inspection, owned test paths and CLI smoke results. F16/F22 remain partially migrated until later archive/security/author/repository tasks close; this does not declare plugin UI or full project parity.
 
 ## Complete desktop source checklist
 

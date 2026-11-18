@@ -71,7 +71,7 @@ dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework n
 
 Current validation on Windows: **14 Avalonia headless integration tests passed**, plus **6,641 Core tests passed** with 5 existing skips. Integration coverage includes file reading, Unicode/BOM, scrolling and virtualization, selection/clipboard, live tailing, replacement/rotation, error recovery, closing during a pending read, and logo resources in light/dark themes with real Skia rendering.
 
-The modern solution also includes **4 passing Archiver metadata tests** for encoded icons and the WPF boundary. Four legacy icon adapter cases passed separately in a .NET 10 WPF runner; full legacy Archiver/desktop conversion is still pending. See the [boundary evidence](specs/001-full-project-migration/metadata-boundary.md).
+The latest source migration run passed **81 Archiver tests plus 14 Avalonia tests** with no skips. Archiver and its full test project are SDK-style; archive/loader/packer/metadata regressions now run against the real assembly. See the [T008 evidence and limits](specs/001-full-project-migration/archiver-sdk-migration.md). Full desktop feature migration remains pending.
 
 ## Known limits
 
@@ -82,7 +82,7 @@ The modern solution also includes **4 passing Archiver metadata tests** for enco
 - Copying a large selection requires memory for the selected text.
 - Search, filtering, merged sources, bookmarks, parsed columns, plugins, and automatic updates have not yet been migrated into the Avalonia prototype.
 
-API/Core temporarily target both .NET Framework 4.5 and .NET 10 to support the remaining legacy projects. Multi-target restore may report the existing `NU1902` advisory for legacy `log4net 2.0.12`; the Avalonia executable uses `log4net 3.6.0` through its .NET 10 dependency graph.
+API/Core temporarily target both .NET Framework 4.5 and .NET 10; Archiver targets .NET Framework 4.5.2 and .NET 10 to support remaining legacy consumers. Archiver tests target .NET 10 without WPF or legacy host project references. Multi-target restore may report the existing `NU1902` advisory for legacy `log4net 2.0.12`; the Avalonia executable uses `log4net 3.6.0` through its .NET 10 dependency graph.
 
 ## Migration documentation
 

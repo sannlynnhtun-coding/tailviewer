@@ -79,3 +79,7 @@
 ## Research closure
 
 No unresolved product choices. Technical runtime compatibility is deliberately gated by executable P01 probes with a defined retain-or-convert fallback, not claimed as established by this source audit. Remaining work is measurement/implementation, captured in plan phases and validation guide.
+
+## T008 implementation evidence
+
+Archiver now has SDK net452/net10.0 targets and a fully modern test project. Dependency-only metadata is read through built-in PEReader/MetadataReader; no new PE parser package is required on net10.0. Icon validation reuses SkiaSharp 3.119.4 already used by the app. Dynamic fixture assemblies use [PersistedAssemblyBuilder](https://learn.microsoft.com/en-us/dotnet/api/system.reflection.emit.persistedassemblybuilder?view=net-10.0), the platform save-capable emitter, instead of enabling old runtime emit-save or BinaryFormatter compatibility switches. Source ownership and copied test data no longer require legacy desktop/test projects. See [executed results and remaining limits](archiver-sdk-migration.md).

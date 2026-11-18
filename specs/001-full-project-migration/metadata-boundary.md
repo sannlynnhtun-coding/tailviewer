@@ -1,6 +1,6 @@
 # T006/T007 — Archiver metadata boundary evidence
 
-**Recorded**: 2026-11-19. Tests and production changes were committed separately. No full Archiver/legacy desktop migration is claimed.
+**Recorded**: 2026-11-19. This is the historical T006/T007 evidence. T008 has since migrated the full Archiver/test projects and retired the linked-source harness; see [current SDK migration evidence](archiver-sdk-migration.md). Full legacy desktop migration is not claimed.
 
 ## Scope and behavior
 
@@ -24,11 +24,11 @@ The final modern solution run uses independent generated TRX filenames, avoiding
 ## Reproduce portable checks
 
 ```powershell
-dotnet test src/Tailviewer.Archiver.Tests/Migration/Tailviewer.Archiver.Metadata.Tests.csproj -c Release
+dotnet test src/Tailviewer.Archiver.Tests/Tailviewer.Archiver.Tests.csproj -c Release --filter FullyQualifiedName~Migration.MetadataTest
 dotnet test Tailviewer.Avalonia.slnx -c Release
 ```
 
-The small metadata test project links five production metadata files and the real API project. It deliberately does not build the entire legacy Archiver. The initial test commit used a Windows/WPF target so old source compiled and failed behavioral assertions; the final project targets plain net10.0 with no WPF framework reference. Fold this temporary linked-source harness into the full project-reference suite when T008 modernizes Archiver.
+The former small metadata test project linked five production metadata files and the real API project. At T006/T007 it deliberately did not build the entire legacy Archiver. The initial test commit used a Windows/WPF target so old source compiled and failed behavioral assertions; the final project targets plain net10.0 with no WPF framework reference. T008 folded this temporary harness into the full project-reference suite; the command above now tests that real assembly.
 
 ## Legacy adapter probe and its limits
 
@@ -36,7 +36,7 @@ The new permanent regression fixture is `src/Tailviewer.Tests/Ui/InstalledPlugin
 
 That runner references the real API project and links the same five production metadata inputs from the portable project, plus `InstalledPluginViewModel.cs`, `IPluginViewModel.cs` and the new regression fixture. It uses the same NUnit/Test SDK versions as the portable project. The runner tests the real WPF adapter on .NET 10; it does not establish that the whole .NET Framework app builds or runs. The generated local runner and TRX are retained for inspection; original full-framework adapter execution remains pending.
 
-Full PluginGroup/archive-loader/packer integration is also deferred to T008 and the owning archive fixtures; this slice tests metadata representation and the real UI adapter, not full plugin load compatibility. This public metadata type change requires rebuilding its consumers, consistent with the accepted plugin port policy. Known legacy log4net restore warnings remain visible.
+At T006/T007, full PluginGroup/archive-loader/packer integration was deferred to T008. Those tests now run in the migrated Archiver suite; full plugin compatibility/isolation remains P08/P09 work. This public metadata type change requires rebuilding its consumers, consistent with the accepted plugin port policy. Known legacy log4net restore warnings remain visible.
 
 ## Local raw artifact fingerprints
 
