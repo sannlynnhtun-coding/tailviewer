@@ -1,6 +1,10 @@
-﻿using System.IO;
+using System.IO;
 using System.Threading;
+#if NET10_0_OR_GREATER
+using WindowState = Tailviewer.Settings.WindowDisplayState;
+#else
 using System.Windows;
+#endif
 using System.Xml;
 using FluentAssertions;
 using NUnit.Framework;
@@ -20,6 +24,7 @@ namespace Tailviewer.Tests.Settings
 			settings.IsLeftSidePanelVisible.Should().BeTrue();
 		}
 
+#if !NET10_0_OR_GREATER
 		[Test]
 		[RequiresThread(ApartmentState.STA)]
 		public void TestRestoreTo1([Values(true, false)] bool alwaysOnTop)
@@ -76,6 +81,8 @@ namespace Tailviewer.Tests.Settings
 			window.Height.Should().Be(42);
 			window.WindowState.Should().Be(WindowState.Maximized);
 		}
+
+#endif
 
 		[Test]
 		public void TestClone([Values(true, false)] bool alwaysOnTop,

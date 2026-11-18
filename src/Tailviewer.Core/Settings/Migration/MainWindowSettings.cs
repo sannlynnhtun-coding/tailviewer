@@ -1,13 +1,22 @@
 using System;
 using System.Diagnostics.Contracts;
 using System.Reflection;
+#if NET10_0_OR_GREATER
+using WindowState = Tailviewer.Settings.WindowDisplayState;
+#else
 using System.Windows;
+#endif
 using System.Xml;
 using log4net;
+#if NET10_0_OR_GREATER
+using WindowSettings = Tailviewer.Settings.WindowPlacement;
+#else
 using Metrolib;
+#endif
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Persisted window placement and selected panels.</summary>
 	public sealed class MainWindowSettings
 		: IMainWindowSettings
 		, ICloneable
@@ -16,18 +25,21 @@ namespace Tailviewer.Settings
 
 		private WindowState _previousWindowState = WindowState.Normal;
 
+		/// <summary>The window height.</summary>
 		public double Height
 		{
 			get { return _window.Height; }
 			set { _window.Height = value; }
 		}
 
+		/// <summary>The left coordinate.</summary>
 		public double Left
 		{
 			get { return _window.Left; }
 			set { _window.Left = value; }
 		}
 
+		/// <summary>The saved window state.</summary>
 		public WindowState State
 		{
 			get { return _window.State; }
@@ -41,26 +53,33 @@ namespace Tailviewer.Settings
 			}
 		}
 
+		/// <summary>The top coordinate.</summary>
 		public double Top
 		{
 			get { return _window.Top; }
 			set { _window.Top = value; }
 		}
 
+		/// <summary>The window width.</summary>
 		public double Width
 		{
 			get { return _window.Width; }
 			set { _window.Width = value; }
 		}
 
+		/// <summary>Whether the window stays above others.</summary>
 		public bool AlwaysOnTop { get; set; }
 
+		/// <summary>The selected side panel.</summary>
 		public string SelectedSidePanel { get; set; }
 
+		/// <summary>Whether the source side panel is visible.</summary>
 		public bool IsLeftSidePanelVisible { get; set; }
 
+		/// <summary>The selected main panel.</summary>
 		public string SelectedMainPanel { get; set; }
 
+		/// <summary>Persisted window placement and selected panels.</summary>
 		public MainWindowSettings()
 		{
 			_window = new WindowSettings();
@@ -70,6 +89,7 @@ namespace Tailviewer.Settings
 		private MainWindowSettings(MainWindowSettings other)
 		{
 			_window = other._window.Clone();
+			_previousWindowState = other._previousWindowState;
 			SelectedMainPanel = other.SelectedMainPanel;
 			SelectedSidePanel = other.SelectedSidePanel;
 			AlwaysOnTop = other.AlwaysOnTop;
@@ -83,6 +103,7 @@ namespace Tailviewer.Settings
 			return Clone();
 		}
 
+		/// <summary>Writes legacy window attributes.</summary>
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttributeString("selectedmainpanel", SelectedMainPanel);
@@ -93,6 +114,7 @@ namespace Tailviewer.Settings
 			_window.Save(writer);
 		}
 
+		/// <summary>Restores legacy window attributes.</summary>
 		public void Restore(XmlReader reader)
 		{
 			for (var i = 0; i < reader.AttributeCount; ++i)
@@ -117,7 +139,12 @@ namespace Tailviewer.Settings
 						break;
 
 					case "previouswindowstate":
+						#if NET10_0_OR_GREATER
+						if (!Enum.TryParse<WindowState>(reader.Value, out _previousWindowState) || !Enum.IsDefined(_previousWindowState))
+							_previousWindowState = WindowState.Normal;
+#else
 						_previousWindowState = reader.ReadContentAsEnum<WindowState>();
+#endif
 						break;
 				}
 			}
@@ -125,6 +152,8 @@ namespace Tailviewer.Settings
 			_window.Restore(reader);
 		}
 
+#if !NET10_0_OR_GREATER
+		/// <summary>The configured UpdateFrom value.</summary>
 		public void UpdateFrom(Window window)
 		{
 			_window.UpdateFrom(window);
@@ -140,11 +169,18 @@ namespace Tailviewer.Settings
 			Log.DebugFormat("Updated main window settings to : Width={0} Height={1}", Width, Height);
 		}
 
+#endif
+
+		/// <summary>Keeps the configured window visible on the supplied desktop.</summary>
 		public void ClipToBounds(Desktop desktop)
 		{
 			try
 			{
+				#if NET10_0_OR_GREATER
+				var currentRectangle = new Desktop.Window(new Desktop.Point(Left, Top), new WindowSize(Width, Height));
+#else
 				var currentRectangle = new Desktop.Window(_window);
+#endif
 				var newRectangle = desktop.ClipToBoundaries(currentRectangle);
 				if (newRectangle != currentRectangle)
 				{
@@ -162,6 +198,8 @@ namespace Tailviewer.Settings
 			}
 		}
 
+#if !NET10_0_OR_GREATER
+		/// <summary>The configured RestoreTo value.</summary>
 		public void RestoreTo(Window window)
 		{
 			// https://github.com/Kittyfisto/Tailviewer/issues/250
@@ -175,6 +213,12 @@ namespace Tailviewer.Settings
 			window.Topmost = AlwaysOnTop;
 		}
 
+#else
+		/// <summary>The visible state to restore when the saved window was minimized.</summary>
+		public WindowDisplayState RestoredState => State == WindowDisplayState.Minimized ? (_previousWindowState == WindowDisplayState.Minimized ? WindowDisplayState.Normal : _previousWindowState) : State;
+#endif
+
+		/// <summary>Creates an independent settings copy.</summary>
 		[Pure]
 		public MainWindowSettings Clone()
 		{

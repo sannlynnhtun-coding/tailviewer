@@ -4,22 +4,24 @@ using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Reflection;
 using log4net;
+#if NET10_0_OR_GREATER
+using Size = Tailviewer.Settings.WindowSize;
+#else
 using Metrolib;
 using Size = System.Windows.Size;
+#endif
 
 namespace Tailviewer.Settings
 {
-	/// <summary>
-	/// </summary>
-	/// <remarks>
-	///     TODO: This might be of interest for others and could be moved to Metrolib.
-	/// </remarks>
+	/// <summary>Screen geometry and window fitting supplied by a UI adapter.</summary>
 	public sealed class Desktop
 	{
 		private static readonly ILog Log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
 		private readonly IReadOnlyCollection<Screen> _screens;
 
+#if !NET10_0_OR_GREATER
+		/// <summary>The current screens for the legacy Windows desktop host.</summary>
 		public static Desktop Current
 		{
 			get
@@ -28,6 +30,9 @@ namespace Tailviewer.Settings
 			}
 		}
 
+#endif
+
+		/// <summary>The screen geometry used to keep a window visible.</summary>
 		public Desktop(IReadOnlyCollection<Screen> screens)
 		{
 			_screens = screens;
@@ -89,6 +94,7 @@ namespace Tailviewer.Settings
 			return modifiedSettings;
 		}
 
+		/// <summary>Whether the point or rectangle is contained.</summary>
 		[Pure]
 		public bool Contains(Rectangle window)
 		{
@@ -118,27 +124,33 @@ namespace Tailviewer.Settings
 		[Pure]
 		private static IReadOnlyList<Screen> SortScreensByArea(IReadOnlyCollection<Screen> screens)
 		{
-			var sorted = screens.OrderBy(x => x.WorkingArea.Area).ToList();
+			var sorted = screens.OrderByDescending(x => x.WorkingArea.Area).ToList();
 			return sorted;
 		}
 
+		/// <summary>A point in the selected coordinate units.</summary>
 		public struct Point
 		{
+			/// <summary>The horizontal coordinate.</summary>
 			public readonly double X;
+			/// <summary>The vertical coordinate.</summary>
 			public readonly double Y;
 
+			/// <summary>A point in the selected coordinate units.</summary>
 			public Point(double x, double y)
 			{
 				X = x;
 				Y = y;
 			}
 
+			/// <summary>Returns the distance to another point.</summary>
 			[Pure]
 			public double DistanceTo(Point other)
 			{
 				return Math.Sqrt(SquaredDistanceTo(other));
 			}
 
+			/// <summary>Returns squared distance to another point.</summary>
 			[Pure]
 			public double SquaredDistanceTo(Point other)
 			{
@@ -149,6 +161,7 @@ namespace Tailviewer.Settings
 
 			#region Overrides of ValueType
 
+			/// <inheritdoc />
 			public override string ToString()
 			{
 				return $"{X}, {Y}";
@@ -157,15 +170,18 @@ namespace Tailviewer.Settings
 			#endregion
 		}
 
+		/// <summary>A rectangle in the selected coordinate units.</summary>
 		public class Rectangle
 		{
 			#region Equality members
 
+			/// <summary>Compares rectangle coordinates and size.</summary>
 			protected bool Equals(Rectangle other)
 			{
 				return _size.Equals(other._size) && _topLeft.Equals(other._topLeft);
 			}
 
+			/// <inheritdoc />
 			public override bool Equals(object obj)
 			{
 				if (ReferenceEquals(null, obj)) return false;
@@ -174,6 +190,7 @@ namespace Tailviewer.Settings
 				return Equals((Rectangle) obj);
 			}
 
+			/// <inheritdoc />
 			public override int GetHashCode()
 			{
 				unchecked
@@ -182,11 +199,13 @@ namespace Tailviewer.Settings
 				}
 			}
 
+			/// <inheritdoc />
 			public static bool operator ==(Rectangle left, Rectangle right)
 			{
 				return Equals(left, right);
 			}
 
+			/// <inheritdoc />
 			public static bool operator !=(Rectangle left, Rectangle right)
 			{
 				return !Equals(left, right);
@@ -197,78 +216,94 @@ namespace Tailviewer.Settings
 			private readonly Size _size;
 			private readonly Point _topLeft;
 
+			/// <summary>A rectangle in the selected coordinate units.</summary>
 			public Rectangle()
 			{}
+			/// <summary>A rectangle in the selected coordinate units.</summary>
 			public Rectangle(double left, double top, double width, double height)
 				: this(new Point(left, top), new Size(width, height))
 			{}
 
+			/// <summary>A rectangle in the selected coordinate units.</summary>
 			public Rectangle(Point topLeft, Size size)
 			{
 				_topLeft = topLeft;
 				_size = size;
 			}
 
+			/// <summary>The top coordinate.</summary>
 			public double Top
 			{
 				get { return _topLeft.Y; }
 			}
 
+			/// <summary>The left coordinate.</summary>
 			public double Left
 			{
 				get { return _topLeft.X; }
 			}
 
+			/// <summary>The bottom coordinate.</summary>
 			public double Bottom
 			{
 				get { return _topLeft.Y + _size.Height; }
 			}
 
+			/// <summary>The right coordinate.</summary>
 			public double Right
 			{
 				get { return _topLeft.X + _size.Width; }
 			}
 
+			/// <summary>The upper-left corner.</summary>
 			public Point TopLeft
 			{
 				get { return _topLeft; }
 			}
 
+			/// <summary>The upper-right corner.</summary>
 			public Point TopRight
 			{
 				get { return new Point(Right, Top); }
 			}
 
+			/// <summary>The lower-right corner.</summary>
 			public Point BottomRight
 			{
 				get { return new Point(Right, Bottom); }
 			}
 
+			/// <summary>The lower-left corner.</summary>
 			public Point BottomLeft
 			{
 				get { return new Point(Left, Bottom); }
 			}
 
+			/// <summary>The rectangle center.</summary>
 			public Point Center
 			{
 				get { return new Point(_topLeft.X + _size.Width / 2, _topLeft.Y + _size.Height / 2); }
 			}
 
+			/// <summary>The rectangle area.</summary>
 			public double Area
 			{
 				get { return _size.Width * _size.Height; }
 			}
 
+			/// <summary>The window width.</summary>
 			public double Width
 			{
 				get { return _size.Width; }
 			}
 
+			/// <summary>The window height.</summary>
 			public double Height
 			{
 				get { return _size.Height; }
 			}
 
+			/// <summary>The rectangle size.</summary>
 			public Size Size
 			{
 				get { return _size; }
@@ -276,6 +311,7 @@ namespace Tailviewer.Settings
 
 			#region Overrides of Object
 
+			/// <inheritdoc />
 			public override string ToString()
 			{
 				return $"(({TopLeft}) ({Size}))";
@@ -367,39 +403,41 @@ namespace Tailviewer.Settings
 				};
 			}
 
+			/// <summary>Whether the two rectangles overlap.</summary>
 			[Pure]
 			public bool Overlap(Rectangle rectangle)
 			{
-				if (rectangle.Contains(TopLeft) || rectangle.Contains(TopRight) ||
-				    rectangle.Contains(BottomLeft) || rectangle.Contains(BottomRight))
-					return true;
-
-				if (Contains(rectangle.TopLeft) || Contains(rectangle.TopRight) ||
-				    Contains(rectangle.BottomLeft) || rectangle.Contains(BottomRight))
-					return true;
-
-				return false;
+				return Left <= rectangle.Right && Right >= rectangle.Left &&
+				       Top <= rectangle.Bottom && Bottom >= rectangle.Top;
 			}
 
+			/// <summary>Whether the point or rectangle is contained.</summary>
 			[Pure]
 			public bool Contains(Point topLeft)
 			{
-				return !(topLeft.X < Left || topLeft.Y > Right ||
+				return !(topLeft.X < Left || topLeft.X > Right ||
 				       topLeft.Y < Top || topLeft.Y > Bottom);
 			}
 		}
 
+		/// <summary>Window bounds and maximized state.</summary>
 		public sealed class Window
 			: Rectangle
 		{
+			/// <summary>Window bounds and maximized state.</summary>
 			public Window(Point topLeft, Size size)
 				: base(topLeft, size)
 			{ }
 
+#if !NET10_0_OR_GREATER
+			/// <summary>Window bounds and maximized state.</summary>
 			public Window(WindowSettings settings)
 				: this(new Point(settings.Left, settings.Top), new Size(settings.Width, settings.Height))
 			{ }
 
+#endif
+
+			/// <summary>Whether the fitted window should be maximized.</summary>
 			public bool IsMaximized;
 		}
 
@@ -408,15 +446,20 @@ namespace Tailviewer.Settings
 		/// </summary>
 		public sealed class Screen
 		{
+			/// <summary>The complete screen bounds.</summary>
 			public readonly Rectangle Bounds;
+			/// <summary>The usable screen bounds.</summary>
 			public readonly Rectangle WorkingArea;
 
+			/// <summary>Screen bounds and its usable working area.</summary>
 			public Screen(Point topLeft, Size size)
 			{
 				Bounds = new Rectangle(topLeft, size);
 				WorkingArea = new Rectangle(topLeft, size);
 			}
 
+#if !NET10_0_OR_GREATER
+			/// <summary>Screen bounds and its usable working area.</summary>
 			public Screen(System.Windows.Forms.Screen screen)
 			{
 				Bounds = new Rectangle(new Point(screen.Bounds.X, screen.Bounds.Y),
@@ -424,6 +467,10 @@ namespace Tailviewer.Settings
 				WorkingArea = new Rectangle(new Point(screen.WorkingArea.X, screen.WorkingArea.Y),
 				                            new Size(screen.WorkingArea.Width, screen.WorkingArea.Height));
 			}
+#else
+			/// <summary>Creates a screen with explicit bounds and usable working area in the same units.</summary>
+			public Screen(Rectangle bounds, Rectangle workingArea) { Bounds = bounds; WorkingArea = workingArea; }
+#endif
 
 			/// <summary>
 			///    Tries to bring the given window into view.
@@ -450,6 +497,7 @@ namespace Tailviewer.Settings
 				return true;
 			}
 
+			/// <summary>Fits a window to the working area.</summary>
 			[Pure]
 			public Window FitWindowInto(Window settings)
 			{
@@ -458,6 +506,7 @@ namespace Tailviewer.Settings
 				return newSettings;
 			}
 
+			/// <summary>Removes areas covered by this screen.</summary>
 			[Pure]
 			public IReadOnlyList<Rectangle> CutAway(IReadOnlyList<Rectangle> windowPortions)
 			{

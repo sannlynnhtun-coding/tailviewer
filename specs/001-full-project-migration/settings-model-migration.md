@@ -76,3 +76,32 @@ dotnet test Tailviewer.Avalonia.slnx -c Release
 The oracle requires WindowsDesktop only in its separate test project, outside the modern production graph. Evidence logs: `artifacts/migration/t011-color-tests.log`, `t011-color-oracle.log`, `t011-color-final.log`, `t011-color-adapter.log`, `t011-color-targets.log`, `t011-color-solution.log`. Profile probe: `run-b457f70dd35841f4b12e471d9a790833`.
 
 T011 stays open for primitive window placement/UI conversion and complete profile/plugin XML preservation. Full Core/API suites, full old desktop integration, ICC profile rendering and the final settings/theme UI have not been verified in this slice.
+
+## Slice 5: window placement and desktop geometry
+
+Moved MainWindowSettings/IMainWindowSettings/Desktop into the shared migration directory. Modern Core replaces Metrolib WindowSettings and WPF Size/WindowState with a small internal placement record and public numeric size/state values. OS screen enumeration, Forms screen constructors and WPF Window methods remain conditional legacy UI code; modern Core receives screen bounds/working areas explicitly. The original host links the same sources, retaining its WPF-facing API. Avalonia receives checked two-way mappings for the three legacy window states.
+
+Defaults were executed against the actual Metrolib 0.3.0.162 library: Left/Top/Width/Height are all 0 and state is Normal; the original WPF RestoreTo also applies those zero dimensions. No window size was invented in Core. Normal/Maximized/Minimized wire values and fractional/negative coordinates were read in both directions between Metrolib and modern Core. Modern reads reject invalid/nonfinite sizes/positions and invalid enum values in favor of existing safe values.
+
+Regression tests initially produced **3 failures / 5 passes**: clone lost the pre-minimize state, a right-edge containment check compared Y rather than X, and oversized windows selected the smallest rather than largest working area. The shared implementation now retains prior state in clones, uses correct axis overlap/containment and selects the largest working area when resizing is necessary. Cross-shaped overlap/cutting is covered as well. Minimized startup state resolves to the last visible state, with Normal as the fallback for unusable previous values.
+
+### Executed results
+
+- Existing desktop/rectangle cases: **11 passed**. Nine original pure main-window cases are linked into Core; the four native WPF method cases remain legacy-only, with modern state/value equivalents tested separately rather than counted as migrated native journeys.
+- Final affected Core selection: **290 passed / 0 failed / 0 skipped**.
+- Avalonia window-state adapter: **5 passed**.
+- Separate WindowsDesktop oracle: **15 passed** (10 prior color cases + 5 window default/native-WPF-default/legacy-wire cases).
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed / 0 failed / 0 skipped**.
+- The actual legacy source branches compile against net452, Core net45 and original Metrolib in the separate build probe. Modern Core builds and its restored graph stays free of WPF/Forms/Metrolib/SharpRemote/PE/System.Drawing.Common.
+- Linked profile probe remains **4 passed / 4 expected failures**, not a completed profile gate.
+
+```powershell
+dotnet build specs/001-full-project-migration/probes/windows/LegacyWindow.csproj -c Release
+dotnet test specs/001-full-project-migration/probes/colors/ColorOracle.Tests.csproj -c Release
+dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj -c Release -f net10.0 --filter 'FullyQualifiedName~Settings|FullyQualifiedName~FixtureManifestTest|FullyQualifiedName~DataSourceTest|FullyQualifiedName~DesktopTest|FullyQualifiedName~RectangleTest'
+dotnet test Tailviewer.Avalonia.slnx -c Release
+```
+
+Evidence: `artifacts/migration/t011-window-defaults.log`, `t011-window-red.log`, `t011-window-final.log`, `t011-window-adapter.log`, `t011-window-oracle.log`, `t011-window-legacy-verified.log`, `t011-window-solution.log`; profile probe `run-8563553c58554c0e9189b54729681d42`.
+
+The legacy compile probe is a source/API build check, not a complete old desktop/service build. Native Avalonia window capture/restore, display pixel-to-DIP conversion and mixed-DPI/monitor hardware calibration are still owning UI acceptance work; do not interpret state conversion or geometry tests as verification of those native journeys. T011 remains open for the profile/custom-format models and full unknown/plugin XML preservation. No real user window/profile was modified; the WPF oracle window was created without showing it and closed in the test.

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net452</TargetFramework><LangVersion>latest</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+ <ItemGroup>
+  <ProjectReference Include="../../../../src/Tailviewer.Core/Tailviewer.Core.csproj" />
+  <PackageReference Include="Metrolib" Version="0.3.0.162" />
+  <Reference Include="PresentationCore"/><Reference Include="PresentationFramework"/><Reference Include="WindowsBase"/><Reference Include="System.Windows.Forms"/>
+  <Compile Include="../../../../src/Tailviewer.Core/Settings/Migration/MainWindowSettings.cs" />
+  <Compile Include="../../../../src/Tailviewer.Core/Settings/Migration/IMainWindowSettings.cs" />
+  <Compile Include="../../../../src/Tailviewer.Core/Settings/Migration/Desktop.cs" />
+ </ItemGroup>
+</Project>

@@ -1,7 +1,11 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Settings;
+#if NET10_0_OR_GREATER
+using Size = Tailviewer.Settings.WindowSize;
+#else
 using Size = System.Windows.Size;
+#endif
 
 namespace Tailviewer.Tests
 {
