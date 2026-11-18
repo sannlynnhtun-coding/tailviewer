@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.Serialization;
+#if NETFRAMEWORK
 using System.Security.Permissions;
+#endif
 
 namespace Tailviewer.Archiver.Plugins
 {
@@ -33,6 +35,7 @@ namespace Tailviewer.Archiver.Plugins
 		{
 		}
 
+#if NETFRAMEWORK
 		[SecurityPermission(SecurityAction.Demand, SerializationFormatter = true)]
 		protected CorruptPluginException(SerializationInfo info, StreamingContext context) : base(info, context)
 		{
@@ -43,5 +46,6 @@ namespace Tailviewer.Archiver.Plugins
 		{
 			base.GetObjectData(info, context);
 		}
+#endif
 	}
 }

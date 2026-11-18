@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.Serialization;
+#if NETFRAMEWORK
 using System.Security.Permissions;
+#endif
 
 namespace Tailviewer.Archiver.Repository
 {
@@ -23,6 +25,7 @@ namespace Tailviewer.Archiver.Repository
 		{
 		}
 
+#if NETFRAMEWORK
 		[SecurityPermission(SecurityAction.Demand, SerializationFormatter = true)]
 		protected PluginAlreadyPublishedException(SerializationInfo info, StreamingContext context) : base(info, context)
 		{
@@ -33,5 +36,6 @@ namespace Tailviewer.Archiver.Repository
 		{
 			base.GetObjectData(info, context);
 		}
+#endif
 	}
 }

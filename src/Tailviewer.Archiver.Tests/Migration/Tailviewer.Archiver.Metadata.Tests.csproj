@@ -9,14 +9,9 @@
     <PackageReference Include="NUnit" Version="4.5.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <ProjectReference Include="../../Tailviewer.Api/Tailviewer.Api.csproj" />
-    <!-- shortcut: link production metadata until the complete Archiver project is migrated in T008. -->
-    <Compile Include="../../Tailviewer.Archiver/Plugins/Description/IChange.cs" Link="Production/IChange.cs" />
-    <Compile Include="../../Tailviewer.Archiver/Plugins/Description/IPluginDescription.cs" Link="Production/IPluginDescription.cs" />
-    <Compile Include="../../Tailviewer.Archiver/Plugins/Description/IPluginImplementationDescription.cs" Link="Production/IPluginImplementationDescription.cs" />
-    <Compile Include="../../Tailviewer.Archiver/Plugins/Description/PluginDescription.cs" Link="Production/PluginDescription.cs" />
-    <Compile Include="../../Tailviewer.Archiver/Plugins/PluginId.cs" Link="Production/PluginId.cs" />
+    <ProjectReference Include="../../Tailviewer.Archiver/Tailviewer.Archiver.csproj" />
     <Compile Include="MetadataTest.cs" />
+    <Compile Include="ArchiverRuntimeTest.cs" />
     <EmbeddedResource Include="../TestData/cropped-uiforetwicon2.png" LogicalName="MetadataTest.Icon.png" />
   </ItemGroup>
 </Project>

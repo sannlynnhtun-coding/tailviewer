@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+#if NETFRAMEWORK
 using System.Drawing;
+#endif
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -9,7 +11,13 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Xml.Serialization;
 using log4net;
+#if NETFRAMEWORK
 using PE;
+#else
+using System.Reflection.PortableExecutable;
+using SkiaSharp;
+using PeHeader = System.Reflection.PortableExecutable.PEHeaders;
+#endif
 using Tailviewer.Archiver.Plugins.Description;
 
 namespace Tailviewer.Archiver.Plugins
@@ -123,12 +131,15 @@ namespace Tailviewer.Archiver.Plugins
 		{
 			Log.InfoFormat("Adding file '{0}'...", entryName);
 
-			PeHeader header;
-			PortableExecutable.TryReadHeader(content, out header, leaveOpen: true);
+			var header = ReadHeader(content);
 			content.Position = 0;
 			if (header != null)
 			{
+				#if NETFRAMEWORK
 				if (header.IsClrAssembly)
+#else
+				if (header.CorHeader != null)
+#endif
 				{
 					AddAssembly(entryName, content, header);
 				}
@@ -156,11 +167,26 @@ namespace Tailviewer.Archiver.Plugins
 		{
 			Log.InfoFormat("Adding icon...");
 
-			using (var image = new Bitmap(icon))
-			{
-				// TODO: Include rescaling the icon if we don't like its size...
-				AddFile(PluginArchive.IconEntryName, icon);
-			}
+#if NETFRAMEWORK
+            using (var image = new Bitmap(icon))
+            {
+                icon.Position = 0;
+                AddFile(PluginArchive.IconEntryName, icon);
+            }
+#else
+            using (var buffer = new MemoryStream())
+            {
+                icon.CopyTo(buffer);
+                var bytes = buffer.ToArray();
+                using (var image = SKImage.FromEncodedData(bytes))
+                {
+                    if (image == null)
+                        throw new PackException("The plugin icon is not a valid encoded image");
+                }
+                using (var content = new MemoryStream(bytes))
+                    AddFile(PluginArchive.IconEntryName, content);
+            }
+#endif
 		}
 
 		public void SetChanges(string changesFileName)
@@ -191,8 +217,7 @@ namespace Tailviewer.Archiver.Plugins
 		{
 			using (var content = File.OpenRead(assemblyFileName))
 			{
-				PeHeader header;
-				PortableExecutable.TryReadHeader(content, out header, leaveOpen: true);
+				var header = ReadHeader(content);
 				content.Position = 0;
 				return AddAssembly(entryName, content, header);
 			}
@@ -206,7 +231,11 @@ namespace Tailviewer.Archiver.Plugins
 		/// <param name="header"></param>
 		private Assembly AddAssembly(string entryName, Stream content, PeHeader header)
 		{
+			#if NETFRAMEWORK
 			if (!header.Is32BitHeader)
+#else
+			if (header.PEHeader.Magic != PEMagic.PE32)
+#endif
 				throw new PackException("Assemblies must be compiled for x86 or AnyCPU");
 
 			byte[] rawAssembly;
@@ -217,7 +246,7 @@ namespace Tailviewer.Archiver.Plugins
 			// support adding assemblies which target older .NET frameworks where this attribute
 			// is obviously missing and therefore we will tolerate assemblies without it.
 			if (version != null)
-				if (version > MaximumNetFrameworkVersion)
+				if (targetFramework.FrameworkName.StartsWith(".NETFramework,") && version > MaximumNetFrameworkVersion)
 					throw new PackException($"Assemblies may only target frameworks of up to .NET {MaximumNetFrameworkVersion}");
 
 			var assemblyDescription = AssemblyDescription.FromAssembly(assembly);
@@ -282,7 +311,11 @@ namespace Tailviewer.Archiver.Plugins
 
 		private void AddNativeImage(string entryName, Stream content, PeHeader header)
 		{
+			#if NETFRAMEWORK
 			if (!header.Is32BitHeader)
+#else
+			if (header.PEHeader.Magic != PEMagic.PE32)
+#endif
 				throw new PackException("Native images must be compiled for x86");
 
 			var description = new NativeImageDescription
@@ -314,8 +347,12 @@ namespace Tailviewer.Archiver.Plugins
 				case "PE":
 					return false;
 
-				default:
-					var assembly = Assembly.Load(dependency);
+                default:
+                    var assembly = Assembly.Load(dependency);
+#if NET10_0_OR_GREATER
+                    if (Path.GetDirectoryName(assembly.Location) == Path.GetDirectoryName(typeof(object).Assembly.Location))
+                        return false;
+#endif
 					var attribute = assembly.GetCustomAttribute<AssemblyProductAttribute>();
 					if (attribute == null)
 						return true;
@@ -326,6 +363,25 @@ namespace Tailviewer.Archiver.Plugins
 					return true;
 			}
 		}
+
+        private static PeHeader ReadHeader(Stream content)
+        {
+#if NETFRAMEWORK
+            PeHeader header;
+            PortableExecutable.TryReadHeader(content, out header, leaveOpen: true);
+            return header;
+#else
+            try
+            {
+                using (var reader = new PEReader(content, PEStreamOptions.LeaveOpen))
+                    return reader.PEHeaders;
+            }
+            catch (BadImageFormatException)
+            {
+                return null;
+            }
+#endif
+        }
 
 		private void AddFileRaw(string entryName, Stream content)
 		{

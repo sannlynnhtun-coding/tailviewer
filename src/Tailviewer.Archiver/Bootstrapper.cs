@@ -21,7 +21,9 @@ namespace Tailviewer.Archiver
 		{
 			try
 			{
+#if NETFRAMEWORK
 				EnableEmbeddedDependencyLoading("Tailviewer.Archiver", "Resources");
+#endif
 
 				return Program.Run(args);
 			}

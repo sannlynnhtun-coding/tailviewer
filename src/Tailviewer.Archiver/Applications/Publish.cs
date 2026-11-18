@@ -9,7 +9,9 @@ using System.Text;
 using log4net;
 using log4net.Core;
 using log4net.Repository.Hierarchy;
+#if NETFRAMEWORK
 using SharpRemote;
+#endif
 using Tailviewer.Archiver.Plugins;
 using Tailviewer.Archiver.Repository;
 using Constants = Tailviewer.Archiver.Repository.Constants;
@@ -33,6 +35,7 @@ namespace Tailviewer.Archiver.Applications
 
 		public ExitCode Run(PublishOptions options)
 		{
+#if NETFRAMEWORK
 			var warnings = new Dictionary<Type, ExitCode>
 			{
 				{typeof(PluginAlreadyPublishedException), ExitCode.PluginAlreadyPublished}
@@ -93,7 +96,11 @@ namespace Tailviewer.Archiver.Applications
 				Log.Error(e);
 				return ExitCode.UnhandledException;
 			}
-		}
+#else
+            Log.Error("Legacy SharpRemote publishing is unavailable on .NET 10; repository transport migration is pending (P10). Local pack/list commands remain available.");
+            return ExitCode.ConnectionError;
+#endif
+        }
 
 		private static void LogFileNamesToPublish(IReadOnlyList<string> fileNames)
 		{
@@ -121,6 +128,7 @@ namespace Tailviewer.Archiver.Applications
 			return Directory.EnumerateFiles(path, pattern, SearchOption.TopDirectoryOnly).ToList();
 		}
 
+#if NETFRAMEWORK
 		private void Connect(SocketEndPoint client, string address)
 		{
 			var endPoint = ParseAddress(address);
@@ -139,6 +147,7 @@ namespace Tailviewer.Archiver.Applications
 			throw lastException;
 		}
 
+#endif
 		[Pure]
 		private static DnsEndPoint ParseAddress(string address)
 		{
