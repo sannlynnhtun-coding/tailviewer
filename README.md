@@ -85,6 +85,7 @@ API/Core temporarily target both .NET Framework 4.5 and .NET 10 to support the r
 ## Migration documentation
 
 - [Full-project migration specification](specs/001-full-project-migration/spec.md) — legacy feature parity, settings, plugins, updates, and acceptance targets; implementation is pending.
+- [Full migration implementation plan](specs/001-full-project-migration/plan.md) — project/dependency inventories, small implementation phases, contracts, and validation gates.
 - [Migration plan and dependency compatibility audit](docs/AvaloniaMigrationPlan.md) — Burmese
 - [Prototype usage and implementation notes](src/Tailviewer.Avalonia/README.md) — Burmese
 - [Logo master, icon exports and generation brief](assets/branding/README.md)
