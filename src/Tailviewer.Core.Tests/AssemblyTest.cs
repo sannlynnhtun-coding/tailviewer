@@ -31,7 +31,8 @@ namespace Tailviewer.Core.Tests
 				"Tailviewer.Core",
 #if NET10_0_OR_GREATER
 				// Shared legacy settings retain their serialized/public namespaces during migration.
-				"Tailviewer.Settings", "Tailviewer.Settings.CustomFormats", "Tailviewer.Settings.Bookmarks"
+				"Tailviewer.Settings", "Tailviewer.Settings.CustomFormats", "Tailviewer.Settings.Bookmarks",
+				"Tailviewer.Settings.Dashboard", "Tailviewer.Settings.Dashboard.Widgets"
 #endif
 			};
 			foreach (var type in exportedTypes)

@@ -350,3 +350,51 @@ No modern UI persistence is wired yet. File IO still uses the old direct writer;
 bounds, atomic replacement, concurrent writes, crash recovery and original/import
 backup verification remain T012-T014 gates. T011 remains open for the final
 settings-source inventory/audit, including unused dashboard setting placeholders.
+
+
+## Slice 11 and T011 closeout: remaining XML models and boundaries
+
+Moved the two remaining UI-independent dashboard settings envelopes into Core
+and linked their shared sources from the legacy host. The original widget model
+was a stub with no renderer or typed settings; the modern model preserves its
+opaque XML instead of inventing widget behavior or schema. Layout restores only
+direct unqualified widgets and commits after a complete parse. Unknown layout
+attributes/nodes and widget payload/namespace/CDATA survive two round-trips;
+clearing widgets retains unrelated layout data. Legacy branches remain unchanged.
+
+The three new cases first produced **2 failed / 1 passed**. Final affected Core
+selection (settings, geometry, fixtures, source/bookmark/profile and assembly
+boundaries): **373 passed / 0 failed / 0 skipped**. Expanded net452 shared-source
+compile passes. The last full Core run in slice 10 passed **7003 cases with five
+pre-existing skips**; the three subsequent dashboard cases are explicitly in the
+373-case final selection, not silently added to a claimed full-suite run.
+
+Final source inventory: **26 legacy Compile links** point at existing Core
+migration sources, with no missing link. The only remaining file physically in
+src/Tailviewer/Settings is TextSettings.cs. It is WPF font-family/typeface/glyph
+measurement used by legacy rendering, not a persisted XML configuration model.
+It remains at the UI boundary for the owning renderer/font-layout migration.
+Core's actual assembly-reference test rejects WPF, Metrolib, Windows Forms,
+System.Drawing.Common and archive; its namespace test permits only the explicit
+Core and retained settings namespaces (including the two dashboard namespaces).
+
+| T011 requirement | Executed evidence / implementation |
+|---|---|
+| Original UI-neutral models, public namespaces, XML names/defaults | Shared-source links; 373-case selection, original source/window/color/application tests; net452 source/API build |
+| Root/leaf/record/plugin raw data and independent clones | Profile, source, bookmark, format, filter and dashboard XML cases across slices 2/6-11; no plugin activation claim |
+| Proxy/DPAPI CurrentUser ciphertext and salt | Slice 3 model tests plus the final settings selection; raw encrypted data retained and credentials unavailable/re-entry state handled |
+| Remove modern WPF/Metrolib serializer dependency | Core assembly-reference assertion; primitive-wire/color/window cases and existing Avalonia adapters |
+| Existing caller compatibility | Legacy source/API build; original application tests; five source-linked custom-format editor cases; startup restores before consumers bind |
+
+T011 is complete for model/serializer ownership. This is not a completed user
+story or safe-storage acceptance gate. T012 must replace the direct file writer,
+bound reads and validate atomic replacement/concurrency/failure behavior before
+modern UI persistence is connected. T013/T014 own backup/import validation.
+Modern workspace import/reload must rebind the documented section snapshots.
+Plugin activation/conversion, native window/DPI calibration, ICC rendering,
+font/glyph layout and full settings UI remain with their owning story tasks.
+
+Evidence: artifacts/migration/t011-dashboard-red.log, t011-settings-final.log,
+t011-settings-legacy-final.log, t011-settings-solution-final.log,
+t011-settings-probe-final.log; the latter two retain the final modern solution
+and signed source-runner outcomes. No real profile, credential or log was changed.

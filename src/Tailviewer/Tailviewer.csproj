@@ -222,8 +222,8 @@
     <Compile Include="..\Tailviewer.Core\Settings\Migration\AutoUpdateSettings.cs"><Link>Settings\AutoUpdateSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\BookmarkSettings.cs"><Link>Settings\Bookmarks\BookmarkSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\Bookmarks.cs"><Link>Settings\Bookmarks\Bookmarks.cs</Link></Compile>
-    <Compile Include="Settings\Dashboard\LayoutSettings.cs" />
-    <Compile Include="Settings\Dashboard\Widgets\WidgetSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\Dashboard\LayoutSettings.cs"><Link>Settings\Dashboard\LayoutSettings.cs</Link></Compile>
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\Dashboard\Widgets\WidgetSettings.cs"><Link>Settings\Dashboard\Widgets\WidgetSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\DataSource.cs"><Link>Settings\DataSource.cs</Link></Compile>
     <Compile Include="Constants.cs" />
     <Compile Include="BusinessLogic\DataSources\DataSources.cs" />
