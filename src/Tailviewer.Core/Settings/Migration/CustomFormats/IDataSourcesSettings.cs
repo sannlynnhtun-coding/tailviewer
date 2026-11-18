@@ -3,9 +3,11 @@ using Tailviewer.Api;
 
 namespace Tailviewer.Settings.CustomFormats
 {
+	/// <summary>The persisted source list and its selection.</summary>
 	public interface IDataSourcesSettings
 		: IList<DataSource>
 	{
+		/// <summary>The selected configured source identity.</summary>
 		DataSourceId SelectedItem { get; set; }
 
 		/// <summary>

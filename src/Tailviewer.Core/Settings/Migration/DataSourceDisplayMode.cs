@@ -1,9 +1,8 @@
-using Tailviewer.Ui.LogView.DataSource;
 
 namespace Tailviewer.Settings
 {
 	/// <summary>
-	///     Defines how <see cref="DataSourceCanvas" /> displays individual data sources.
+	///     Defines how the log viewer displays individual data sources.
 	/// </summary>
 	public enum DataSourceDisplayMode
 	{

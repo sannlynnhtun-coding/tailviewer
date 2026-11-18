@@ -2,13 +2,16 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Xml;
-using log4net;
+#if !NET10_0_OR_GREATER
 using Metrolib;
+#endif
+using log4net;
 using Tailviewer.Api;
 using Tailviewer.Core;
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Persisted source configuration with the original XML names and source identity.</summary>
 	public sealed class DataSource
 		: ICloneable
 	{
@@ -17,15 +20,24 @@ namespace Tailviewer.Settings
 
 		private readonly List<QuickFilterId> _activatedQuickFilters;
 
+		/// <summary>Whether entries use log-level colors.</summary>
 		public bool ColorByLevel;
+		/// <summary>Whether empty lines are hidden.</summary>
 		public bool HideEmptyLines;
+		/// <summary>Whether multiline entries display on a single line.</summary>
 		public bool IsSingleLine;
 
+		/// <summary>The configured file path, including unavailable paths.</summary>
 		public string File;
+		/// <summary>Whether new entries are followed.</summary>
 		public bool FollowTail;
+		/// <summary>Whether line numbers are visible.</summary>
 		public bool ShowLineNumbers;
+		/// <summary>Whether timestamp differences are visible.</summary>
 		public bool ShowDeltaTimes;
+		/// <summary>Whether elapsed time is visible.</summary>
 		public bool ShowElapsedTime;
+		/// <summary>Whether the source tree item is expanded.</summary>
 		public bool IsExpanded;
 
 		/// <summary>
@@ -41,8 +53,11 @@ namespace Tailviewer.Settings
 		/// </summary>
 		public DataSourceId Id;
 
+		/// <summary>The last viewed timestamp.</summary>
 		public DateTime LastViewed;
+		/// <summary>The enabled log levels.</summary>
 		public LevelFlags LevelFilter;
+		/// <summary>The configured source order.</summary>
 		public int Order;
 
 		/// <summary>
@@ -67,9 +82,13 @@ namespace Tailviewer.Settings
 		/// </summary>
 		public bool Recursive;
 
+		/// <summary>Selected original entry indices.</summary>
 		public HashSet<LogLineIndex> SelectedLogLines;
+		/// <summary>The saved search text.</summary>
 		public string SearchTerm;
+		/// <summary>The first visible original entry index.</summary>
 		public LogLineIndex VisibleLogLine;
+		/// <summary>The saved horizontal scroll offset.</summary>
 		public double HorizontalOffset;
 
 		/// <summary>
@@ -77,8 +96,10 @@ namespace Tailviewer.Settings
 		/// </summary>
 		public string UserDefinedName;
 
+		/// <summary>How merged-source names are displayed.</summary>
 		public DataSourceDisplayMode MergedDataSourceDisplayMode;
 
+		/// <summary>The active quick-filter identities.</summary>
 		public List<QuickFilterId> ActivatedQuickFilters => _activatedQuickFilters;
 
 		/// <summary>
@@ -96,6 +117,7 @@ namespace Tailviewer.Settings
 		/// </summary>
 		public ICustomDataSourceConfiguration CustomDataSourceConfiguration;
 
+		/// <summary>Creates a source configuration with the existing defaults.</summary>
 		public DataSource()
 		{
 			Order = -1;
@@ -111,6 +133,7 @@ namespace Tailviewer.Settings
 			ExcludedDataSources = new HashSet<DataSourceId>();
 		}
 
+		/// <summary>Creates a source configuration with the existing defaults.</summary>
 		public DataSource(string file)
 			: this()
 		{
@@ -118,6 +141,7 @@ namespace Tailviewer.Settings
 		}
 
 
+		/// <inheritdoc />
 		public override string ToString()
 		{
 			if (CustomDataSourceConfiguration != null)
@@ -129,6 +153,7 @@ namespace Tailviewer.Settings
 			return string.Format("{0} ({1})", File, Id);
 		}
 
+		/// <summary>Writes the existing XML attribute names and child elements.</summary>
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttributeString("file", File);
@@ -184,6 +209,7 @@ namespace Tailviewer.Settings
 			}
 		}
 
+		/// <summary>Restores configuration from the existing XML representation.</summary>
 		public void Restore(XmlReader reader, out bool neededPatching)
 		{
 			int count = reader.AttributeCount;
@@ -309,7 +335,7 @@ namespace Tailviewer.Settings
 					case "excludeddatasources":
 						var excluded = ReadExcludedDataSources(reader);
 						ExcludedDataSources.Clear();
-						ExcludedDataSources.AddRange(excluded);
+						ExcludedDataSources.UnionWith(excluded);
 						break;
 				}
 			}
@@ -371,11 +397,15 @@ namespace Tailviewer.Settings
 			return guids;
 		}
 
+		/// <summary>Creates a copy with independent mutable collections and plugin configuration.</summary>
 		public DataSource Clone()
 		{
 			var clone = new DataSource
 			{
 				ColorByLevel = ColorByLevel,
+				CustomDataSourceId = CustomDataSourceId,
+				CustomDataSourceConfiguration = (ICustomDataSourceConfiguration)CustomDataSourceConfiguration?.Clone(),
+				UserDefinedName = UserDefinedName,
 				File = File,
 				FollowTail = FollowTail,
 				HideEmptyLines = HideEmptyLines,
@@ -399,8 +429,8 @@ namespace Tailviewer.Settings
 				DisplayName = DisplayName,
 			};
 			clone.ActivatedQuickFilters.AddRange(ActivatedQuickFilters);
-			clone.SelectedLogLines.AddRange(SelectedLogLines);
-			clone.ExcludedDataSources.AddRange(ExcludedDataSources);
+			clone.SelectedLogLines.UnionWith(SelectedLogLines);
+			clone.ExcludedDataSources.UnionWith(ExcludedDataSources);
 			return clone;
 		}
 

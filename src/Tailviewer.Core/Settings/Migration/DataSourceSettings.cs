@@ -3,14 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Xml;
-using log4net;
+#if !NET10_0_OR_GREATER
 using Metrolib;
+#endif
+using log4net;
 using Tailviewer.Api;
 using Tailviewer.Core;
 using Tailviewer.Settings.CustomFormats;
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Ordered persisted source configurations and folder defaults.</summary>
 	public sealed class DataSourceSettings
 		: List<DataSource>
 		, IDataSourcesSettings
@@ -22,16 +25,20 @@ namespace Tailviewer.Settings
 		private string _pattern;
 		private bool _isPinned;
 
+		/// <summary>The selected configured source identity.</summary>
 		public DataSourceId SelectedItem { get; set; }
 
+		/// <summary>The patterns used when adding a folder source.</summary>
 		public string FolderDataSourcePattern
 		{
 			get { return _pattern; }
 			set { _pattern = value; }
 		}
 
+		/// <summary>Whether newly added folders include subdirectories.</summary>
 		public bool FolderDataSourceRecursive { get; set; }
 
+		/// <summary>Whether the source panel stays pinned.</summary>
 		public bool IsPinned
 		{
 			get { return _isPinned; }
@@ -46,6 +53,7 @@ namespace Tailviewer.Settings
 			return Clone();
 		}
 
+		/// <summary>Restores configuration from the existing XML representation.</summary>
 		public void Restore(XmlReader reader, out bool neededPatching)
 		{
 			neededPatching = false;
@@ -112,6 +120,7 @@ namespace Tailviewer.Settings
 			}
 		}
 
+		/// <summary>Writes the existing XML attribute names and child elements.</summary>
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttribute("selecteditem", SelectedItem);
@@ -127,6 +136,7 @@ namespace Tailviewer.Settings
 			}
 		}
 
+		/// <summary>Creates a copy with independent source configurations.</summary>
 		public DataSourceSettings Clone()
 		{
 			var clone = new DataSourceSettings();
