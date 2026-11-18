@@ -29,6 +29,20 @@ An intermediate solution run had one existing `TestScrollingVirtualizesAndLoadsD
 
 ## Reproduce
 
+### Revalidation on 2026-11-19
+
+Rechecked the existing T008 implementation with SDK 10.0.302: both Archiver
+targets build successfully, and the complete Archiver suite passes all 81 tests
+with no failures or skips. The net10.0 package listing resolves log4net 3.6.0;
+its generated archive.deps.json contains no WPF, Metrolib, PE, SharpRemote or
+System.Drawing.Common dependency. NU1902 for the retained legacy log4net 2.0.12
+still appears in multi-target restore/build diagnostics, including modern build
+output; this does not mean the modern runtime resolves that legacy version.
+
+Logs: ignored artifacts/migration/t008-recheck-build.log and
+artifacts/migration/t008-recheck-tests.log. Existing in-progress T011 bookmark
+changes were preserved and are not included in this verification commit.
+
 ```powershell
 dotnet build src/Tailviewer.Archiver/Tailviewer.Archiver.csproj -c Release
 dotnet test src/Tailviewer.Archiver.Tests/Tailviewer.Archiver.Tests.csproj -c Release
