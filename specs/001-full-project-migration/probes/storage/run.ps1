@@ -35,4 +35,3 @@ Run 'python' @((Join-Path $PSScriptRoot 'verify.py'), $run) 'verify.log'
 Get-Content -LiteralPath (Join-Path $run 'verify.log')
 Get-Content -LiteralPath (Join-Path $run 'neutral-modern-read.log')
 Write-Output "PASS T009 evidence: $run"
-
