@@ -14,7 +14,7 @@ namespace Tailviewer.Settings
 	internal static class ColorXmlExtensions
 	{
 		/// <summary>
-		/// 
+		///
 		/// </summary>
 		/// <param name="reader"></param>
 		/// <param name="attributeName"></param>
@@ -51,7 +51,7 @@ namespace Tailviewer.Settings
 
 
 		/// <summary>
-		/// 
+		///
 		/// </summary>
 		/// <param name="writer"></param>
 		/// <param name="localName"></param>
