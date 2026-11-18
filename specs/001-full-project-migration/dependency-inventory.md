@@ -2,6 +2,8 @@
 
 **Snapshot**: 2026-11-19, source baseline `5e351359`; generated from every tracked-layout project/package manifest (excluding build outputs). Direct declarations only: transitive restore graph, vulnerabilities and runtime compatibility require the phase checks.
 
+The fresh [T005 resolved dependency baseline](dependency-baseline.md) records six modern target graphs, native/RID declarations, advisory feed provenance and actual legacy source usage. It does not establish old-package runtime compatibility.
+
 ## Every project
 
 | Project | Current target | Scope | Project references |

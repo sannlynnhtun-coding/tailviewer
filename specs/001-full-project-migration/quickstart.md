@@ -20,7 +20,7 @@ dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework n
 dotnet run --project src/Tailviewer.Avalonia -- "C:\logs\synthetic.log"
 ```
 
-Create/select your own synthetic path before running the last command. Expected today: prototype one-file reading/copy/follow works; other planned legacy workflows remain absent. Historical 14 Avalonia tests / 6,641 Core tests plus 5 skips are prior release evidence only, not fresh results from this planning session. Multi-target restore can emit the known legacy log4net advisory even when testing the modern target; verify resolved modern assets separately.
+Create/select your own synthetic path before running the last command. Expected today: prototype one-file reading/copy/follow works; other planned legacy workflows remain absent. The fresh [T001 baseline](baseline.md) records 14 Avalonia and 116 API passes, plus 6,641 Core passes and 5 existing skips; T003 adds a separately passing fixture-manifest integrity test. Multi-target restore can emit the known legacy log4net advisory even when testing the modern target; see the [T005 target-specific audit](dependency-baseline.md).
 
 Inspect modern packages for each converted project with `dotnet list <project-path> package --include-transitive` and `dotnet list <project-path> package --vulnerable --include-transitive`. The placeholder is a recipe, not a literal path. Capture advisory feed timestamp and resolved target assets; do not claim compatibility or safety solely from package target frameworks.
 
@@ -63,4 +63,4 @@ Run all converted suites, native journeys and copied-data migration/rollback che
 
 ## Planning artifact self-check
 
-Verify required files exist, local Markdown links resolve, FR-001–018 are mapped in plan/inventory, phase prerequisites refer only to P00–P13, manifests still match inventory counts and no unresolved template placeholders remain. These checks validate the plan, not application behavior. The generated [tasks.md](tasks.md) now defines the implementation order; begin with T001 and record actual baseline results before feature work.
+Verify required files exist, local Markdown links resolve, FR-001–018 are mapped in plan/inventory, phase prerequisites refer only to P00–P13, manifests still match inventory counts and no unresolved template placeholders remain. These checks validate the plan, not application behavior. The generated [tasks.md](tasks.md) defines implementation order. Setup T001–T005 is recorded complete; next is T006, metadata boundary tests before Archiver conversion. Future environment changes require a new baseline rather than reusing these results as current.
