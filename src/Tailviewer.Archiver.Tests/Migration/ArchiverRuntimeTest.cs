@@ -63,6 +63,24 @@ namespace Tailviewer.Archiver.Tests.Migration
 		}
 
 		[Test]
+		public void TestCoffObjectIsStoredAsRawData()
+		{
+			var coff = new byte[20];
+			coff[0] = 0x4c;
+			coff[1] = 0x01;
+			using var bytes = new MemoryStream();
+			using (var packer = PluginPacker.Create(bytes, true))
+			using (var input = new MemoryStream(coff))
+				packer.AddFile("raw.obj", input);
+			bytes.Position = 0;
+			using var zip = new System.IO.Compression.ZipArchive(bytes);
+			using var stream = zip.GetEntry("raw.obj").Open();
+			using var result = new MemoryStream();
+			stream.CopyTo(result);
+			Assert.That(result.ToArray(), Is.EqualTo(coff));
+		}
+
+		[Test]
 		public void TestLegacyPublishFailsExplicitlyUntilTransportMigration()
 		{
 			Assert.That(new Publish().Run(new PublishOptions()), Is.EqualTo(ExitCode.ConnectionError));

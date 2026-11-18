@@ -388,7 +388,7 @@ namespace Tailviewer.Archiver.Plugins
 			try
 			{
 				using (var reader = new PEReader(content, PEStreamOptions.LeaveOpen))
-					return reader.PEHeaders;
+					return reader.PEHeaders.PEHeader == null ? null : reader.PEHeaders;
 			}
 			catch (BadImageFormatException)
 			{
