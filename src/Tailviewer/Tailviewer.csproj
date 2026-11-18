@@ -219,7 +219,7 @@
     <Compile Include="FrameworkElementExtensions.cs" />
     <Compile Include="HashSetExtensions.cs" />
     <Compile Include="Resource.cs" />
-    <Compile Include="Settings\AutoUpdateSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\AutoUpdateSettings.cs"><Link>Settings\AutoUpdateSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\Bookmarks\BookmarkSettings.cs"><Link>Settings\Bookmarks\BookmarkSettings.cs</Link></Compile>
     <Compile Include="Settings\Bookmarks\Bookmarks.cs" />
     <Compile Include="Settings\Dashboard\LayoutSettings.cs" />
@@ -229,7 +229,7 @@
     <Compile Include="BusinessLogic\DataSources\DataSources.cs" />
     <Compile Include="..\Tailviewer.Core\Settings\Migration\ExportSettings.cs"><Link>Settings\ExportSettings.cs</Link></Compile>
     <Compile Include="Settings\IApplicationSettings.cs" />
-    <Compile Include="Settings\IAutoUpdateSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\IAutoUpdateSettings.cs"><Link>Settings\IAutoUpdateSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\IDataSourcesSettings.cs"><Link>Settings\CustomFormats\IDataSourcesSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\IExportSettings.cs"><Link>Settings\IExportSettings.cs</Link></Compile>
     <Compile Include="Settings\IMainWindowSettings.cs" />

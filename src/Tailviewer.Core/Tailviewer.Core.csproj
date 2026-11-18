@@ -35,5 +35,6 @@
     <None Remove="app.config" />
     <PackageReference Include="log4net" Version="3.6.0" />
     <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
   </ItemGroup>
 </Project>

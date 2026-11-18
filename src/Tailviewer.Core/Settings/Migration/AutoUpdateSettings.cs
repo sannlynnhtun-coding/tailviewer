@@ -9,10 +9,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
 using log4net;
+#if !NET10_0_OR_GREATER
 using Metrolib;
+#endif
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Proxy credentials, repository endpoints and persisted update preferences.</summary>
 	public sealed class AutoUpdateSettings
 		: IAutoUpdateSettings
 		, ICloneable
@@ -21,13 +24,20 @@ namespace Tailviewer.Settings
 
 		private const int PasswordSaltLength = 20;
 
+		/// <inheritdoc />
 		public DateTime LastChecked { get; set; }
+		/// <inheritdoc />
 		public bool CheckForUpdates { get; set; }
+		/// <inheritdoc />
 		public bool AutomaticallyInstallUpdates { get; set; }
+		/// <inheritdoc />
 		public string ProxyServer { get; set; }
+		/// <inheritdoc />
 		public string ProxyUsername { get; set; }
+		/// <inheritdoc />
 		public IReadOnlyList<string> PluginRepositories { get; set; }
 
+		/// <inheritdoc />
 		public string ProxyPassword
 		{
 			get
@@ -42,50 +52,67 @@ namespace Tailviewer.Settings
 						return null;
 					}
 
+#if NET10_0_OR_GREATER
+					if (!OperatingSystem.IsWindows()) return null;
+#endif
 					var unprotected = ProtectedData.Unprotect(_password, _passwordSalt, DataProtectionScope.CurrentUser);
-					var value = Encoding.UTF8.GetString(unprotected);
-					return value;
+					try { return Encoding.UTF8.GetString(unprotected); }
+					finally { Array.Clear(unprotected, 0, unprotected.Length); }
 				}
-				catch (Exception e)
+				catch (Exception)
 				{
-					Log.WarnFormat("Unable to retrieve password: {0}", e);
+					Log.Warn("Stored proxy password is unavailable; re-enter the password.");
 					return null;
 				}
 			}
 			set
 			{
-				CreatePasswordSaltIfNecessary();
-
 				try
 				{
-					if (!string.IsNullOrEmpty(value))
-					{
-						var data = Encoding.UTF8.GetBytes(value);
-						var @protected = ProtectedData.Protect(data, _passwordSalt, DataProtectionScope.CurrentUser);
-						_password = @protected;
-					}
-					else
+					if (string.IsNullOrEmpty(value))
 					{
 						_password = null;
 						_passwordIsEmpty = value == string.Empty;
+						return;
 					}
+#if NET10_0_OR_GREATER
+					if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+#endif
+					var salt = _passwordSalt;
+					if (salt == null || salt.Length == 0)
+					{
+						salt = new byte[PasswordSaltLength];
+						using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(salt);
+					}
+					var data = Encoding.UTF8.GetBytes(value);
+					byte[] encrypted;
+					try { encrypted = ProtectedData.Protect(data, salt, DataProtectionScope.CurrentUser); }
+					finally { Array.Clear(data, 0, data.Length); }
+					_password = encrypted;
+					_passwordSalt = salt;
+					_passwordIsEmpty = false;
 				}
-				catch (Exception e)
+				catch (Exception)
 				{
-					Log.WarnFormat("Unable to store password: {0}", e);
+					Log.Warn("Unable to protect proxy password; previous encrypted credentials retained.");
 				}
 			}
 		}
+
+		/// <inheritdoc />
+		public bool ProxyPasswordRequiresReentry => _password != null && _password.Length > 0 && ProxyPassword == null;
 
 		private byte[] _password;
 		private byte[] _passwordSalt;
 		private bool _passwordIsEmpty;
 
+		/// <summary>Creates settings with the original defaults.</summary>
 		public AutoUpdateSettings()
 		{
 			PluginRepositories = new string[0];
 		}
 
+		/// <inheritdoc />
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttributeBool("checkforupdates", CheckForUpdates);
@@ -97,6 +124,7 @@ namespace Tailviewer.Settings
 			writer.WriteAttributeString("pluginrepositories", string.Join(";", PluginRepositories));
 		}
 
+		/// <inheritdoc />
 		public void Restore(XmlReader reader)
 		{
 			for (int i = 0; i < reader.AttributeCount; ++i)
@@ -138,25 +166,16 @@ namespace Tailviewer.Settings
 				}
 			}
 
-			CreatePasswordSaltIfNecessary();
 		}
 
-		private void CreatePasswordSaltIfNecessary()
-		{
-			if (_passwordSalt == null || _passwordSalt.Length != 20)
-			{
-				using (var rng = new RNGCryptoServiceProvider())
-				{
-					_passwordSalt = new byte[PasswordSaltLength];
-					rng.GetBytes(_passwordSalt);
-				}
-			}
-		}
-
+		/// <inheritdoc />
 		public ICredentials GetProxyCredentials()
 		{
 			var username = ProxyUsername;
 			var password = ProxyPassword;
+
+			if (password == null && _password != null && _password.Length > 0)
+				return null;
 
 			if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password))
 				return null;
@@ -174,6 +193,7 @@ namespace Tailviewer.Settings
 			return credentials;
 		}
 
+		/// <inheritdoc />
 		public IWebProxy GetWebProxy()
 		{
 			var credentials = GetProxyCredentials();
@@ -182,7 +202,10 @@ namespace Tailviewer.Settings
 				return new WebProxy(ProxyServer, true, null, credentials);
 			}
 
+			// shortcut: preserve the per-instance legacy system proxy until the HTTP client migration.
+#pragma warning disable SYSLIB0014
 			var proxy = WebRequest.GetSystemWebProxy();
+#pragma warning restore SYSLIB0014
 			if (credentials != null)
 			{
 				proxy.Credentials = credentials;
@@ -190,6 +213,7 @@ namespace Tailviewer.Settings
 			return proxy;
 		}
 
+		/// <summary>Creates an independent settings copy.</summary>
 		[Pure]
 		public AutoUpdateSettings Clone()
 		{

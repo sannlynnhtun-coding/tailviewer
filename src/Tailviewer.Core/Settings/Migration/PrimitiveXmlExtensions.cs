@@ -7,6 +7,8 @@ namespace Tailviewer.Settings
     // Preserve the old Metrolib wire values without bringing its UI assembly into Core.
     internal static class PrimitiveXmlExtensions
     {
+        public static byte[] ReadContentAsBase64(this XmlReader reader) => Convert.FromBase64String(reader.ReadContentAsString());
+        public static void WriteAttributeBase64(this XmlWriter writer, string name, byte[] value) => writer.WriteAttributeString(name, value == null ? string.Empty : Convert.ToBase64String(value));
         public static bool ReadContentAsBool(this XmlReader reader) => bool.TryParse(reader.ReadContentAsString(), out var value) && value;
         public static T ReadContentAsEnum<T>(this XmlReader reader) => (T)Enum.Parse(typeof(T), reader.ReadContentAsString());
         public static Guid ReadContentAsGuid(this XmlReader reader) => Guid.Parse(reader.ReadContentAsString());
