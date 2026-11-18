@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -10,13 +10,13 @@ namespace Tailviewer.Core.Tests
 	public sealed class AssemblyTest
 	{
 #if !NETFRAMEWORK
-        [Test]
-        public void TestPortableReferences()
-        {
-            var references = typeof(FilteredLogSource).Assembly.GetReferencedAssemblies().Select(x => x.Name);
-            references.Should().NotContain(new[] { "Metrolib", "PresentationCore", "PresentationFramework", "WindowsBase" },
-                "because the portable libraries must not depend on WPF or Metrolib");
-        }
+		[Test]
+		public void TestPortableReferences()
+		{
+			var references = typeof(FilteredLogSource).Assembly.GetReferencedAssemblies().Select(x => x.Name);
+			references.Should().NotContain(new[] { "Metrolib", "PresentationCore", "PresentationFramework", "WindowsBase", "System.Windows.Forms", "System.Drawing.Common", "archive" },
+				"because the portable libraries must not depend on WPF or Metrolib");
+		}
 #endif
 
 		[Test]
@@ -26,17 +26,24 @@ namespace Tailviewer.Core.Tests
 			exportedTypes.Should().NotBeEmpty("because the Tailviewer.Core assembly should export some types");
 
 			var failingTypes = new List<Type>();
-			var expectedNamespace = "Tailviewer.Core";
+			var expectedNamespaces = new[]
+			{
+				"Tailviewer.Core",
+#if NET10_0_OR_GREATER
+				// Shared legacy settings retain their serialized/public namespaces during migration.
+				"Tailviewer.Settings", "Tailviewer.Settings.CustomFormats", "Tailviewer.Settings.Bookmarks"
+#endif
+			};
 			foreach (var type in exportedTypes)
 			{
-				if (type.Namespace != expectedNamespace)
+				if (!expectedNamespaces.Contains(type.Namespace))
 					failingTypes.Add(type);
 			}
 
 			if (failingTypes.Any())
 			{
-				Assert.Fail("The following types should be located directly in the {0} namespace but are not:\r\n{1}",
-				            expectedNamespace,
+				Assert.Fail("The following types are outside the allowed Core/settings namespaces ({0}):\r\n{1}",
+				            string.Join(", ", expectedNamespaces),
 				            string.Join("\r\n", failingTypes.Select(x => x.FullName)));
 			}
 		}
