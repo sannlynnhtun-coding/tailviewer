@@ -63,4 +63,4 @@ Run all converted suites, native journeys and copied-data migration/rollback che
 
 ## Planning artifact self-check
 
-Verify required files exist, local Markdown links resolve, FR-001–018 are mapped in plan/inventory, phase prerequisites refer only to P00–P13, manifests still match inventory counts and no unresolved template placeholders remain. These checks validate the plan, not application behavior. `$speckit-tasks` is the next command; implementation follows its small task slices.
+Verify required files exist, local Markdown links resolve, FR-001–018 are mapped in plan/inventory, phase prerequisites refer only to P00–P13, manifests still match inventory counts and no unresolved template placeholders remain. These checks validate the plan, not application behavior. The generated [tasks.md](tasks.md) now defines the implementation order; begin with T001 and record actual baseline results before feature work.

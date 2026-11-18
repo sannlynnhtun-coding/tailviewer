@@ -51,7 +51,7 @@ specs/001-full-project-migration/
   checklists/requirements.md # spec-quality checklist, not test results
 ```
 
-`tasks.md` is intentionally left for `$speckit-tasks`.
+The ordered implementation checklist is now available in [tasks.md](tasks.md), grouped by user story with explicit test and dependency gates.
 
 ### Source Code (repository root)
 
