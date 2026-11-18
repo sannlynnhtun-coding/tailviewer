@@ -1,4 +1,4 @@
-﻿namespace Tailviewer.Settings
+namespace Tailviewer.Settings
 {
 	/// <summary>
 	///     "Global" configuration of the log viewer.

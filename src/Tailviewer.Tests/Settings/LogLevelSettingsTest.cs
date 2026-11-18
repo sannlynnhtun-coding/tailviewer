@@ -1,8 +1,13 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.IO;
 using System.Text;
+#if NET10_0_OR_GREATER
+using Color = System.Drawing.Color;
+using Colors = System.Drawing.Color;
+#else
 using System.Windows.Media;
+#endif
 using System.Xml;
 using FluentAssertions;
 using NUnit.Framework;
@@ -13,6 +18,8 @@ namespace Tailviewer.Tests.Settings
 	[TestFixture]
 	public sealed class LogLevelSettingsTest
 	{
+		private static uint Argb(Color value) => ((uint)value.A << 24) | ((uint)value.R << 16) | ((uint)value.G << 8) | value.B;
+
 		public static IReadOnlyList<Color> SomeColors => new[]
 		{
 			Colors.Black,
@@ -58,8 +65,8 @@ namespace Tailviewer.Tests.Settings
 		public void TestConstruction()
 		{
 			var settings = new LogLevelSettings();
-			settings.ForegroundColor.Should().Be(Colors.Black);
-			settings.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.ForegroundColor).Should().Be(Argb(Colors.Black));
+			Argb(settings.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 		}
 
 		[Test]
@@ -72,8 +79,8 @@ namespace Tailviewer.Tests.Settings
 				BackgroundColor = backgroundColor
 			};
 			var actualSettings = Restore(Save(settings));
-			actualSettings.ForegroundColor.Should().Be(foregroundColor);
-			actualSettings.BackgroundColor.Should().Be(backgroundColor);
+			Argb(actualSettings.ForegroundColor).Should().Be(Argb(foregroundColor));
+			Argb(actualSettings.BackgroundColor).Should().Be(Argb(backgroundColor));
 		}
 	}
 }

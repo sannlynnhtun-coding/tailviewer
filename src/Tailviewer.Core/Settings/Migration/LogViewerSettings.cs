@@ -1,62 +1,80 @@
-﻿using log4net;
+using log4net;
+#if !NET10_0_OR_GREATER
 using Metrolib;
+#endif
 using System;
 using System.Diagnostics.Contracts;
 using System.Reflection;
+#if NET10_0_OR_GREATER
+using Color = System.Drawing.Color;
+using Colors = System.Drawing.Color;
+#else
 using System.Windows.Media;
+#endif
 using System.Xml;
 using Tailviewer.Core;
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Global log viewer preferences and per-level colors.</summary>
 	public sealed class LogViewerSettings
 		: ILogViewerSettings
 		, ICloneable
 	{
+		/// <summary>The original default LinesScrolledPerWheelTick value.</summary>
 		public const int DefaultLinesScrolledPerWheelTick = 2;
+		/// <summary>The original default FontSize value.</summary>
 		public const int DefaultFontSize = 12;
+		/// <summary>The original default TabWidth value.</summary>
 		public const int DefaultTabWidth = 4;
 
+		/// <summary>The original Other color palette.</summary>
 		public static LogLevelSettings DefaultOther => new LogLevelSettings
 		{
 			ForegroundColor = Colors.Black,
 			BackgroundColor = Colors.Transparent
 		};
 
+		/// <summary>The original Trace color palette.</summary>
 		public static LogLevelSettings DefaultTrace => new LogLevelSettings
 		{
-			ForegroundColor = Color.FromRgb(128, 128, 128),
+			ForegroundColor = Color.FromArgb(255, 128, 128, 128),
 			BackgroundColor = Colors.Transparent
 		};
 
+		/// <summary>The original Debug color palette.</summary>
 		public static LogLevelSettings DefaultDebug => new LogLevelSettings
 		{
-			ForegroundColor = Color.FromRgb(128, 128, 128),
+			ForegroundColor = Color.FromArgb(255, 128, 128, 128),
 			BackgroundColor = Colors.Transparent
 		};
 
+		/// <summary>The original Info color palette.</summary>
 		public static LogLevelSettings DefaultInfo => new LogLevelSettings
 		{
 			ForegroundColor = Colors.Black,
 			BackgroundColor = Colors.Transparent
 		};
 
+		/// <summary>The original Warning color palette.</summary>
 		public static LogLevelSettings DefaultWarning => new LogLevelSettings
 		{
 			ForegroundColor = Colors.White,
-			BackgroundColor = Color.FromRgb(255, 195, 0)
+			BackgroundColor = Color.FromArgb(255, 255, 195, 0)
 		};
 
+		/// <summary>The original Error color palette.</summary>
 		public static LogLevelSettings DefaultError => new LogLevelSettings
 		{
 			ForegroundColor = Colors.White,
-			BackgroundColor = Color.FromRgb(232, 17, 35)
+			BackgroundColor = Color.FromArgb(255, 232, 17, 35)
 		};
 
+		/// <summary>The original Fatal color palette.</summary>
 		public static LogLevelSettings DefaultFatal => new LogLevelSettings
 		{
 			ForegroundColor = Colors.White,
-			BackgroundColor = Color.FromRgb(232, 17, 35)
+			BackgroundColor = Color.FromArgb(255, 232, 17, 35)
 		};
 
 		private static readonly ILog Log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
@@ -72,6 +90,7 @@ namespace Tailviewer.Settings
 		private LogLevelSettings _error;
 		private LogLevelSettings _fatal;
 
+		/// <summary>Creates settings with the original defaults.</summary>
 		public LogViewerSettings()
 		{
 			_linesScrolledPerWheelTick = DefaultLinesScrolledPerWheelTick;
@@ -86,59 +105,70 @@ namespace Tailviewer.Settings
 			_fatal = DefaultFatal;
 		}
 
+		/// <inheritdoc />
 		public int LinesScrolledPerWheelTick
 		{
 			get { return _linesScrolledPerWheelTick; }
 			set { _linesScrolledPerWheelTick = value; }
 		}
 
+		/// <inheritdoc />
 		public int FontSize
 		{
 			get { return _fontSize; }
 			set { _fontSize = value; }
 		}
 
+		/// <inheritdoc />
 		public int TabWidth
 		{
 			get { return _tabWidth; }
 			set { _tabWidth = value; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Other
 		{
 			get { return _other; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Trace
 		{
 			get { return _trace; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Debug
 		{
 			get { return _debug; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Info
 		{
 			get { return _info; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Warning
 		{
 			get { return _warning; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Error
 		{
 			get { return _error; }
 		}
 
+		/// <inheritdoc />
 		public LogLevelSettings Fatal
 		{
 			get { return _fatal; }
 		}
 
+		/// <summary>Writes the existing XML attributes and level elements.</summary>
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttributeInt("linesscrolledperwheeltick", _linesScrolledPerWheelTick);
@@ -174,6 +204,7 @@ namespace Tailviewer.Settings
 			writer.WriteEndElement();
 		}
 
+		/// <summary>Restores values and retains defaults for invalid values.</summary>
 		public void Restore(XmlReader reader)
 		{
 			reader.ReadAttributeAsInt("linesscrolledperwheeltick", Log, DefaultLinesScrolledPerWheelTick, out _linesScrolledPerWheelTick);
@@ -234,6 +265,7 @@ namespace Tailviewer.Settings
 			}
 		}
 
+		/// <summary>Creates an independent settings copy.</summary>
 		[Pure]
 		public LogViewerSettings Clone()
 		{

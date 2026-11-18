@@ -1,7 +1,12 @@
-﻿using System.Diagnostics.Contracts;
+using System.Diagnostics.Contracts;
 using System.IO;
 using System.Text;
+#if NET10_0_OR_GREATER
+using Color = System.Drawing.Color;
+using Colors = System.Drawing.Color;
+#else
 using System.Windows.Media;
+#endif
 using System.Xml;
 using FluentAssertions;
 using NUnit.Framework;
@@ -12,6 +17,8 @@ namespace Tailviewer.Tests.Settings
 	[TestFixture]
 	public sealed class LogViewerSettingsTest
 	{
+		private static uint Argb(Color value) => ((uint)value.A << 24) | ((uint)value.R << 16) | ((uint)value.G << 8) | value.B;
+
 		[Pure]
 		private static LogViewerSettings Restore(string file)
 		{
@@ -55,26 +62,26 @@ namespace Tailviewer.Tests.Settings
 			settings.FontSize.Should().Be(12);
 			settings.TabWidth.Should().Be(4);
 
-			settings.Other.ForegroundColor.Should().Be(Colors.Black);
-			settings.Other.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Other.ForegroundColor).Should().Be(Argb(Colors.Black));
+			Argb(settings.Other.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Trace.ForegroundColor.Should().Be(Color.FromRgb(128, 128, 128));
-			settings.Trace.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Trace.ForegroundColor).Should().Be(Argb(Color.FromArgb(255, 128, 128, 128)));
+			Argb(settings.Trace.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Debug.ForegroundColor.Should().Be(Color.FromRgb(128, 128, 128));
-			settings.Debug.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Debug.ForegroundColor).Should().Be(Argb(Color.FromArgb(255, 128, 128, 128)));
+			Argb(settings.Debug.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Info.ForegroundColor.Should().Be(Colors.Black);
-			settings.Info.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Info.ForegroundColor).Should().Be(Argb(Colors.Black));
+			Argb(settings.Info.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Warning.ForegroundColor.Should().Be(Colors.White);
-			settings.Warning.BackgroundColor.Should().Be(Color.FromRgb(255, 195, 0));
+			Argb(settings.Warning.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Warning.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 255, 195, 0)));
 
-			settings.Error.ForegroundColor.Should().Be(Colors.White);
-			settings.Error.BackgroundColor.Should().Be(Color.FromRgb(232, 17, 35));
+			Argb(settings.Error.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Error.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 232, 17, 35)));
 
-			settings.Fatal.ForegroundColor.Should().Be(Colors.White);
-			settings.Fatal.BackgroundColor.Should().Be(Color.FromRgb(232, 17, 35));
+			Argb(settings.Fatal.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Fatal.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 232, 17, 35)));
 		}
 
 		[Test]
@@ -100,20 +107,20 @@ namespace Tailviewer.Tests.Settings
 			actualSettings.LinesScrolledPerWheelTick.Should().Be(linesScrolledPerWheelTick);
 			actualSettings.FontSize.Should().Be(fontSize);
 			actualSettings.TabWidth.Should().Be(tabWidth);
-			actualSettings.Other.BackgroundColor.Should().Be(Colors.Red);
-			actualSettings.Other.ForegroundColor.Should().Be(Colors.Firebrick);
-			actualSettings.Trace.BackgroundColor.Should().Be(Colors.Magenta);
-			actualSettings.Trace.ForegroundColor.Should().Be(Colors.Teal);
-			actualSettings.Debug.BackgroundColor.Should().Be(Colors.Aqua);
-			actualSettings.Debug.ForegroundColor.Should().Be(Colors.DodgerBlue);
-			actualSettings.Info.BackgroundColor.Should().Be(Colors.DarkOrange);
-			actualSettings.Info.ForegroundColor.Should().Be(Colors.AliceBlue);
-			actualSettings.Warning.BackgroundColor.Should().Be(Colors.Aquamarine);
-			actualSettings.Warning.ForegroundColor.Should().Be(Colors.BlanchedAlmond);
-			actualSettings.Error.BackgroundColor.Should().Be(Colors.BlueViolet);
-			actualSettings.Error.ForegroundColor.Should().Be(Colors.CadetBlue);
-			actualSettings.Fatal.BackgroundColor.Should().Be(Colors.Coral);
-			actualSettings.Fatal.ForegroundColor.Should().Be(Colors.HotPink);
+			Argb(actualSettings.Other.BackgroundColor).Should().Be(Argb(Colors.Red));
+			Argb(actualSettings.Other.ForegroundColor).Should().Be(Argb(Colors.Firebrick));
+			Argb(actualSettings.Trace.BackgroundColor).Should().Be(Argb(Colors.Magenta));
+			Argb(actualSettings.Trace.ForegroundColor).Should().Be(Argb(Colors.Teal));
+			Argb(actualSettings.Debug.BackgroundColor).Should().Be(Argb(Colors.Aqua));
+			Argb(actualSettings.Debug.ForegroundColor).Should().Be(Argb(Colors.DodgerBlue));
+			Argb(actualSettings.Info.BackgroundColor).Should().Be(Argb(Colors.DarkOrange));
+			Argb(actualSettings.Info.ForegroundColor).Should().Be(Argb(Colors.AliceBlue));
+			Argb(actualSettings.Warning.BackgroundColor).Should().Be(Argb(Colors.Aquamarine));
+			Argb(actualSettings.Warning.ForegroundColor).Should().Be(Argb(Colors.BlanchedAlmond));
+			Argb(actualSettings.Error.BackgroundColor).Should().Be(Argb(Colors.BlueViolet));
+			Argb(actualSettings.Error.ForegroundColor).Should().Be(Argb(Colors.CadetBlue));
+			Argb(actualSettings.Fatal.BackgroundColor).Should().Be(Argb(Colors.Coral));
+			Argb(actualSettings.Fatal.ForegroundColor).Should().Be(Argb(Colors.HotPink));
 		}
 
 		[Test]
@@ -140,26 +147,26 @@ namespace Tailviewer.Tests.Settings
 			settings.FontSize.Should().Be(12, reason);
 			settings.TabWidth.Should().Be(4, reason);
 
-			settings.Other.ForegroundColor.Should().Be(Colors.Black);
-			settings.Other.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Other.ForegroundColor).Should().Be(Argb(Colors.Black));
+			Argb(settings.Other.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Trace.ForegroundColor.Should().Be(Color.FromRgb(128, 128, 128), reason);
-			settings.Trace.BackgroundColor.Should().Be(Colors.Transparent, reason);
+			Argb(settings.Trace.ForegroundColor).Should().Be(Argb(Color.FromArgb(255, 128, 128, 128)), reason);
+			Argb(settings.Trace.BackgroundColor).Should().Be(Argb(Colors.Transparent), reason);
 
-			settings.Debug.ForegroundColor.Should().Be(Color.FromRgb(128, 128, 128));
-			settings.Debug.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Debug.ForegroundColor).Should().Be(Argb(Color.FromArgb(255, 128, 128, 128)));
+			Argb(settings.Debug.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Info.ForegroundColor.Should().Be(Colors.Black);
-			settings.Info.BackgroundColor.Should().Be(Colors.Transparent);
+			Argb(settings.Info.ForegroundColor).Should().Be(Argb(Colors.Black));
+			Argb(settings.Info.BackgroundColor).Should().Be(Argb(Colors.Transparent));
 
-			settings.Warning.ForegroundColor.Should().Be(Colors.White);
-			settings.Warning.BackgroundColor.Should().Be(Color.FromRgb(255, 195, 0));
+			Argb(settings.Warning.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Warning.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 255, 195, 0)));
 
-			settings.Error.ForegroundColor.Should().Be(Colors.White);
-			settings.Error.BackgroundColor.Should().Be(Color.FromRgb(232, 17, 35));
+			Argb(settings.Error.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Error.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 232, 17, 35)));
 
-			settings.Fatal.ForegroundColor.Should().Be(Colors.White);
-			settings.Fatal.BackgroundColor.Should().Be(Color.FromRgb(232, 17, 35));
+			Argb(settings.Fatal.ForegroundColor).Should().Be(Argb(Colors.White));
+			Argb(settings.Fatal.BackgroundColor).Should().Be(Argb(Color.FromArgb(255, 232, 17, 35)));
 		}
 
 		[Test]
@@ -186,20 +193,20 @@ namespace Tailviewer.Tests.Settings
 			actualSettings.LinesScrolledPerWheelTick.Should().Be(2, "because restore should simply discard invalid values and restore them to their defaults");
 			actualSettings.FontSize.Should().Be(12);
 			actualSettings.TabWidth.Should().Be(4);
-			actualSettings.Other.BackgroundColor.Should().Be(Colors.Red);
-			actualSettings.Other.ForegroundColor.Should().Be(Colors.Firebrick);
-			actualSettings.Trace.BackgroundColor.Should().Be(Colors.Magenta);
-			actualSettings.Trace.ForegroundColor.Should().Be(Colors.Teal);
-			actualSettings.Debug.BackgroundColor.Should().Be(Colors.Aqua);
-			actualSettings.Debug.ForegroundColor.Should().Be(Colors.DodgerBlue);
-			actualSettings.Info.BackgroundColor.Should().Be(Colors.DarkOrange);
-			actualSettings.Info.ForegroundColor.Should().Be(Colors.AliceBlue);
-			actualSettings.Warning.BackgroundColor.Should().Be(Colors.Aquamarine);
-			actualSettings.Warning.ForegroundColor.Should().Be(Colors.BlanchedAlmond);
-			actualSettings.Error.BackgroundColor.Should().Be(Colors.BlueViolet);
-			actualSettings.Error.ForegroundColor.Should().Be(Colors.CadetBlue);
-			actualSettings.Fatal.BackgroundColor.Should().Be(Colors.Coral);
-			actualSettings.Fatal.ForegroundColor.Should().Be(Colors.HotPink);
+			Argb(actualSettings.Other.BackgroundColor).Should().Be(Argb(Colors.Red));
+			Argb(actualSettings.Other.ForegroundColor).Should().Be(Argb(Colors.Firebrick));
+			Argb(actualSettings.Trace.BackgroundColor).Should().Be(Argb(Colors.Magenta));
+			Argb(actualSettings.Trace.ForegroundColor).Should().Be(Argb(Colors.Teal));
+			Argb(actualSettings.Debug.BackgroundColor).Should().Be(Argb(Colors.Aqua));
+			Argb(actualSettings.Debug.ForegroundColor).Should().Be(Argb(Colors.DodgerBlue));
+			Argb(actualSettings.Info.BackgroundColor).Should().Be(Argb(Colors.DarkOrange));
+			Argb(actualSettings.Info.ForegroundColor).Should().Be(Argb(Colors.AliceBlue));
+			Argb(actualSettings.Warning.BackgroundColor).Should().Be(Argb(Colors.Aquamarine));
+			Argb(actualSettings.Warning.ForegroundColor).Should().Be(Argb(Colors.BlanchedAlmond));
+			Argb(actualSettings.Error.BackgroundColor).Should().Be(Argb(Colors.BlueViolet));
+			Argb(actualSettings.Error.ForegroundColor).Should().Be(Argb(Colors.CadetBlue));
+			Argb(actualSettings.Fatal.BackgroundColor).Should().Be(Argb(Colors.Coral));
+			Argb(actualSettings.Fatal.ForegroundColor).Should().Be(Argb(Colors.HotPink));
 		}
 
 		[Test]
@@ -226,20 +233,20 @@ namespace Tailviewer.Tests.Settings
 			actualSettings.LinesScrolledPerWheelTick.Should().Be(linesScrolledPerWheelTick, reason);
 			actualSettings.FontSize.Should().Be(fontSize, reason);
 			actualSettings.TabWidth.Should().Be(tabWidth);
-			actualSettings.Other.BackgroundColor.Should().Be(Colors.Red);
-			actualSettings.Other.ForegroundColor.Should().Be(Colors.Firebrick);
-			actualSettings.Trace.BackgroundColor.Should().Be(Colors.Magenta);
-			actualSettings.Trace.ForegroundColor.Should().Be(Colors.Teal);
-			actualSettings.Debug.BackgroundColor.Should().Be(Colors.Aqua);
-			actualSettings.Debug.ForegroundColor.Should().Be(Colors.DodgerBlue);
-			actualSettings.Info.BackgroundColor.Should().Be(Colors.DarkOrange);
-			actualSettings.Info.ForegroundColor.Should().Be(Colors.AliceBlue);
-			actualSettings.Warning.BackgroundColor.Should().Be(Colors.Aquamarine);
-			actualSettings.Warning.ForegroundColor.Should().Be(Colors.BlanchedAlmond);
-			actualSettings.Error.BackgroundColor.Should().Be(Colors.BlueViolet);
-			actualSettings.Error.ForegroundColor.Should().Be(Colors.CadetBlue);
-			actualSettings.Fatal.BackgroundColor.Should().Be(Colors.Coral);
-			actualSettings.Fatal.ForegroundColor.Should().Be(Colors.HotPink);
+			Argb(actualSettings.Other.BackgroundColor).Should().Be(Argb(Colors.Red));
+			Argb(actualSettings.Other.ForegroundColor).Should().Be(Argb(Colors.Firebrick));
+			Argb(actualSettings.Trace.BackgroundColor).Should().Be(Argb(Colors.Magenta));
+			Argb(actualSettings.Trace.ForegroundColor).Should().Be(Argb(Colors.Teal));
+			Argb(actualSettings.Debug.BackgroundColor).Should().Be(Argb(Colors.Aqua));
+			Argb(actualSettings.Debug.ForegroundColor).Should().Be(Argb(Colors.DodgerBlue));
+			Argb(actualSettings.Info.BackgroundColor).Should().Be(Argb(Colors.DarkOrange));
+			Argb(actualSettings.Info.ForegroundColor).Should().Be(Argb(Colors.AliceBlue));
+			Argb(actualSettings.Warning.BackgroundColor).Should().Be(Argb(Colors.Aquamarine));
+			Argb(actualSettings.Warning.ForegroundColor).Should().Be(Argb(Colors.BlanchedAlmond));
+			Argb(actualSettings.Error.BackgroundColor).Should().Be(Argb(Colors.BlueViolet));
+			Argb(actualSettings.Error.ForegroundColor).Should().Be(Argb(Colors.CadetBlue));
+			Argb(actualSettings.Fatal.BackgroundColor).Should().Be(Argb(Colors.Coral));
+			Argb(actualSettings.Fatal.ForegroundColor).Should().Be(Argb(Colors.HotPink));
 		}
 	}
 }

@@ -163,11 +163,11 @@
     <Compile Include="Settings\CustomFormats\CustomLogFileFormat.cs" />
     <Compile Include="Settings\Desktop.cs" />
     <Compile Include="Settings\ICustomFormatsSettings.cs" />
-    <Compile Include="Settings\ILogViewerSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\ILogViewerSettings.cs"><Link>Settings\ILogViewerSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\LogFileSettings.cs"><Link>Settings\LogFileSettings.cs</Link></Compile>
-    <Compile Include="Settings\LogLevelSettings.cs" />
-    <Compile Include="Settings\ColorXmlExtensions.cs" />
-    <Compile Include="Settings\LogViewerSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\LogLevelSettings.cs"><Link>Settings\LogLevelSettings.cs</Link></Compile>
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\ColorXmlExtensions.cs"><Link>Settings\ColorXmlExtensions.cs</Link></Compile>
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\LogViewerSettings.cs"><Link>Settings\LogViewerSettings.cs</Link></Compile>
     <Compile Include="Settings\TextSettings.cs" />
     <Compile Include="TaskExtensions.cs" />
     <Compile Include="Bootstrapper.cs" />

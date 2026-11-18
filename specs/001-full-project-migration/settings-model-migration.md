@@ -49,3 +49,30 @@ IAutoUpdateSettings.ProxyPasswordRequiresReentry exposes an unavailable stored-p
 Verification: the final affected selection passed **199 / 0 failed / 0 skipped**, including 9 original proxy cases and 5 new preservation/DPAPI/re-entry cases. Current-user protection/restore/clone and plaintext-free XML were exercised with generated test credentials. Core net45/net10.0 builds passed. The linked profile contract probe still reports its four expected failures. Modern target assets were inspected for the dependency boundary above. Logs: `artifacts/migration/t011-proxy-red.log`, `t011-proxy-final.log`, `t011-proxy-targets.log`; profile probe `run-d1819b75e39b432283b385f5aa0c1025`.
 
 System proxy acquisition retains WebRequest.GetSystemWebProxy with a warning suppression limited to that one call, preserving its per-instance behavior until HTTP-client migration. No network request is performed by these model tests. The modern settings screen/re-entry prompt, real foreign-account DPAPI data, non-Windows execution and full old desktop integration are not validated here. Window/color models and complete unknown XML preservation still keep T011 open.
+
+## Slice 4: UI-neutral log viewer and color values
+
+Moved LogViewerSettings/ILogViewerSettings/LogLevelSettings/ColorXmlExtensions into Core. The modern models use the standard **System.Drawing.Primitives Color value type**, not WPF brushes/colors or System.Drawing.Common/GDI+. The linked legacy desktop still compiles the same source with WPF Color. Defaults and XML names remain unchanged. Existing color suites are shared with Core; their assertions compare all rendered ARGB channels instead of System.Drawing's extra named-color identity state.
+
+Hex RGB/ARGB, named colors and finite scRGB inputs are decoded without loading WPF. Conversion follows the standard sRGB transfer curve, checked against the [WPF Color implementation](https://source.dot.net/presentationcore/System/Windows/Media/Color.cs.html) and, more importantly, an executable WPF converter oracle. Original color text is retained through restore/clone/save, including scRGB precision; an explicit user color edit replaces only that value with canonical #AARRGGBB. Unsupported/malformed values retain the existing safe default and original text. ICC ContextColor profiles are not loaded/converted; their text is preserved with a warning, leaving that rendering limitation explicit.
+
+Avalonia gets a small two-way settings-color adapter; three alpha/RGB round-trip cases pass. Applying the persisted palette in the full settings UI/theme flows remains its owning UI phase. No desktop/mobile/theme screenshot or full palette UI claim is made by these value tests.
+
+### Executed results
+
+- Existing log-viewer/log-level cases: **52 pass**.
+- Affected Core settings/source/fixture cases: **258 pass / 0 failed / 0 skipped**, including seven new malformed/unsupported/edit-preservation cases.
+- Windows-only converter oracle: **10 pass**, comparing actual WPF ColorConverter ARGB and preserved original strings for hex, named and scRGB samples.
+- Modern solution: **81 Archiver + 17 Avalonia = 98 pass / 0 failed / 0 skipped**.
+- Core net45/net10.0 builds: both pass. Modern assets exclude WPF/Metrolib/SharpRemote/PE/System.Drawing.Common. A first no-restore consumer run showed stale ProtectedData 6-vs-10 assets from the preceding slice; the fresh solution restore resolved them with no MSB3277 warning.
+- Profile probe: still 4 pass / 4 expected fail; it is not treated as a completed persistence gate.
+
+```powershell
+dotnet test specs/001-full-project-migration/probes/colors/ColorOracle.Tests.csproj -c Release
+dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj -c Release -f net10.0 --filter 'FullyQualifiedName~Settings|FullyQualifiedName~FixtureManifestTest|FullyQualifiedName~DataSourceTest'
+dotnet test Tailviewer.Avalonia.slnx -c Release
+```
+
+The oracle requires WindowsDesktop only in its separate test project, outside the modern production graph. Evidence logs: `artifacts/migration/t011-color-tests.log`, `t011-color-oracle.log`, `t011-color-final.log`, `t011-color-adapter.log`, `t011-color-targets.log`, `t011-color-solution.log`. Profile probe: `run-b457f70dd35841f4b12e471d9a790833`.
+
+T011 stays open for primitive window placement/UI conversion and complete profile/plugin XML preservation. Full Core/API suites, full old desktop integration, ICC profile rendering and the final settings/theme UI have not been verified in this slice.
