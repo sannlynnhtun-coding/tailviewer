@@ -1,0 +1,1020 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "64deef8ca6fa0ee730f3d322387b22219a73c2f3",
+  "notes": [
+    "Definitions/byte/XML assertions are verified; these are not evidence of legacy runtime parity.",
+    "DPAPI fixtures must be generated under the executing test account; no real passwords, salt or repository access tokens are copied.",
+    "Inline bytes are decoded into owned temporary paths by future behavior fixtures; repository paths are read-only.",
+    "Referenced legacy text fixtures normalize CRLF to LF for reproducible Git checkouts; inline Unicode and native-image bytes remain exact."
+  ],
+  "fixtures": [
+    {
+      "id": "TEXT-EMPTY",
+      "sizeBytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base64": "",
+      "encoding": "utf-8",
+      "expectedLines": []
+    },
+    {
+      "id": "TEXT-UNFINISHED",
+      "sizeBytes": 5,
+      "sha256": "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
+      "base64": "YWxwaGE=",
+      "encoding": "utf-8",
+      "expectedLines": [
+        "alpha"
+      ]
+    },
+    {
+      "id": "TEXT-LF",
+      "sizeBytes": 11,
+      "sha256": "e49c81e2d2f84e259d40e2fb8192f3bcd198b355184845d76d8f58807d0d78ee",
+      "base64": "YWxwaGEKYmV0YQo=",
+      "encoding": "utf-8",
+      "expectedLines": [
+        "alpha",
+        "beta"
+      ]
+    },
+    {
+      "id": "TEXT-CRLF",
+      "sizeBytes": 13,
+      "sha256": "98ab4d3aeab1e120560e942e2df6a0db1147bf94bafcf1590000ffb3c2b6fc80",
+      "base64": "YWxwaGENCmJldGENCg==",
+      "encoding": "utf-8",
+      "expectedLines": [
+        "alpha",
+        "beta"
+      ]
+    },
+    {
+      "id": "TEXT-UTF8-BOM",
+      "sizeBytes": 28,
+      "sha256": "e7bbc6e6867a31f1071eeec716fc595d4b6d068457a957fc08d3e66b9c2ed1f8",
+      "base64": "77u/YWxwaGEK4YCZ4YC84YCU4YC64YCZ4YCsCg==",
+      "encoding": "utf-8-sig",
+      "expectedLines": [
+        "alpha",
+        "မြန်မာ"
+      ]
+    },
+    {
+      "id": "TEXT-UTF16-LE",
+      "sizeBytes": 28,
+      "sha256": "a9c4524b998eb06fdec2c87055d59f089c20192412d2cb3150f9fe344fe86599",
+      "base64": "//5hAGwAcABoAGEACgAZEDwQFBA6EBkQLBAKAA==",
+      "encoding": "utf-16",
+      "expectedLines": [
+        "alpha",
+        "မြန်မာ"
+      ]
+    },
+    {
+      "id": "PROFILE-UNKNOWN-NODES",
+      "sizeBytes": 708,
+      "sha256": "011799a7d5992acae471da19d6edb0afafa8927f812a1bb5df314754e087c74b",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHhtbD48bWFpbndpbmRvdyB3aWR0aD0iMTAwMCIgaGVpZ2h0PSI3MDAiIHN0YXRlPSJOb3JtYWwiLz48ZGF0YXNvdXJjZXM+PGRhdGFzb3VyY2UgaWQ9IjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIgZmlsZT0ibWlzc2luZy1zeW50aGV0aWMubG9nIiBmb2xsb3d0YWlsPSJmYWxzZSIgc2hvd2xpbmVudW1iZXJzPSJ0cnVlIiBoaWRlZW1wdHlsaW5lcz0idHJ1ZSIgc2hvd2RlbHRhdGltZXM9InRydWUiIHNob3dlbGFwc2VkdGltZT0idHJ1ZSIgc2luZ2xlbGluZT0iZmFsc2UiIGxvZ2ZpbGVmb2xkZXJwYXRoPSJzeW50aGV0aWMtZm9sZGVyIiBsb2dmaWxlcmVnZXg9Ii4qWy5dbG9nIiByZWN1cnNpdmU9InRydWUiPjxhY3RpdmF0ZWRxdWlja2ZpbHRlcnMvPjwvZGF0YXNvdXJjZT48L2RhdGFzb3VyY2VzPjxhdXRvdXBkYXRlIGNoZWNrZm9ydXBkYXRlcz0iZmFsc2UiIGF1dG9tYXRpY2FsbHlpbnN0YWxsdXBkYXRlcz0idHJ1ZSIgcHJveHlzZXJ2ZXI9Imh0dHA6Ly8xMjcuMC4wLjE6MTk5OTkiIHBsdWdpbnJlcG9zaXRvcmllcz0iaHR0cDovLzEyNy4wLjAuMToxOTk5OCIvPjxmdXR1cmVwbHVnaW4gcGx1Z2luPSIyMjIyMjIyMi0yMjIyLTIyMjItMjIyMi0yMjIyMjIyMjIyMjIiPjxyYXcgdmFsdWU9InByZXNlcnZlIi8+PC9mdXR1cmVwbHVnaW4+PC94bWw+",
+      "encoding": "utf-8",
+      "expectedAttributes": {
+        "/xml/mainwindow/@width": "1000",
+        "/xml/datasources/datasource/@id": "11111111-1111-1111-1111-111111111111",
+        "/xml/autoupdate/@checkforupdates": "false",
+        "/xml/autoupdate/@automaticallyinstallupdates": "true",
+        "/xml/futureplugin/raw/@value": "preserve"
+      },
+      "oracle": "Raw source attributes only; importer must preserve unknown data and map unsafe old auto-install to consented flow, not enable unattended install."
+    },
+    {
+      "id": "LEGACY-MISSING-GUID",
+      "sizeBytes": 704,
+      "sha256": "047f72c7064d8a6abfb8d58a7c7fc8ceab7e2072e1bc2c4523178d0d97235c46",
+      "path": "src/Tailviewer.Tests/Settings/settings_no_file_guid.xml",
+      "oracle": "Existing source fixture; modern consumer behavior must be validated in its owning migration phase.",
+      "normalization": "lf"
+    },
+    {
+      "id": "LEGACY-SERILOG",
+      "sizeBytes": 1082,
+      "sha256": "f3b41b07e275ffc33ad53a009474f58a27e20af15e3c619e7bb81d943f0124f8",
+      "path": "src/Tailviewer.Tests/TestData/Formats/Serilog/Serilog.txt",
+      "oracle": "Existing source fixture; modern consumer behavior must be validated in its owning migration phase.",
+      "normalization": "lf"
+    },
+    {
+      "id": "LEGACY-NATIVE-X86",
+      "sizeBytes": 32256,
+      "sha256": "4123356648ed041cc3b0c2080def80dd2a3092e7c262ab678295c6c75b08cfe6",
+      "path": "src/Tailviewer.Archiver.Tests/TestData/Native/x86/NativeImage.dll",
+      "oracle": "Existing source fixture; modern consumer behavior must be validated in its owning migration phase."
+    },
+    {
+      "id": "LEGACY-NATIVE-X64",
+      "sizeBytes": 38400,
+      "sha256": "be957086755aa3318e303e887f430a8afb5286eb81524eb5033f930dd16b4d09",
+      "path": "src/Tailviewer.Archiver.Tests/TestData/Native/x64/NativeImage.dll",
+      "oracle": "Existing source fixture; modern consumer behavior must be validated in its owning migration phase."
+    },
+    {
+      "id": "LEGACY-MULTILINE-1",
+      "path": "src/Tailviewer.Tests/TestData/Multiline/Log1.txt",
+      "oracle": "Legacy source fixture; corresponding multiline/parser/level tests supply semantic expectations when migrated.",
+      "normalization": "lf",
+      "sizeBytes": 309,
+      "sha256": "20f8a8e74c20965a0b532c413dd63f619317bccd1bbd054969e2b56f67be2860"
+    },
+    {
+      "id": "LEGACY-MULTILINE-2",
+      "path": "src/Tailviewer.Tests/TestData/Multiline/Log2.txt",
+      "oracle": "Legacy source fixture; corresponding multiline/parser/level tests supply semantic expectations when migrated.",
+      "normalization": "lf",
+      "sizeBytes": 240,
+      "sha256": "de59b9ff9cdcfe81a70b799d19649c241559a5a6c0d35737fae2af9ca1090f32"
+    },
+    {
+      "id": "LEGACY-LEVELS",
+      "path": "src/Tailviewer.Tests/TestData/DifferentLevels.txt",
+      "oracle": "Legacy source fixture; corresponding multiline/parser/level tests supply semantic expectations when migrated.",
+      "normalization": "lf",
+      "sizeBytes": 170,
+      "sha256": "f9f6b8262c5aba28c2fe288b84e165c2662c5a2ac86b3f1f5e1245c21b78e294"
+    }
+  ],
+  "sourceCases": [
+    {
+      "id": "LEGACY-fb61f7586a",
+      "source": "src/Tailviewer.Archiver/Applications/GitGetChangesOptions.cs",
+      "candidateTests": [
+        "src/Tailviewer.Archiver.Tests/GitGetChangesTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-3204e5f2c3",
+      "source": "src/Tailviewer.Archiver/Applications/PackOptions.cs",
+      "candidateTests": [
+        "src/Tailviewer.Archiver.Tests/PluginPackerTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/PluginPackageIndexTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-3adb2bb73b",
+      "source": "src/Tailviewer.Archiver/Applications/PublishOptions.cs",
+      "candidateTests": [
+        "src/Tailviewer.Archiver.Tests/Repository/RemotePublishDisabledExceptionTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/PublishedPluginDescriptionTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-d2d420d54a",
+      "source": "src/Tailviewer.PluginRepository/Applications/AddPluginOptions.cs",
+      "candidateTests": [
+        "src/Tailviewer.PluginRepository.Tests/Applications/AddPluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-d3648adac0",
+      "source": "src/Tailviewer.PluginRepository/Applications/AddUserOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e67edde46d",
+      "source": "src/Tailviewer.PluginRepository/Applications/ExportOptions.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/ActionCenter/ExportActionTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Export/LogFileToFileExporterTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Export/LogFileToStreamExporterTest.cs",
+        "src/Tailviewer.Tests/Settings/ExportSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/ActionCenter/ExportViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e162d1df49",
+      "source": "src/Tailviewer.PluginRepository/Applications/ListPluginsOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-8a00282973",
+      "source": "src/Tailviewer.PluginRepository/Applications/ListUsersOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-166f0f2044",
+      "source": "src/Tailviewer.PluginRepository/Applications/RemovePluginOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-08ba9184a9",
+      "source": "src/Tailviewer.PluginRepository/Applications/RemoveUserOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-bb5aa48ce6",
+      "source": "src/Tailviewer.PluginRepository/Applications/RunServerOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-700a208b16",
+      "source": "src/Tailviewer.PluginRepository/Applications/WriteConfigurationOptions.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-88111b687d",
+      "source": "src/Tailviewer.Api/Plugins/ICustomDataSourceConfiguration.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-122c4c2c9e",
+      "source": "src/Tailviewer.Api/Plugins/ICustomDataSourcePlugin.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-0ef2c2eddc",
+      "source": "src/Tailviewer.Api/Plugins/ICustomLogFileFormat.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-2fdfc02d37",
+      "source": "src/Tailviewer.Api/Plugins/ICustomLogFileFormatCreatorPlugin.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-799164b001",
+      "source": "src/Tailviewer.Api/Plugins/ILogEntryParser.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Sources/LogEntryParserFactoryTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Sources/NoThrowLogEntryParserTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Sources/Text/GenericTextLogEntryParserTest.cs",
+        "src/Tailviewer.Tests/SimpleLogEntryParserPlugin.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-446d4eaacc",
+      "source": "src/Tailviewer.Api/Plugins/ILogEntryParserPlugin.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/SimpleLogEntryParserPlugin.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-b326a0d2eb",
+      "source": "src/Tailviewer.Api/Plugins/ILogFileFormatMatcher.cs",
+      "candidateTests": [
+        "src/Tailviewer.Core.Tests/SimpleLogFileFormatMatcher.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileFormatMatcherPluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-88b44b949d",
+      "source": "src/Tailviewer.Api/Plugins/ILogFileFormatMatcherPlugin.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileFormatMatcherPluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-8866444abe",
+      "source": "src/Tailviewer.Api/Plugins/ILogFileIssueListener.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-f67a9b5e12",
+      "source": "src/Tailviewer.Api/Plugins/ILogFileIssuesPlugin.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileIssuesPluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-bc1594985b",
+      "source": "src/Tailviewer.Api/Plugins/ILogFileOutlinePlugin.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileOutlinePluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ebc2079f36",
+      "source": "src/Tailviewer.Api/Plugins/ILogSourceIssue.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-547f15b848",
+      "source": "src/Tailviewer.Api/Plugins/ILogSourceIssueAnalyser.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e0465cc23b",
+      "source": "src/Tailviewer.Api/Plugins/ILogSourceParserPlugin.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-95ae12b43d",
+      "source": "src/Tailviewer.Api/Plugins/IPlugin.cs",
+      "candidateTests": [
+        "src/Tailviewer.Archiver.Tests/AbstractPluginTest.cs",
+        "src/Tailviewer.Archiver.Tests/AggregatedPluginLoaderTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginArchiveLoaderTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginArchiveTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginAssemblyLoaderTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginBuilder.cs",
+        "src/Tailviewer.Archiver.Tests/PluginCacheTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginPackerTest.cs",
+        "src/Tailviewer.Archiver.Tests/PluginRegistryTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/Description/PluginDescriptionTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/Description/PluginImplementationDescriptionTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/PluginGroupTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/PluginIdTest.cs",
+        "src/Tailviewer.Archiver.Tests/Plugins/PluginPackageIndexTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/Applications/AddPluginTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/PluginIdentifierTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/PluginRepositoryProxyTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/PluginRepositoryTest.cs",
+        "src/Tailviewer.PluginRepository.Tests/PublishedPluginDescriptionTest.cs",
+        "src/Tailviewer.System.Tests/Plugins/AbstractPluginCompatabilityTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileFormatMatcherPluginTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileIssuesPluginTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileOutlinePluginTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/PluginInterfaceVersionAttributeTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/PluginInterfaceVersionTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Sources/PluginLogFileFactoryTest.cs",
+        "src/Tailviewer.Tests/SimpleLogEntryParserPlugin.cs",
+        "src/Tailviewer.Tests/SimplePluginLogSourceFactory.cs",
+        "src/Tailviewer.Tests/Ui/AvailablePluginViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/Plugins/PluginViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/Settings/CustomFormatPluginViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-94d8663747",
+      "source": "src/Tailviewer.Api/Ui/ICustomDataSourceViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-91e5d0176c",
+      "source": "src/Tailviewer.Api/Ui/ILogFileOutlineViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileOutlinePluginTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-fdf756deaf",
+      "source": "src/Tailviewer.Api/Ui/INavigationService.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-0ea243a07a",
+      "source": "src/Tailviewer.Api/Ui/IPropertyPresenter.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/DefaultPropertyPresenterTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-dcbaac656d",
+      "source": "src/Tailviewer.Api/Ui/IPropertyPresenterPlugin.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-bf7f6c5d88",
+      "source": "src/Tailviewer/Ui/About/AboutFlyoutDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-16a1ac57dc",
+      "source": "src/Tailviewer/Ui/About/ChangelogControl.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-01c0690c42",
+      "source": "src/Tailviewer/Ui/ActionCenter/AbstractNotificationViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5820255ae4",
+      "source": "src/Tailviewer/Ui/ActionCenter/ActionCenterItem.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-622c3639b3",
+      "source": "src/Tailviewer/Ui/ActionCenter/ChangeTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-8861ca5656",
+      "source": "src/Tailviewer/Ui/ActionCenter/ExportViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/ActionCenter/ExportActionTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Export/LogFileToFileExporterTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Export/LogFileToStreamExporterTest.cs",
+        "src/Tailviewer.Tests/Settings/ExportSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/ActionCenter/ExportViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-3e9ad6e14f",
+      "source": "src/Tailviewer/Ui/AutoUpdateControl.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-a402623a46",
+      "source": "src/Tailviewer/Ui/AutoUpdateViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/AutoUpdater/AutoUpdaterTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/AutoUpdater/AutoUpdaterTest.cs",
+        "src/Tailviewer.Tests/Settings/AutoUpdateSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/AutoUpdateViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-9f200f6611",
+      "source": "src/Tailviewer/Ui/DataSourceTree/FileDataSourceTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-85d0910896",
+      "source": "src/Tailviewer/Ui/DataSourceTree/FileDataSourceViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceAcceptanceTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceManualTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceRealTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceTest.cs",
+        "src/Tailviewer.Acceptance.Tests/Ui/LogView/FileDataSourceViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/FileDataSourceViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-06c2080173",
+      "source": "src/Tailviewer/Ui/DataSourceTree/FolderDataSourceTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-7efb040717",
+      "source": "src/Tailviewer/Ui/DataSourceTree/FolderDataSourceViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Acceptance.Tests/Ui/LogView/FolderDataSourceViewModelTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/FolderDataSourceTest.cs",
+        "src/Tailviewer.Tests/Ui/FolderDataSourceViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-c4ccd97e38",
+      "source": "src/Tailviewer/Ui/DataSourceTree/MergedDataSourceTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-954a47f7f8",
+      "source": "src/Tailviewer/Ui/DataSourceTree/MergedDataSourceViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/MergedDataSourceTest.cs",
+        "src/Tailviewer.Tests/Ui/MergedDataSourceViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-3642b8d025",
+      "source": "src/Tailviewer/Ui/LogView/AbstractDataSourceViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/AbstractDataSourceViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-0a47c30c92",
+      "source": "src/Tailviewer/Ui/LogView/AddCustomDataSourceViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-a6f09475e2",
+      "source": "src/Tailviewer/Ui/LogView/LogViewMainPanelDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-190cd5b652",
+      "source": "src/Tailviewer/Ui/LogView/LogViewMainPanelViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/LogViewMainPanelViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ef5332de04",
+      "source": "src/Tailviewer/Ui/LogView/LogViewerControl.xaml",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/LogViewerControlTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e6b0bf6e3a",
+      "source": "src/Tailviewer/Ui/LogView/LogViewerViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Acceptance.Tests/Ui/LogView/LogViewerViewModelTest.cs",
+        "src/Tailviewer.Tests/Settings/LogViewerSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/LogViewerControlTest.cs",
+        "src/Tailviewer.Tests/Ui/LogViewerViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-c10e302230",
+      "source": "src/Tailviewer/Ui/MainWindow.xaml",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/MainWindowSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/MainWindowTest.cs",
+        "src/Tailviewer.Tests/Ui/MainWindowViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-3e17ab8f2e",
+      "source": "src/Tailviewer/Ui/MainWindow.xaml.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ffafe5b568",
+      "source": "src/Tailviewer/Ui/Menu/AbstractMenuViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5029eda4bd",
+      "source": "src/Tailviewer/Ui/Menu/EditMenuViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Menu/EditMenuViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e68005a149",
+      "source": "src/Tailviewer/Ui/Menu/ExcludeAllInGroupViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-0f7c7350b1",
+      "source": "src/Tailviewer/Ui/Menu/FileMenuViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-d6832c8923",
+      "source": "src/Tailviewer/Ui/Menu/HelpMenuViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-caaa32eb56",
+      "source": "src/Tailviewer/Ui/Menu/IncludeAllInGroupViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-77aedaafbc",
+      "source": "src/Tailviewer/Ui/Menu/ToggleExcludeFromGroupViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5956a05722",
+      "source": "src/Tailviewer/Ui/Plugins/AvailablePluginViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/AvailablePluginViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-07a7a535e7",
+      "source": "src/Tailviewer/Ui/Plugins/InstalledPluginViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-48c7d6348e",
+      "source": "src/Tailviewer/Ui/Plugins/PluginDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-0384031659",
+      "source": "src/Tailviewer/Ui/Plugins/PluginsMainPanelDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-b9be19efb4",
+      "source": "src/Tailviewer/Ui/Plugins/PluginsMainPanelViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-2b14fc64d5",
+      "source": "src/Tailviewer/Ui/QuickFilter/QuickFilterDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-c16617e7d1",
+      "source": "src/Tailviewer/Ui/QuickFilter/QuickFilterViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Settings/QuickFilterTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Settings/QuickFiltersTest.cs",
+        "src/Tailviewer.Tests/QuickFilterIdTest.cs",
+        "src/Tailviewer.Tests/Settings/QuickFilterTest.cs",
+        "src/Tailviewer.Tests/Settings/QuickFiltersTest.cs",
+        "src/Tailviewer.Tests/Ui/QuickFilterViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/QuickFiltersSidePanelViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-737e6d361c",
+      "source": "src/Tailviewer/Ui/QuickFilter/QuickFiltersDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-6e67d3ad08",
+      "source": "src/Tailviewer/Ui/QuickFilter/QuickFiltersViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Settings/QuickFiltersTest.cs",
+        "src/Tailviewer.Tests/Settings/QuickFiltersTest.cs",
+        "src/Tailviewer.Tests/Ui/QuickFiltersSidePanelViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-a8d19723fb",
+      "source": "src/Tailviewer/Ui/QuickNavigation/QuickNavigationViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/QuickNavigation/QuickNavigationViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ebedd81b5d",
+      "source": "src/Tailviewer/Ui/Settings/CustomFormats/CustomFormatDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5bd4c115d9",
+      "source": "src/Tailviewer/Ui/Settings/CustomFormats/CustomFormatPluginDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ca6cf67d06",
+      "source": "src/Tailviewer/Ui/Settings/CustomFormats/CustomFormatPluginViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/Settings/CustomFormatPluginViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-7fd3eb7491",
+      "source": "src/Tailviewer/Ui/Settings/CustomFormats/CustomFormatViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/Settings/CustomFormatPluginViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-37eb156e59",
+      "source": "src/Tailviewer/Ui/Settings/SettingsControl.xaml",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/Controls/MainPanel/Settings/SettingsControlTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-92e0cca06a",
+      "source": "src/Tailviewer/Ui/Settings/SettingsFlyoutViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-905f292347",
+      "source": "src/Tailviewer/Ui/SidePanel/Bookmarks/BookmarkViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Bookmarks/BookmarkCollectionTest.cs",
+        "src/Tailviewer.Tests/Settings/Bookmarks/BookmarksTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/SidePanel/Bookmarks/BookmarkViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/SidePanel/Bookmarks/BookmarksViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5a11832356",
+      "source": "src/Tailviewer/Ui/SidePanel/Bookmarks/BookmarksDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-a13120675a",
+      "source": "src/Tailviewer/Ui/SidePanel/Bookmarks/BookmarksViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/Bookmarks/BookmarksTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/SidePanel/Bookmarks/BookmarksViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-252f1e34c2",
+      "source": "src/Tailviewer/Ui/SidePanel/DataSources/DataSourcesViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/DataSourcesTest.cs",
+        "src/Tailviewer.Tests/Settings/DataSourceSettingsTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/QuickNavigation/DataSourceSuggestionViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/DataSourcesControlTest.cs",
+        "src/Tailviewer.Tests/Ui/DataSourcesViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5817bf78f7",
+      "source": "src/Tailviewer/Ui/SidePanel/Highlighters/HighlighterDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-38c0fe096b",
+      "source": "src/Tailviewer/Ui/SidePanel/Highlighters/HighlighterViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/BusinessLogic/Highlighters/HighlighterIdTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Highlighters/HighlighterTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-5346f70db8",
+      "source": "src/Tailviewer/Ui/SidePanel/Highlighters/HighlightersSidePanelDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-32aaeb75bf",
+      "source": "src/Tailviewer/Ui/SidePanel/Highlighters/HighlightersSidePanelViewModel.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-e77495afc4",
+      "source": "src/Tailviewer/Ui/SidePanel/HyperlinkRun.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-8fc200320d",
+      "source": "src/Tailviewer/Ui/SidePanel/Issues/IssueViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Api.Tests/IssueAttribute.cs",
+        "src/Tailviewer.Tests/BusinessLogic/Plugins/LogFileIssuesPluginTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/SidePanel/Issues/IssuesSidePanelViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-508b062bb6",
+      "source": "src/Tailviewer/Ui/SidePanel/Issues/IssuesSidePanelDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-4c70a09da1",
+      "source": "src/Tailviewer/Ui/SidePanel/QuickFilters/QuickFiltersSidePanelDataTemplate.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-7de99e53fd",
+      "source": "src/Tailviewer/Ui/SidePanel/QuickFilters/QuickFiltersSidePanelViewModel.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Ui/QuickFiltersSidePanelViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-11f3fcfaa8",
+      "source": "src/Tailviewer/Ui/SidePanel/QuickFilters/TimeFilter/TimeChooserControl.xaml",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-ec2d0285b6",
+      "source": "src/Tailviewer/Settings/ApplicationSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/ApplicationSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-71d442e358",
+      "source": "src/Tailviewer/Settings/AutoUpdateSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/AutoUpdateSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-08946198ec",
+      "source": "src/Tailviewer/Settings/Bookmarks/BookmarkSettings.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-dc19a84b17",
+      "source": "src/Tailviewer/Settings/Bookmarks/Bookmarks.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/Bookmarks/BookmarksTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/SidePanel/Bookmarks/BookmarksViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-c098721587",
+      "source": "src/Tailviewer/Settings/CustomFormats/CustomFormatSettings.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-a0aea7f2dc",
+      "source": "src/Tailviewer/Settings/CustomFormats/CustomLogFileFormat.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-558389a668",
+      "source": "src/Tailviewer/Settings/Dashboard/LayoutSettings.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-1751175ca8",
+      "source": "src/Tailviewer/Settings/DataSource.cs",
+      "candidateTests": [
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceAcceptanceTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceManualTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceRealTest.cs",
+        "src/Tailviewer.Acceptance.Tests/BusinessLogic/DataSources/FileDataSourceTest.cs",
+        "src/Tailviewer.Acceptance.Tests/Ui/LogView/FileDataSourceViewModelTest.cs",
+        "src/Tailviewer.Acceptance.Tests/Ui/LogView/FolderDataSourceViewModelTest.cs",
+        "src/Tailviewer.Api.Tests/DataSourceIdTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/DataSourcesTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/FolderDataSourceTest.cs",
+        "src/Tailviewer.Tests/BusinessLogic/DataSources/MergedDataSourceTest.cs",
+        "src/Tailviewer.Tests/Settings/DataSourceSettingsTest.cs",
+        "src/Tailviewer.Tests/Settings/DataSourceTest.cs",
+        "src/Tailviewer.Tests/Ui/AbstractDataSourceViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/LogView/DataSourceCanvasTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/LogView/DataSourceDisplayModeToggleButtonTest.cs",
+        "src/Tailviewer.Tests/Ui/Controls/QuickNavigation/DataSourceSuggestionViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/DataSourcesControlTest.cs",
+        "src/Tailviewer.Tests/Ui/DataSourcesViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/FileDataSourceViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/FolderDataSourceViewModelTest.cs",
+        "src/Tailviewer.Tests/Ui/MergedDataSourceViewModelTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-d216ecb31a",
+      "source": "src/Tailviewer/Settings/DataSourceSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/DataSourceSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-6e8eaae948",
+      "source": "src/Tailviewer/Settings/ExportSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/ExportSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-c1ee92e92a",
+      "source": "src/Tailviewer/Settings/LogFileSettings.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-8ea8bed644",
+      "source": "src/Tailviewer/Settings/LogLevelSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/LogLevelSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-bde03d9372",
+      "source": "src/Tailviewer/Settings/LogViewerSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/LogViewerSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-2a5215ad4a",
+      "source": "src/Tailviewer/Settings/MainWindowSettings.cs",
+      "candidateTests": [
+        "src/Tailviewer.Tests/Settings/MainWindowSettingsTest.cs"
+      ],
+      "status": "source-only; executable owner mapping in T004"
+    },
+    {
+      "id": "LEGACY-143e14aadd",
+      "source": "src/Tailviewer/ArgumentParser.cs",
+      "candidateTests": [],
+      "status": "source-only; executable owner mapping in T004"
+    }
+  ],
+  "generatedRecipes": [
+    {
+      "id": "PERF-100MB",
+      "lineBytes": 128,
+      "lineCount": 819200,
+      "sizeBytes": 104857600,
+      "recipe": "127 ASCII x bytes followed by LF, repeated; no large tracked file",
+      "expectedFirstPageSeconds": 3
+    },
+    {
+      "id": "PERF-1GB",
+      "lineBytes": 128,
+      "lineCount": 8388608,
+      "sizeBytes": 1073741824,
+      "recipe": "127 ASCII x bytes followed by LF, repeated; no large tracked file",
+      "expectedFirstPageSeconds": 10
+    },
+    {
+      "id": "LIVE-TAIL",
+      "linesPerSecond": 1000,
+      "seconds": 300,
+      "expectedLines": 300000,
+      "recipe": "Monotonic integer text per complete line; append with pauses and compare exact final sequence"
+    },
+    {
+      "id": "ROTATE-REWRITE",
+      "recipe": "Owned temp log: append/partial-final-line, same-size full replacement, middle-only rewrite preserving metadata, rename/recreate, truncate/regrow, disappear/reappear and UTF-8-to-UTF-16 replacement",
+      "oracle": "Compare final current bytes/decoded entries, generation invalidation, retained pause state; no stale rows; encoding choice remains explicit."
+    },
+    {
+      "id": "PLUGIN-MODERN",
+      "recipe": "Build existing example and bundled Serilog against modern contracts; one representative per public plugin/UI interface; pack using migrated Archiver",
+      "oracle": "Preserved plugin/config IDs and all corresponding contract behaviors; no use of original binaries as compatibility proof."
+    },
+    {
+      "id": "REPOSITORY-COPIED",
+      "recipe": "Generate a temporary repository using existing PluginRepositoryTest in-memory schema, a generated test-only token and deterministic sample package/icon bytes; export/reopen copies",
+      "oracle": "Users/token maps/descriptions/package/icon hashes/ordering retained; use generated credentials only."
+    },
+    {
+      "id": "DPAPI-CURRENT-USER",
+      "recipe": "Protect a generated non-secret test string/salt with DPAPI CurrentUser; import in same context and simulate unavailable decryption in another context",
+      "oracle": "Retain encrypted raw values, decrypt only in correct context, request re-entry on failure, no plaintext diagnostic output."
+    }
+  ]
+}
