@@ -46,11 +46,11 @@ namespace Tailviewer.Core
 			const int c_PeHeaderOffset = 60;
 			const int c_LinkerTimestampOffset = 8;
 
-			var buffer = new byte[2048];
+			byte[] buffer;
 
-			using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+			using (var stream = new BinaryReader(File.OpenRead(filePath)))
 			{
-				stream.Read(buffer, offset: 0, count: 2048);
+				buffer = stream.ReadBytes(2048);
 			}
 
 			var offset = BitConverter.ToInt32(buffer, c_PeHeaderOffset);

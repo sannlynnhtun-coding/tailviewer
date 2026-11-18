@@ -9,11 +9,13 @@ namespace Tailviewer.Ui.SidePanel.Property
 		: IPropertyPresenter
 	{
 		private readonly string _displayName;
+		private readonly IReadOnlyPropertyDescriptor _property;
 		private object _value;
 
-		public DefaultPropertyPresenter(string displayName)
+		public DefaultPropertyPresenter(string displayName, IReadOnlyPropertyDescriptor property)
 		{
 			_displayName = displayName;
+			_property = property;
 		}
 
 		#region Implementation of INotifyPropertyChanged
@@ -44,7 +46,8 @@ namespace Tailviewer.Ui.SidePanel.Property
 
 		public void Update(object newValue)
 		{
-			Value = newValue;
+			Value = _property == Core.Properties.Size && newValue is long bytes
+				? (object)Metrolib.Size.FromBytes(bytes) : newValue;
 		}
 
 		public event Action<object> OnValueChanged;

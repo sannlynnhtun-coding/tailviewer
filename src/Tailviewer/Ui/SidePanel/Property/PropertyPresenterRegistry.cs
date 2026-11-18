@@ -78,11 +78,11 @@ namespace Tailviewer.Ui.SidePanel.Property
 				if (_wellKnownPresenters.TryGetValue(property, out var factory))
 					return factory(displayName); //< For some properties, we offer specialized presenters
 
-				return new DefaultPropertyPresenter(displayName); //< But for most, the default will do
+				return new DefaultPropertyPresenter(displayName, property); //< But for most, the default will do
 			}
 
 			// As far as other properties are concerned, we will just display them.
-			return new DefaultPropertyPresenter(property.Id);
+			return new DefaultPropertyPresenter(property.Id, property);
 		}
 
 		#endregion

@@ -6,7 +6,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using log4net;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -378,7 +377,7 @@ namespace Tailviewer.Core
 
 		private void UpdateProperties()
 		{
-			Size? size = null;
+			long? size = null;
 			DateTime? lastModified = null;
 			DateTime? startTimestamp = null;
 			DateTime? endTimestamp = null;

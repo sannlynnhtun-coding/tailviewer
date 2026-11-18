@@ -266,7 +266,8 @@ namespace Tailviewer.Ui.LogView
 				var emptyReason = source.GetProperty(Properties.EmptyReason);
 				if (emptyReason != null)
 				{
-					NoEntriesIcon = emptyReason.Icon;
+					NoEntriesIcon = emptyReason.Icon == "FileRemove" ? Icons.FileRemove
+						: emptyReason.Icon == "FileAlert" ? Icons.FileAlert : null;
 					NoEntriesExplanation = emptyReason.Reason;
 					NoEntriesAction = emptyReason.Explanation;
 				}
@@ -282,7 +283,7 @@ namespace Tailviewer.Ui.LogView
 					NoEntriesExplanation = $"The folder \"{Path.GetFileName(dataSource.FullFileName)}\" does not contain any file matching \"{folderDataSource.LogFileSearchPattern}\"";
 					NoEntriesAction = dataSource.FullFileName;
 				}
-				else if (source.GetProperty(Properties.Size) == Size.Zero)
+				else if (source.GetProperty(Properties.Size) == 0L)
 				{
 					NoEntriesIcon = Icons.File;
 					NoEntriesExplanation = "Data source is empty";

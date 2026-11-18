@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using log4net;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -242,7 +241,7 @@ namespace Tailviewer.Core
 					var fileSize = info.Length;
 					_localProperties.SetValue(Core.Properties.LastModified, info.LastWriteTimeUtc);
 					_localProperties.SetValue(Core.Properties.Created, info.CreationTimeUtc);
-					_localProperties.SetValue(Core.Properties.Size, Size.FromBytes(fileSize));
+					_localProperties.SetValue(Core.Properties.Size, fileSize);
 					UpdatePercentageProcessed(_lastStreamPosition, fileSize, allow100Percent: true);
 					SynchronizePropertiesWithUser();
 

@@ -59,8 +59,9 @@ namespace Tailviewer.Core
 
 			const int maxHeaderLength = 512;
 			var length = Math.Min(maxHeaderLength, stream.Length);
-			var header = new byte[length];
-			stream.Read(header, offset: 0, header.Length);
+			byte[] header;
+			using (var reader = new BinaryReader(stream, encoding, leaveOpen: true))
+				header = reader.ReadBytes((int)length);
 
 			_formatMatcher.TryMatchFormat(fileName, header, encoding, out var format, out certainty);
 			if (format != null)

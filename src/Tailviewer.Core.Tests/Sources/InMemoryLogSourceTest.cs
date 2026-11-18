@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using FluentAssertions;
-using Metrolib;
 using Moq;
 using NUnit.Framework;
 using Tailviewer.Api;
@@ -32,7 +31,7 @@ namespace Tailviewer.Core.Tests.Sources
 		{
 			var logFile = new InMemoryLogSource();
 			logFile.Columns.Should().Equal(Core.Columns.Minimum);
-			logFile.GetProperty(Core.Properties.Size).Should().Be(Size.Zero);
+			logFile.GetProperty(Core.Properties.Size).Should().Be(0L);
 			logFile.GetProperty(TextProperties.MaxCharactersInLine).Should().Be(0);
 			logFile.GetProperty(Core.Properties.LastModified).Should().BeNull();
 			logFile.GetProperty(Core.Properties.StartTimestamp).Should().BeNull();
@@ -299,7 +298,7 @@ namespace Tailviewer.Core.Tests.Sources
 		{
 			var logFile = new InMemoryLogSource();
 			logFile.Clear();
-			logFile.GetProperty(Core.Properties.Size).Should().Be(Size.Zero);
+			logFile.GetProperty(Core.Properties.Size).Should().Be(0L);
 			logFile.GetProperty(TextProperties.MaxCharactersInLine).Should().Be(0);
 			logFile.GetProperty(Core.Properties.LastModified).Should().BeNull();
 			logFile.GetProperty(Core.Properties.StartTimestamp).Should().BeNull();

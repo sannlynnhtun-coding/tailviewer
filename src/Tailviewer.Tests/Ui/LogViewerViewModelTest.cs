@@ -59,6 +59,7 @@ namespace Tailviewer.Tests.Ui
 			var model = new LogViewerViewModel(dataSourceModel, _actionCenter.Object, _settings.Object, TimeSpan.Zero);
 			model.LogEntryCount.Should().Be(0);
 			model.NoEntriesExplanation.Should().Be("Data source does not exist");
+			model.NoEntriesIcon.Should().Be(Icons.FileRemove, "because the host resolves the portable icon identifier");
 			model.NoEntriesAction.Should().Be("The data source 'somefile.log' was last seen E:\\Tailviewer");
 		}
 
@@ -70,7 +71,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			var emptyReason = new SourceDoesNotExist("E:\\Tailviewer\\somefile.log");
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns(emptyReason);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns((Size?)null);
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns((long?)null);
 			var filteredLogFile = new Mock<ILogSource>();
 			ILogSourceListener listener = null;
 			filteredLogFile.Setup(x => x.AddListener(It.IsAny<ILogSourceListener>(), It.IsAny<TimeSpan>(), It.IsAny<int>()))
@@ -84,10 +85,11 @@ namespace Tailviewer.Tests.Ui
 			var model = new LogViewerViewModel(dataSourceModel, _actionCenter.Object, _settings.Object, TimeSpan.Zero);
 			model.LogEntryCount.Should().Be(0);
 			model.NoEntriesExplanation.Should().Be("Data source does not exist");
+			model.NoEntriesIcon.Should().Be(Icons.FileRemove, "because the host resolves the portable icon identifier");
 			model.NoEntriesAction.Should().Be("The data source 'somefile.log' was last seen E:\\Tailviewer");
 
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.Zero);
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(0L);
 			listener.OnLogFileModified(logFile.Object, LogSourceModification.Appended(0, 0));
 			model.Update();
 
@@ -112,6 +114,7 @@ namespace Tailviewer.Tests.Ui
 			var model = new LogViewerViewModel(dataSourceModel, _actionCenter.Object, _settings.Object, TimeSpan.Zero);
 			model.LogEntryCount.Should().Be(0);
 			model.NoEntriesExplanation.Should().Be("Data source cannot be opened");
+			model.NoEntriesIcon.Should().Be(Icons.FileAlert, "because the host resolves the portable icon identifier");
 			model.NoEntriesAction.Should().Be("The file 'somefile.log' may be opened exclusively by another process or you are not authorized to view it");
 		}
 
@@ -121,7 +124,7 @@ namespace Tailviewer.Tests.Ui
 			var dataSource = new Mock<IFileDataSource>();
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.Zero);
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(0L);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);
@@ -163,7 +166,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
 			logFile.Setup(x => x.GetProperty(Properties.LogEntryCount)).Returns(1);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.FromBytes(1));
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(1);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);
@@ -185,7 +188,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
 			logFile.Setup(x => x.GetProperty(Properties.LogEntryCount)).Returns(1);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.FromBytes(1));
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(1);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);
@@ -208,7 +211,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
 			logFile.Setup(x => x.GetProperty(Properties.LogEntryCount)).Returns(1);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.FromBytes(1));
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(1);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);
@@ -231,7 +234,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
 			logFile.Setup(x => x.GetProperty(Properties.LogEntryCount)).Returns(1);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.FromBytes(1));
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(1);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);
@@ -293,7 +296,7 @@ namespace Tailviewer.Tests.Ui
 			var logFile = new Mock<ILogSource>();
 			logFile.Setup(x => x.GetProperty(Properties.EmptyReason)).Returns((IEmptyReason) null);
 			logFile.Setup(x => x.GetProperty(Properties.LogEntryCount)).Returns(1);
-			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(Size.FromBytes(1));
+			logFile.Setup(x => x.GetProperty(Properties.Size)).Returns(1);
 			var filteredLogFile = new Mock<ILogSource>();
 			dataSource.Setup(x => x.UnfilteredLogSource).Returns(logFile.Object);
 			dataSource.Setup(x => x.FilteredLogSource).Returns(filteredLogFile.Object);

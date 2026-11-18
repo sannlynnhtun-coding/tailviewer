@@ -20,6 +20,9 @@ namespace Tailviewer.Core
 	///    over time. In order to create an instance of this type, simply call <see cref="ILogSourceFactory.CreateEventLogFile"/>
 	///    who's signature is guaranteed to never change.
 	/// </remarks>
+#if !NETFRAMEWORK
+	[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#endif
 	internal sealed class EventLogSource
 		: ILogSource
 	{
@@ -56,6 +59,10 @@ namespace Tailviewer.Core
 		/// <param name="fileName"></param>
 		internal EventLogSource(ITaskScheduler scheduler, string fileName)
 		{
+#if !NETFRAMEWORK
+			if (!OperatingSystem.IsWindows())
+				throw new PlatformNotSupportedException("Windows event logs are only available on Windows.");
+#endif
 			_scheduler = scheduler;
 			_fileName = fileName;
 

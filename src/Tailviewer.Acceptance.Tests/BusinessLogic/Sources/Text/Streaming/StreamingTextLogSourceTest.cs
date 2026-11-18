@@ -158,7 +158,7 @@ namespace Tailviewer.Acceptance.Tests.BusinessLogic.Sources.Text.Streaming
 			_taskScheduler.Run(numReadOperations);
 			logFile.GetProperty(TextProperties.LineCount).Should().Be(0, "because the file is empty");
 			logFile.GetProperty(Properties.LogEntryCount).Should().Be(0, "because the file is empty");
-			logFile.GetProperty(Properties.Size).Should().Be(Size.Zero, "because the file is empty");
+			logFile.GetProperty(Properties.Size).Should().Be(0L, "because the file is empty");
 			logFile.GetProperty(Properties.Created).Should().Be(info.Created);
 			logFile.GetProperty(Properties.LastModified).Should().Be(info.LastModified);
 			logFile.GetProperty(Properties.EmptyReason).Should().Be(null, "because the source file does exist and can be accessed");
@@ -182,7 +182,7 @@ namespace Tailviewer.Acceptance.Tests.BusinessLogic.Sources.Text.Streaming
 			
 			logFile.GetProperty(TextProperties.LineCount).Should().Be(1);
 			logFile.GetProperty(Properties.LogEntryCount).Should().Be(1);
-			logFile.GetProperty(Properties.Size).Should().Be(Size.FromBytes(109));
+			logFile.GetProperty(Properties.Size).Should().Be(109);
 			logFile.GetProperty(Properties.PercentageProcessed).Should().Be(Percentage.HundredPercent);
 
 			var indices = logFile.GetColumn(new LogSourceSection(0, 1), StreamingTextLogSource.LineOffsetInBytes);
@@ -207,7 +207,7 @@ namespace Tailviewer.Acceptance.Tests.BusinessLogic.Sources.Text.Streaming
 
 			logFile.GetProperty(TextProperties.LineCount).Should().Be(3, "because there's 3 lines, the last one is empty though");
 			logFile.GetProperty(Properties.LogEntryCount).Should().Be(3, "because there's 3 lines, the last one is empty though");
-			logFile.GetProperty(Properties.Size).Should().Be(Size.FromBytes(new FileInfo(fileName).Length)); //< Git fucks with the file length due to replacing line endings => we can't hard code it here
+			logFile.GetProperty(Properties.Size).Should().Be(new FileInfo(fileName).Length); //< Git fucks with the file length due to replacing line endings => we can't hard code it here
 			logFile.GetProperty(Properties.PercentageProcessed).Should().Be(Percentage.HundredPercent);
 
 			var indices = logFile.GetColumn(new LogSourceSection(0, 3), StreamingTextLogSource.LineOffsetInBytes);

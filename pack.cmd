@@ -6,6 +6,8 @@ if not defined APPVEYOR_BUILD_VERSION (
 	exit /b -1
 )
 
+dotnet build src\Tailviewer.Core\Tailviewer.Core.csproj --configuration Release || exit /b 1
+
 nuget pack src\Tailviewer.Api\Tailviewer.Api.nuspec -Version %APPVEYOR_BUILD_VERSION%-beta
 
 endlocal

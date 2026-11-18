@@ -1,4 +1,9 @@
-﻿using System.Windows;
+﻿#if NETFRAMEWORK
+using System.Windows;
+#else
+// shortcut: UI controls are opaque to the portable API, validate their type in the migrated host.
+using FrameworkElement = System.Object;
+#endif
 
 // ReSharper disable once CheckNamespace
 namespace Tailviewer.Api
@@ -16,7 +21,11 @@ namespace Tailviewer.Api
 	///     Tailviewer repository. This plugin takes care of interpreting a stream of UDP datagrams send to a particular
 	///     end-point as log events where each datagram contains a singular log event in plain text.
 	/// </example>
+#if NETFRAMEWORK
 	[PluginInterfaceVersion(1)]
+#else
+	[PluginInterfaceVersion(2)]
+#endif
 	public interface ICustomDataSourcePlugin
 		: IPlugin
 	{

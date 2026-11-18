@@ -1,5 +1,10 @@
 ﻿using System.Collections.Generic;
+#if NETFRAMEWORK
 using System.Windows;
+#else
+// shortcut: UI controls are opaque to the portable API, validate their type in the migrated host.
+using FrameworkElement = System.Object;
+#endif
 
 // ReSharper disable once CheckNamespace
 namespace Tailviewer.Api
@@ -20,7 +25,11 @@ namespace Tailviewer.Api
 	///     Version 2
 	///     Replaced SupportedFileNames regex with list of supported file formats.
 	/// </remarks>
+#if NETFRAMEWORK
 	[PluginInterfaceVersion(version: 2)]
+#else
+	[PluginInterfaceVersion(version: 3)]
+#endif
 	public interface ILogFileOutlinePlugin
 		: IPlugin
 	{

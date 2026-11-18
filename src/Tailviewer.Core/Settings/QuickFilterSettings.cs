@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics.Contracts;
 using System.Xml;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -75,7 +74,7 @@ namespace Tailviewer.Core
 						break;
 
 					case "type":
-						MatchType = reader.ReadContentAsEnum<FilterMatchType>();
+						MatchType = (FilterMatchType)Enum.Parse(typeof(FilterMatchType), reader.Value);
 						break;
 
 					case "value":
@@ -83,11 +82,11 @@ namespace Tailviewer.Core
 						break;
 
 					case "ignorecase":
-						IgnoreCase = reader.ReadContentAsBool();
+						IgnoreCase = string.Equals(reader.Value, "true", StringComparison.InvariantCultureIgnoreCase);
 						break;
 
 					case "isinclude":
-						IsInverted = reader.ReadContentAsBool();
+						IsInverted = string.Equals(reader.Value, "true", StringComparison.InvariantCultureIgnoreCase);
 						break;
 				}
 			}
@@ -105,10 +104,10 @@ namespace Tailviewer.Core
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttribute("id", Id);
-			writer.WriteAttributeEnum("type", MatchType);
+			writer.WriteAttributeString("type", MatchType.ToString());
 			writer.WriteAttributeString("value", Value);
-			writer.WriteAttributeBool("ignorecase", IgnoreCase);
-			writer.WriteAttributeBool("isinclude", IsInverted);
+			writer.WriteAttributeString("ignorecase", XmlConvert.ToString(IgnoreCase));
+			writer.WriteAttributeString("isinclude", XmlConvert.ToString(IsInverted));
 		}
 
 		/// <summary>

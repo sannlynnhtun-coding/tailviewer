@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using FluentAssertions;
-using Metrolib;
 using Moq;
 using NUnit.Framework;
 using Tailviewer.Api;
@@ -170,7 +169,7 @@ namespace Tailviewer.Core.Tests.Sources.MultiLine
 			_taskScheduler.RunOnce();
 			logFile.GetProperty(Core.Properties.Size).Should().BeNull("because the source doesn't exist (yet)");
 
-			var size = Size.FromGigabytes(42);
+			var size = (42L * 1024 * 1024 * 1024);
 			_entries.Add(new LogEntry());
 			_source.Setup(x => x.GetProperty(Core.Properties.Size)).Returns(size);
 			_source.Setup(x => x.GetAllProperties(It.IsAny<IPropertiesBuffer>()))

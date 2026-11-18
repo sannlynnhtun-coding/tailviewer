@@ -9,6 +9,29 @@ namespace Tailviewer.Core.Tests.Sources.Text
 	[TestFixture]
 	public sealed class FileFormatDetectorTest
 	{
+        [Test]
+        public void TestShortReads()
+        {
+            var data = Encoding.UTF8.GetBytes("partial reads must preserve the complete header");
+            using (var stream = new ShortReadStream(data))
+            {
+                var matcher = new SimpleLogFileFormatMatcher(null);
+                new FileFormatDetector(matcher).TryDetermineFormat("test.log", stream, Encoding.UTF8);
+                matcher.Header.Should().Equal(data, "because a stream read may return fewer bytes than requested");
+                stream.CanRead.Should().BeTrue("because format detection must leave the source stream open");
+            }
+        }
+
+        private sealed class ShortReadStream : MemoryStream
+        {
+            public ShortReadStream(byte[] data) : base(data) { }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                return base.Read(buffer, offset, System.Math.Min(count, 1));
+            }
+        }
+
 		[Test]
 		[Description("Verifies that the detector positions the stream to 0 bytes before it tries to ask the service for the format")]
 		public void TestDetectStreamNotAt0()

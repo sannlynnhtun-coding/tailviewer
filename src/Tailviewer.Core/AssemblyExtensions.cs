@@ -16,10 +16,7 @@ namespace Tailviewer.Core
 		/// <returns></returns>
 		public static string GetFolder(this Assembly assembly)
 		{
-			var codeBase = assembly.CodeBase;
-			var uri = new UriBuilder(codeBase);
-			var path = Uri.UnescapeDataString(uri.Path);
-			return Path.GetDirectoryName(path);
+			return Path.GetDirectoryName(assembly.Location);
 		}
 	}
 }

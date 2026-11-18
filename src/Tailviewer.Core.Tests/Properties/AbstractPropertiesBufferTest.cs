@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using FluentAssertions;
-using Metrolib;
 using NUnit.Framework;
 using Tailviewer.Api;
 
@@ -25,7 +24,7 @@ namespace Tailviewer.Core.Tests.Properties
 		{
 			var properties = Create(
 			                        new KeyValuePair<IReadOnlyPropertyDescriptor, object>(Core.Properties.Created, new DateTime(2017, 12, 29, 12, 50, 0)),
-			                        new KeyValuePair<IReadOnlyPropertyDescriptor, object>(Core.Properties.Size, Size.FromGigabytes(1))
+			                        new KeyValuePair<IReadOnlyPropertyDescriptor, object>(Core.Properties.Size, (1L * 1024 * 1024 * 1024))
 			                        );
 			var view = new PropertiesBufferDebuggerVisualization(properties);
 			var items = view.Items;
@@ -33,7 +32,7 @@ namespace Tailviewer.Core.Tests.Properties
 			items.Should().ContainKey(Core.Properties.Created);
 			items[Core.Properties.Created].Should().Be(new DateTime(2017, 12, 29, 12, 50, 0));
 			items.Should().ContainKey(Core.Properties.Size);
-			items[Core.Properties.Size].Should().Be(Size.FromGigabytes(1));
+			items[Core.Properties.Size].Should().Be((1L * 1024 * 1024 * 1024));
 		}
 
 		[Test]

@@ -57,7 +57,7 @@ namespace Tailviewer.Core
 
 		public override string ToString()
 		{
-			return $"Size: {Metrolib.Size.FromBytes(_size)}, Created: {_created}, Modified: {_lastModified}";
+			return $"Size: {_size} bytes, Created: {_created}, Modified: {_lastModified}";
 		}
 
 		#endregion

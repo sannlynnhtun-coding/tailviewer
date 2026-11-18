@@ -1,6 +1,4 @@
-﻿using System.Windows.Media;
-using System.Xml;
-using Metrolib;
+﻿using System.Xml;
 using Tailviewer.Api;
 
 namespace Tailviewer.Core
@@ -18,7 +16,7 @@ namespace Tailviewer.Core
 		/// <param name="id"></param>
 		public static void WriteAttribute(this XmlWriter writer, string localName, DataSourceId id)
 		{
-			writer.WriteAttributeGuid(localName, id.Value);
+			writer.WriteAttributeString(localName, id.Value.ToString());
 		}
 
 		/// <summary>
@@ -29,19 +27,8 @@ namespace Tailviewer.Core
 		/// <param name="id"></param>
 		public static void WriteAttribute(this XmlWriter writer, string localName, QuickFilterId id)
 		{
-			writer.WriteAttributeGuid(localName, id.Value);
+			writer.WriteAttributeString(localName, id.Value.ToString());
 		}
 
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="localName"></param>
-		/// <param name="color"></param>
-		public static void WriteAttributeColor(this XmlWriter writer, string localName, Color color)
-		{
-			var colorVlaue = color.ToString();
-			writer.WriteAttributeString(localName, colorVlaue);
-		}
 	}
 }

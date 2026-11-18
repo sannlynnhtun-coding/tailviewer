@@ -166,6 +166,7 @@
     <Compile Include="Settings\ILogViewerSettings.cs" />
     <Compile Include="Settings\LogFileSettings.cs" />
     <Compile Include="Settings\LogLevelSettings.cs" />
+    <Compile Include="Settings\ColorXmlExtensions.cs" />
     <Compile Include="Settings\LogViewerSettings.cs" />
     <Compile Include="Settings\TextSettings.cs" />
     <Compile Include="TaskExtensions.cs" />

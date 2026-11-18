@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using FluentAssertions;
-using Metrolib;
 using Moq;
 using NUnit.Framework;
 using Tailviewer.Api;
@@ -157,18 +156,18 @@ namespace Tailviewer.Core.Tests.Sources.Proxy
 				_logFile.Setup(x => x.GetAllProperties(It.IsAny<IPropertiesBuffer>()))
 				        .Callback((IPropertiesBuffer destination) =>
 				        {
-					        destination.SetValue(Core.Properties.Size, Size.FromBytes(12));
+					        destination.SetValue(Core.Properties.Size, 12L);
 				        });
 				_taskScheduler.RunOnce();
-				proxy.GetProperty(Core.Properties.Size).Should().Be(Size.FromBytes(12));
+				proxy.GetProperty(Core.Properties.Size).Should().Be(12L);
 
 				_logFile.Setup(x => x.GetAllProperties(It.IsAny<IPropertiesBuffer>()))
 				        .Callback((IPropertiesBuffer destination) =>
 				        {
-					        destination.SetValue(Core.Properties.Size, Size.OneMegabyte);
+					        destination.SetValue(Core.Properties.Size, (1024L * 1024));
 				        });
 				_taskScheduler.RunOnce();
-				proxy.GetProperty(Core.Properties.Size).Should().Be(Size.OneMegabyte);
+				proxy.GetProperty(Core.Properties.Size).Should().Be((1024L * 1024));
 			}
 		}
 

@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Appender.cs" />
+    <Compile Include="Ui\DefaultPropertyPresenterTest.cs" />
     <Compile Include="ArrayExtensionsTest.cs" />
     <Compile Include="AssemblySetup.cs" />
     <Compile Include="BusinessLogic\ActionCenter\ActionCenterTest.cs" />

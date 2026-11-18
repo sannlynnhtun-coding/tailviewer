@@ -1,7 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using System.Windows.Media;
-using Metrolib;
 using Tailviewer.Api;
 
 namespace Tailviewer.Core
@@ -40,7 +38,7 @@ namespace Tailviewer.Core
 		public IReadOnlyList<string> Options => null;
 
 		/// <inheritdoc />
-		public Geometry Icon => Icons.FileAlert;
+		public string Icon => "FileAlert";
 
 		#endregion
 	}

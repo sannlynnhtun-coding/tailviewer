@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -95,10 +94,10 @@ namespace Tailviewer.Core
 		public static readonly IReadOnlyPropertyDescriptor<DateTime?> Created;
 
 		/// <summary>
-		///     The approximate size of the data source.
+		///     The approximate size of the data source in bytes.
 		///     Is only needed to be displayed to the user.
 		/// </summary>
-		public static readonly IReadOnlyPropertyDescriptor<Size?> Size;
+		public static readonly IReadOnlyPropertyDescriptor<long?> Size;
 
 		/// <summary>
 		///     The percentage of the file which has been fully processed already.
@@ -147,7 +146,7 @@ namespace Tailviewer.Core
 			Duration = new WellKnownReadOnlyProperty<TimeSpan?>(new []{category, "duration"});
 			LastModified = new WellKnownReadOnlyProperty<DateTime?>(new []{category, "last_modified"});
 			Created = new WellKnownReadOnlyProperty<DateTime?>(new []{category, "created"});
-			Size = new WellKnownReadOnlyProperty<Size?>(new []{category, "size"});
+			Size = new WellKnownReadOnlyProperty<long?>(new []{category, "size"});
 
 			PercentageProcessed = new WellKnownReadOnlyProperty<Percentage>(new []{category, "percentage_processed"}, Percentage.Zero);
 			EmptyReason = new WellKnownReadOnlyProperty<IEmptyReason>(new []{category, "empty_reason"});

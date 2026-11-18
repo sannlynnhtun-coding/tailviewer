@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -15,7 +14,7 @@ namespace Tailviewer.Core
 		public EmptyLogSource()
 		{
 			_properties.SetValue(Core.Properties.PercentageProcessed, Percentage.HundredPercent);
-			_properties.SetValue(Core.Properties.Size, Size.Zero);
+			_properties.SetValue(Core.Properties.Size, 0L);
 		}
 
 		#region Implementation of IDisposable

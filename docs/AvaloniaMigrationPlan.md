@@ -4,6 +4,32 @@
 
 ဆုံးဖြတ်ချက်: Desktop application ကို `net10.0` + Avalonia သို့ ပြောင်းမည်။ လက်ရှိ log engine၊ filters၊ search၊ merge၊ bookmarks နှင့် plugin လုပ်ဆောင်ချက်များကို ထိန်းမည်။ ပထမဆုံး Windows တွင် feature parity ရပြီးနောက် Linux/macOS ကို OS တစ်ခုချင်းစီတွင် အတည်ပြုမည်။ Mobile/Web ကို ဤ migration တွင် မထည့်ပါ။
 
+## ပထမ implementation အဆင့် — 2026-11-18
+
+- `global.json` တွင် SDK `10.0.302` ကို pin လုပ်ထားသည်။ Patch updates သာ roll forward လုပ်မည်။
+- Api/Core နှင့် သက်ဆိုင်ရာ test projects ကို SDK-style/PackageReference သို့ ပြောင်းထားသည်။ Api/Core က `net45;net10.0`၊ tests က `net471;net10.0` ကို ယာယီတွဲထောက်ပံ့သည်။ Legacy binaries ကို မူလ `bin/` တွင်၊ modern binaries ကို project အောက်ရှိ framework-specific output တွင် ထုတ်သည်။
+- Core မှ Metrolib ကိုဖြုတ်ထားသည်။ `Properties.Size` သည် nullable byte count `long?` ဖြစ်ပြီး WPF application က display size သို့ပြန်ပြောင်းသည်။ `IEmptyReason.Icon` သည် string identifier ဖြစ်ပြီး WPF host က geometry သို့ map လုပ်သည်။ ဤ public contract များ ပြောင်းသဖြင့် external plugins/consumers ကို rebuild လုပ်ရန်လိုသည်။
+- WPF color XML persistence ကို application ဘက်သို့ ရွှေ့ထားသည်။ Settings XML ၏ GUID၊ enum၊ boolean နှင့် DateTime ticks အဟောင်းတို့ကို ထိန်းထားပြီး regression tests ရှိသည်။
+- Portable UI plugin methods သည် controls ကို `object` အဖြစ် ပေးသည်။ Legacy target မှာ မူလ WPF signature ထိန်းထားသည်။ Modern custom-data-source/outline interface versions ကို 2/3 သို့ တိုးထားသည်။ Avalonia host ပြောင်းချိန် control type ကို စစ်ရမည်။ API/Core တွင် Avalonia dependency အသစ် မထည့်ထားပါ။
+- Windows Event Log ကို platform attribute/guard ဖြင့် Windows သီးသန့် သတ်မှတ်ထားသည်။ Assembly location နှင့် partial stream reads ကို modern runtime နှင့်လိုက်ဖက်အောင် ပြင်ထားသည်။ Core က build-date PE timestamp ကို ဆက်သုံးနေသောကြောင့် မူလ nondeterministic compilation ကို ထိန်းထားသည်။
+- API `.nuspec` နှင့် `pack.cmd` ကို modern assets/dependency groups ပါအောင် ပြင်ထားသည်။ Complete package ထုတ်ရန် မူလ archiver build artifact လိုနေဆဲဖြစ်ပြီး package publish မလုပ်ထားပါ။
+
+ပြန်စမ်းရန်:
+
+```powershell
+dotnet --version
+dotnet build src/Tailviewer.Core/Tailviewer.Core.csproj --configuration Release
+dotnet test src/Tailviewer.Api.Tests/Tailviewer.Api.Tests.csproj --framework net10.0
+dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework net10.0
+dotnet test src/Tailviewer.Api.Tests/Tailviewer.Api.Tests.csproj --framework net471
+dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj --framework net471
+dotnet list src/Tailviewer.Core/Tailviewer.Core.csproj package --framework net10.0 --vulnerable --include-transitive
+```
+
+စစ်ဆေးပြီး: Api/Core Debug/Release builds သည် targets နှစ်မျိုးလုံးတွင် အောင်သည်။ Modern Core tests 6,641 passed / 5 existing skips; modern API tests 116 passed။ Legacy Core tests 6,640 passed / 5 existing skips; legacy API tests 115 passed။ WPF size presenter နှင့် ရွှေ့ထားသည့် color XML code ကို source files link လုပ်ထားသော temporary `net471` test project ဖြင့် 12 tests အောင်သည်။
+
+ကျန်ရှိမှု: Full WPF application build သည် စက်တွင် .NET Framework 4.7.1 targeting pack မရှိသဖြင့် `MSB3644` ဖြစ်သည်။ Linux/macOS execution၊ complete package creation နှင့် Avalonia UI ကို မစမ်းရသေးပါ။ `net10.0` dependency graph တွင် WPF/Metrolib မပါဘဲ log4net 3.6.0 သုံးပြီး NuGet vulnerability scan တွင် known vulnerabilities မတွေ့ပါ။ Legacy `net45` target မှာ log4net 2.0.12 ၏ `GHSA-4f7c-pmjv-c25w` advisory ကျန်ရှိသည်။ Multi-target restore က advisory ကို targets အားလုံးအတွက် ပြနိုင်သည်။ Legacy/outer restore တွင် `NU1902` ကို warning အဖြစ်သာထားပြီး scan ကို မပိတ်ထားပါ။ Legacy host ကိုပြောင်းချိန် dependency နှင့် warning exception ကို အတူဖယ်ရမည်။
+
 ## စစ်ဆေးမှုအဆင့်နှင့် အထောက်အထား
 
 - `src/**/packages.config` ရှိ package ID/version ၂၃ မျိုးလုံး၏ NuGet archive များကို download လုပ်ပြီး `lib/`, `ref/`, `runtimes/`, `build/` target များ စစ်ထားသည်။ Repository ထဲတွင် package files မသိမ်းထားပါ။

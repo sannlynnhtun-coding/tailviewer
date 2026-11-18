@@ -9,6 +9,16 @@ namespace Tailviewer.Api.Tests
 	[TestFixture]
 	public sealed class AssemblyTest
 	{
+#if !NETFRAMEWORK
+        [Test]
+        public void TestPortableReferences()
+        {
+            var references = typeof(Tailviewer.Api.ILogSource).Assembly.GetReferencedAssemblies().Select(x => x.Name);
+            references.Should().NotContain(new[] { "Metrolib", "PresentationCore", "PresentationFramework", "WindowsBase" },
+                "because the portable libraries must not depend on WPF or Metrolib");
+        }
+#endif
+
 		[Test]
 		public void TestNamespaces()
 		{

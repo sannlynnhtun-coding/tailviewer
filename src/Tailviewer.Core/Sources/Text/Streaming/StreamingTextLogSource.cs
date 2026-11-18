@@ -10,7 +10,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -493,7 +492,7 @@ namespace Tailviewer.Core
 			_lastFingerprint = currentFingerprint;
 			_propertiesBuffer.SetValue(Core.Properties.LastModified, currentFingerprint.LastModified);
 			_propertiesBuffer.SetValue(Core.Properties.Created, currentFingerprint.Created);
-			_propertiesBuffer.SetValue(Core.Properties.Size, Size.FromBytes(currentFingerprint.Size));
+			_propertiesBuffer.SetValue(Core.Properties.Size, currentFingerprint.Size);
 			return true;
 		}
 

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics.Contracts;
+using System.Globalization;
 using System.Xml;
-using Metrolib;
 using Tailviewer.Api;
 using Tailviewer.Core.Filters.ExpressionEngine;
 
@@ -79,11 +79,11 @@ namespace Tailviewer.Core
 						break;
 
 					case "start":
-						Minimum = reader.ReadContentAsDateTime2();
+						Minimum = new DateTime(long.Parse(reader.Value, CultureInfo.InvariantCulture));
 						break;
 
 					case "end":
-						Maximum = reader.ReadContentAsDateTime2();
+						Maximum = new DateTime(long.Parse(reader.Value, CultureInfo.InvariantCulture));
 						break;
 				}
 			}
@@ -100,9 +100,9 @@ namespace Tailviewer.Core
 			writer.WriteAttributeString("mode", Mode.ToString());
 			writer.WriteAttributeString("range", SpecialInterval.ToString());
 			if (Minimum != null)
-				writer.WriteAttributeDateTime("start", Minimum.Value);
+				writer.WriteAttributeString("start", Minimum.Value.Ticks.ToString(CultureInfo.InvariantCulture));
 			if (Maximum != null)
-				writer.WriteAttributeDateTime("end", Maximum.Value);
+				writer.WriteAttributeString("end", Maximum.Value.Ticks.ToString(CultureInfo.InvariantCulture));
 		}
 
 		/// <summary>

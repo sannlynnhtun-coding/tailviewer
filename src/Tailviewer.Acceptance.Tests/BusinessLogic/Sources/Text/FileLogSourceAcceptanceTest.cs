@@ -103,7 +103,7 @@ namespace Tailviewer.Acceptance.Tests.BusinessLogic.Sources.Text
 				logSource.GetProperty(Properties.Format).Should().Be(LogFileFormats.GenericText, "because we didn't provide the log file with a working detector");
 				logSource.GetProperty(Properties.Created).Should().Be(info.CreationTimeUtc);
 				logSource.GetProperty(Properties.LastModified).Should().Be(info.LastWriteTimeUtc);
-				logSource.GetProperty(Properties.Size).Should().Be(Size.FromBytes(info.Length));
+				logSource.GetProperty(Properties.Size).Should().Be(info.Length);
 
 				var entries = logSource.GetEntries();
 				//entries.Should().HaveCount(9996);

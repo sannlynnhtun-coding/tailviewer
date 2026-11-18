@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using FluentAssertions;
-using Metrolib;
 using Moq;
 using NUnit.Framework;
 using Tailviewer.Api;
@@ -168,7 +167,7 @@ namespace Tailviewer.Core.Tests.Sources.Filtered
 		[Test]
 		public void TestSize()
 		{
-			var size = Size.FromGigabytes(5);
+			var size = (5L * 1024 * 1024 * 1024);
 			var props = new Dictionary<IReadOnlyPropertyDescriptor, object> {[Core.Properties.Size] = size};
 			var source = new InMemoryLogSource(props);
 

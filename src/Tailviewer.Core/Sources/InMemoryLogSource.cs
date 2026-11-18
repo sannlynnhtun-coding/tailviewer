@@ -1,9 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using log4net;
-using Metrolib;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -81,7 +80,7 @@ namespace Tailviewer.Core
 			_listeners = new LogSourceListenerCollection(this);
 
 			_properties = new PropertiesBufferList(Core.Properties.Minimum);
-			_properties.SetValue(Core.Properties.Size, Size.Zero);
+			_properties.SetValue(Core.Properties.Size, 0L);
 			_properties.SetValue(Core.Properties.PercentageProcessed, Percentage.HundredPercent);
 			foreach (var pair in properties)
 			{
@@ -271,7 +270,7 @@ namespace Tailviewer.Core
 					_properties.SetValue(TextProperties.MaxCharactersInLine, 0);
 					_properties.SetValue(Core.Properties.StartTimestamp, null);
 					_properties.SetValue(Core.Properties.EndTimestamp, null);
-					_properties.SetValue(Core.Properties.Size, Size.Zero);
+					_properties.SetValue(Core.Properties.Size, 0L);
 					Touch();
 
 					_listeners.Reset();

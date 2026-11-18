@@ -244,7 +244,14 @@ namespace Tailviewer.BusinessLogic.DataSources
 
 		public int TotalCount => UnfilteredLogSource.GetProperty(Properties.LogEntryCount);
 
-		public Size? FileSize => UnfilteredLogSource.GetProperty(Properties.Size);
+		public Size? FileSize
+		{
+			get
+			{
+				var bytes = UnfilteredLogSource.GetProperty(Properties.Size);
+				return bytes.HasValue ? Size.FromBytes(bytes.Value) : (Size?)null;
+			}
+		}
 
 		public bool ColorByLevel
 		{

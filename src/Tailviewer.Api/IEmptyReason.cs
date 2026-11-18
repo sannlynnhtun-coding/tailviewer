@@ -1,5 +1,4 @@
-using System.Collections.Generic;
-using System.Windows.Media;
+﻿using System.Collections.Generic;
 
 namespace Tailviewer.Api
 {
@@ -43,8 +42,8 @@ namespace Tailviewer.Api
 		IReadOnlyList<string> Options { get; }
 
 		/// <summary>
-		///     An optional icon which is displayed next to the <see cref="Reason" />.
+		///     An optional icon identifier which is displayed next to the <see cref="Reason" />.
 		/// </summary>
-		Geometry Icon { get; }
+		string Icon { get; }
 	}
 }
