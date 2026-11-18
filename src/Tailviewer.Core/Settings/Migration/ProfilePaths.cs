@@ -7,6 +7,7 @@ namespace Tailviewer.Settings
     internal static class ProfilePaths
     {
         internal static string Folder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tailviewer.Avalonia");
+        internal static string SettingsFile => Path.Combine(Folder, "settings.xml");
         internal static string BookmarksFile => Path.Combine(Folder, "bookmarks.xml");
     }
 }

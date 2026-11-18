@@ -13,6 +13,8 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Include="../Tailviewer.Tests/Settings/ApplicationSettingsTest.cs" Link="Migration/LegacyApplicationSettingsTest.cs" />
+    <None Include="../Tailviewer.Tests/Settings/settings_no_file_guid.xml" Link="Settings/settings_no_file_guid.xml" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Tailviewer.Tests/Settings/Bookmarks/BookmarksTest.cs" Link="Migration/LegacyBookmarksTest.cs" />
     <Compile Include="../Tailviewer.Tests/Settings/MainWindowSettingsTest.cs" Link="Migration/LegacyMainWindowSettingsTest.cs" />
     <Compile Include="../Tailviewer.Tests/DesktopTest.cs" Link="Migration/LegacyDesktopTest.cs" />

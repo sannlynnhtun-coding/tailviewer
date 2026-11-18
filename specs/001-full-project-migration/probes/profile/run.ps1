@@ -6,15 +6,12 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Namespace.cs') -Destination $ru
 $template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ProfileProbe.Tests.csproj.template') -Raw
 $project = Join-Path $run 'ProfileProbe.Tests.csproj'
 $template.Replace('@@ROOT@@', [System.Security.SecurityElement]::Escape($repo.Replace('\','/'))) | Set-Content -LiteralPath $project
-& dotnet test $project -c Release --filter 'FullyQualifiedName~ProfilePersistenceTest' --logger 'trx;LogFileName=profile-contract.trx' *> (Join-Path $run 'red.log')
-if ($LASTEXITCODE -ne 1) { throw "Expected failing behavioral tests, evidence: $run" }
+& dotnet test $project -c Release --filter 'FullyQualifiedName~ProfilePersistenceTest' --logger 'trx;LogFileName=profile-contract.trx' *> (Join-Path $run 'profile.log')
+if ($LASTEXITCODE -ne 0) { throw "Modern profile contract tests failed, evidence: $run" }
 [xml]$trx = Get-Content -LiteralPath (Join-Path $run 'TestResults/profile-contract.trx') -Raw
 $results = $trx.SelectNodes("//*[local-name()='UnitTestResult']")
-$failed = @($results | Where-Object outcome -eq 'Failed' | ForEach-Object testName | Sort-Object)
-$expected = @('DefaultModernProfileDoesNotTargetLegacySettings', 'KnownNamesInsideUnknownNodesDoNotChangeSettings', 'MalformedRestoreKeepsLastValidInMemoryValuesAndOriginalBytes', 'UnknownAttributesAndPluginNodesSurviveTwoRestarts') | Sort-Object
-if ($results.Count -ne 8 -or @(Compare-Object $failed $expected).Count -ne 0) { throw "Unexpected test outcomes, inspect $run" }
-Write-Output 'Verified legacy behavior baseline: 4 passed / 4 failed / 0 skipped. This is not a passing migration gate.'
-$failed | ForEach-Object { Write-Output "Expected red: $_" }
+if ($results.Count -ne 8 -or @($results | Where-Object outcome -ne 'Passed').Count -ne 0) { throw "Expected eight passing modern profile cases, inspect $run" }
+Write-Output 'Modern profile behavior: 8 passed / 0 failed / 0 skipped. Atomic file-store safety remains a separate gate.'
 & dotnet test $project -c Release --no-build --filter 'FullyQualifiedName~CustomFormatEditingTest' --logger 'trx;LogFileName=format-editing.trx' *> (Join-Path $run 'editing.log')
 if ($LASTEXITCODE -ne 0) { throw "Custom format editing regression failed, inspect $run" }
 [xml]$editingTrx = Get-Content -LiteralPath (Join-Path $run 'TestResults/format-editing.trx') -Raw

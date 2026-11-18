@@ -232,6 +232,9 @@ namespace Tailviewer.Settings
 			var subtree = reader.ReadSubtree();
 			while (subtree.Read())
 			{
+#if NET10_0_OR_GREATER
+				if (subtree.NodeType != XmlNodeType.Element || subtree.Depth != 1 || subtree.NamespaceURI.Length != 0) continue;
+#endif
 				switch (subtree.Name)
 				{
 					case "other":

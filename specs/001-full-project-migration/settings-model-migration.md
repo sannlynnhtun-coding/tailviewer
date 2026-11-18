@@ -289,3 +289,64 @@ owning plugin tasks. Previously unserialized source selection/Order/UserDefinedN
 fields still require their workspace/story implementation rather than a guessed
 legacy XML schema. ApplicationSettings/IApplicationSettings/root unknown XML,
 remaining leaf extensions and safe file IO remain open; T011 is not complete.
+
+
+## Slice 10: application profile root and executable persistence contracts
+
+Moved ApplicationSettings/IApplicationSettings to Core's shared migration sources
+and linked the same files from the legacy host. Modern Create selects
+LocalApplicationData/Tailviewer.Avalonia/settings.xml. No actual default user
+profile was read or written by verification. Existing section names/defaults and
+the legacy host's type ownership/path remain unchanged.
+
+Modern restore reads the complete document, rejects wrong roots/duplicate known
+sections, parses only direct unqualified sections into independent candidate
+models and publishes section snapshots only after every section succeeds.
+Failures retain existing model objects/values, leave neededPatching false and
+block Save/SaveAsync/cloned saves until a successful restore. Modern AllowSave
+also gates direct saves and remains disabled through clone. Save errors report
+only the exception type, not configuration values.
+
+The root snapshot retains attributes, namespace bindings, unknown sections,
+comments and processing instructions, including nodes outside the document
+root. Known scalar fields and log-level fields merge into their raw sections;
+owned source/filter/format collections use their own serializers rather than a
+recursive merge that would resurrect removed records or optional time bounds.
+Only direct unqualified log-level elements apply, preserving opaque nested names.
+
+ProfilePersistenceTest now runs normally in Core under NET10_0_OR_GREATER: its
+temporary source-runner-only guard is retired. The source-linked probe consumes
+the real modern profile and now verifies eight passing cases, rather than
+accepting the historical failures. Its separate five editor tests still execute.
+Eight original ApplicationSettingsTest cases are linked into modern Core tests;
+WindowsState is conditionally aliased and their writes use owned scratch paths.
+The original missing-ID XML fixture is copied unchanged and inspected read-only.
+An old missing File.Exists assertion and GUID/type-mismatch assertion were fixed.
+
+### Executed checks
+
+- First direct Core port: **3 failed / 5 passed**; the default-path case already
+  passed after selecting the isolated modern path.
+- New lifecycle/XML cases initially: **14 failed / 1 passed**. A clone-isolation
+  assertion was corrected to compare the actual prior font size on each restart.
+- Profile/lifecycle/original-host/assembly selection: **33 passed**, no failures/skips.
+- Full Core: **7003 passed / 0 failed / 5 pre-existing skips**, 7008 total.
+- Modern solution: **81 Archiver + 22 Avalonia = 103 passed**, no failures/skips.
+- Expanded net452 shared-source/API compile passes, known log4net warnings visible.
+- Signed source-linked probe: **8 profile + 5 editor cases passed**. Evidence:
+  artifacts/migration/profile-probe/run-ce3edde1fe8147e6b0794b5d2e725e4a.
+
+Logs under artifacts/migration: t011-profile-port-red.log,
+t011-profile-xml-red.log, t011-profile-port-green.log,
+t011-profile-port-final.log, t011-profile-core-full.log,
+t011-profile-legacy.log, t011-profile-solution.log,
+t011-profile-probe-green.log. The T010 evidence document distinguishes its
+historical red baseline from the now-passing ordinary Core tests.
+
+Modern Restore intentionally publishes new section snapshots; modern workspace
+consumers must bind/rebind after loading/import, as documented on Restore.
+Existing legacy startup restores before binding and retains its original branch.
+No modern UI persistence is wired yet. File IO still uses the old direct writer;
+bounds, atomic replacement, concurrent writes, crash recovery and original/import
+backup verification remain T012-T014 gates. T011 remains open for the final
+settings-source inventory/audit, including unused dashboard setting placeholders.

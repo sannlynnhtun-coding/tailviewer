@@ -1,13 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+#if NET10_0_OR_GREATER
+using WindowState = Tailviewer.Settings.WindowDisplayState;
+#else
 using System.Windows;
+#endif
 using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Api;
-using Tailviewer.Api.Tests;
 using Tailviewer.Core;
 using Tailviewer.Settings;
 
@@ -16,10 +19,24 @@ namespace Tailviewer.Tests.Settings
 	[TestFixture]
 	public sealed class ApplicationSettingsTest
 	{
+		private string _folder;
+		private string _path;
+
+		[SetUp]
+		public void SetUp()
+		{
+			_folder = Path.Combine(Path.GetTempPath(), "tailviewer-application-settings-" + Guid.NewGuid().ToString("N"));
+			Directory.CreateDirectory(_folder);
+			_path = Path.Combine(_folder, "settings.xml");
+		}
+
+		[TearDown]
+		public void TearDown() => Directory.Delete(_folder, true);
+
 		[Test]
 		public void TestClone()
 		{
-			string fname = PathEx.GetTempFileName();
+			string fname = _path;
 			var settings = new ApplicationSettings(fname);
 			settings.LogFile.DefaultEncoding = Encoding.UTF32;
 
@@ -47,7 +64,7 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that the GUID of a data source is written to the file and read again")]
 		public void TestDataSourceId()
 		{
-			string fname = PathEx.GetTempFileName();
+			string fname = _path;
 			var settings = new ApplicationSettings(fname);
 			var dataSource = new DataSource("foo");
 			dataSource.Id = DataSourceId.CreateNew();
@@ -68,7 +85,7 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that the GUID of a data source's parent is written to the file and read again")]
 		public void TestDataSourceParentId()
 		{
-			string fname = PathEx.GetTempFileName();
+			string fname = _path;
 			var settings = new ApplicationSettings(fname);
 			var dataSource = new DataSource("foo");
 			dataSource.Id = DataSourceId.CreateNew();
@@ -90,12 +107,12 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that a new GUID is created for a DataSource when none is stored in the xml")]
 		public void TestRestore2()
 		{
-			var settings = new ApplicationSettings(@"Settings\settings_no_file_guid.xml");
+			var settings = new ApplicationSettings(Path.Combine(TestContext.CurrentContext.TestDirectory, "Settings", "settings_no_file_guid.xml"));
 			bool neededPatching;
 			settings.Restore(out neededPatching);
 			settings.DataSources.Count.Should().Be(2);
-			settings.DataSources[0].Id.Should().NotBe(Guid.Empty);
-			settings.DataSources[1].Id.Should().NotBe(Guid.Empty);
+			settings.DataSources[0].Id.Should().NotBe(DataSourceId.Empty);
+			settings.DataSources[1].Id.Should().NotBe(DataSourceId.Empty);
 			settings.DataSources[0].Id.Should().NotBe(settings.DataSources[1].Id);
 			neededPatching.Should().BeTrue("Because we should now be saving the settings again due to the upgrade");
 		}
@@ -104,7 +121,7 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that the last viewed datetime is restored from the file")]
 		public void TestRestore3()
 		{
-			string fname = PathEx.GetTempFileName();
+			string fname = _path;
 			var settings = new ApplicationSettings(fname);
 			DateTime timestamp = DateTime.Now;
 			settings.DataSources.Add(new DataSource("dawadaw")
@@ -126,7 +143,7 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that the visible log line and horizontal offset is restored")]
 		public void TestRestore4()
 		{
-			string fname = PathEx.GetTempFileName();
+			string fname = _path;
 			var settings = new ApplicationSettings(fname);
 			settings.DataSources.Add(new DataSource("dawadaw")
 			{
@@ -149,7 +166,7 @@ namespace Tailviewer.Tests.Settings
 		[Description("Verifies that the folder is created if it doesn't exist")]
 		public void TestStore1()
 		{
-			string path = Path.GetTempPath();
+			string path = _folder;
 			const string folderName = "ApplicationSettingsTest";
 			const string fileName = "settings.xml";
 			string fileFolder = Path.Combine(path, folderName);
@@ -165,7 +182,7 @@ namespace Tailviewer.Tests.Settings
 			settings.QuickFilters.Add(new QuickFilterSettings());
 			settings.Save().Should().BeTrue();
 
-			File.Exists(filePath);
+			File.Exists(filePath).Should().BeTrue();
 			var settings2 = new ApplicationSettings(filePath);
 			settings2.Restore();
 			settings2.QuickFilters.Count.Should().Be(1);
@@ -174,7 +191,7 @@ namespace Tailviewer.Tests.Settings
 		[Test]
 		public void TestStoreRestore()
 		{
-			const string fileName = "applicationsettingstest.xml";
+			string fileName = _path;
 			var settings = new ApplicationSettings(fileName);
 			settings.MainWindow.Left = 1;
 			settings.MainWindow.Top = 2;

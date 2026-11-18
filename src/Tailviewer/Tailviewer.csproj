@@ -228,7 +228,7 @@
     <Compile Include="Constants.cs" />
     <Compile Include="BusinessLogic\DataSources\DataSources.cs" />
     <Compile Include="..\Tailviewer.Core\Settings\Migration\ExportSettings.cs"><Link>Settings\ExportSettings.cs</Link></Compile>
-    <Compile Include="Settings\IApplicationSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\IApplicationSettings.cs"><Link>Settings\IApplicationSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\IAutoUpdateSettings.cs"><Link>Settings\IAutoUpdateSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\CustomFormats\IDataSourcesSettings.cs"><Link>Settings\CustomFormats\IDataSourcesSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\IExportSettings.cs"><Link>Settings\IExportSettings.cs</Link></Compile>
@@ -409,7 +409,7 @@
     <Compile Include="Ui\QuickFilter\QuickFiltersViewModel.cs" />
     <Compile Include="Ui\QuickFilter\QuickFilterViewModel.cs" />
     <Compile Include="Ui\Converters\BrushType.cs" />
-    <Compile Include="Settings\ApplicationSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\ApplicationSettings.cs"><Link>Settings\ApplicationSettings.cs</Link></Compile>
     <Compile Include="..\Tailviewer.Core\Settings\Migration\DataSourceSettings.cs"><Link>Settings\DataSourceSettings.cs</Link></Compile>
     <Compile Include="Ui\Converters\CountConverter.cs" />
     <Compile Include="Ui\SidePanel\DataSources\DataSourcesViewModel.cs" />

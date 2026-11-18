@@ -4,7 +4,7 @@ Executed 2026-11-19 on Windows x64, SDK 10.0.302. Test source: `src/Tailviewer.C
 
 ## Executed baseline
 
-Eight tests compile and execute against the **actual linked legacy settings sources**, not a mock serializer or a missing-type/compiler-error placeholder:
+The original T010 run compiled and executed eight tests against the **actual linked legacy settings sources**, not a mock serializer or a missing-type/compiler-error placeholder:
 
 | Case | Legacy result |
 |---|---|
@@ -17,7 +17,22 @@ Eight tests compile and execute against the **actual linked legacy settings sour
 | Failed write with abandoned malformed candidate: preserve/reopen last valid profile | PASS |
 | Default modern path must differ from original LocalAppData/Tailviewer/settings.xml without writing actual profile | FAIL: selects legacy file |
 
-**4 passed / 4 failed / 0 skipped.** These are behavior failures, not a green feature gate. T011/T012 must enable and pass the same tests in Core when the actual models/storage move there. The test file has an explicit temporary `PROFILE_PERSISTENCE_CONTRACTS` guard so the existing plain net10 Core project can still build before those types exist. Only the probe enables it now. Do not cite ordinary Core-suite totals as coverage of these eight cases until that guard is removed/enabled by the port.
+**Historical baseline: 4 passed / 4 failed / 0 skipped.** These were behavior
+failures, not compiler placeholders. The temporary PROFILE_PERSISTENCE_CONTRACTS
+guard originally kept these eight cases out of plain Core until the models moved.
+
+## Current modern result (T011 root port)
+
+ApplicationSettings/IApplicationSettings now live in Core's shared migration
+sources and the test guard is simply NET10_0_OR_GREATER. All eight cases execute
+in the ordinary Core suite and pass. The modern default path is isolated from
+the original profile. Additional lifecycle/XML cases cover failed-restore save
+blocking, duplicate sections, wrong roots, candidate failure, snapshot cloning,
+scalar/level extensions, document nodes and clearing owned records. Eight
+original ApplicationSettingsTest cases also run against the modern model.
+
+Atomic/crash-safe persistence and bounded parser acceptance remain T012. These
+passing behavior cases do not establish that separate storage gate.
 
 ## Reproduce
 
@@ -25,7 +40,13 @@ Eight tests compile and execute against the **actual linked legacy settings sour
 & ./specs/001-full-project-migration/probes/profile/run.ps1
 ```
 
-The script generates an isolated ignored runner under `artifacts/migration/profile-probe/run-<guid>/`, links existing sources plus existing HashSet helper/Constants/Resource, and uses WindowsDesktop/legacy Metrolib **only inside the probe**. The empty UI namespace satisfies a documentation-only using; no settings behavior is replaced. No WPF dependency is added to modern Core or the application. It checks the exact four failure names and eight executed cases. Its successful wrapper exit means the expected **red baseline** was reproduced, not that migration tests passed.
+The script generates an isolated ignored runner under
+artifacts/migration/profile-probe/run-<guid> and now consumes the real modern Core
+profile model. It verifies **eight passing profile cases** and **five passing
+source-linked editor cases**; it no longer treats the old four failures as
+expected. WindowsDesktop/legacy Metrolib remain confined to the source-linked
+editor runner, not modern Core. The historical baseline logs below remain as
+red evidence rather than a description of current outcomes.
 
 All writes occur in unique owned test directories. `ApplicationSettings.Create()` is only inspected for its selected private path; no save/restore runs against the real user's default profile. The path assertion can move to the public storage path when T012 exposes that boundary. Invalid XML fixtures contain no credentials.
 

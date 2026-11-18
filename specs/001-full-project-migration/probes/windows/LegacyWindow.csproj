@@ -9,7 +9,6 @@
   <Compile Include="../../../../src/Tailviewer.Core/Settings/Migration/**/*.cs" Exclude="../../../../src/Tailviewer.Core/Settings/Migration/PrimitiveXmlExtensions.cs;../../../../src/Tailviewer.Core/Settings/Migration/SettingsXml.cs;../../../../src/Tailviewer.Core/Settings/Migration/WindowPlacement.cs" />
   <Compile Include="../../../../src/Tailviewer/Constants.cs" />
   <Compile Include="../../../../src/Tailviewer/Resource.cs" />
-  <Compile Include="../../../../src/Tailviewer/Settings/IApplicationSettings.cs" />
   <Compile Include="../../../../src/Tailviewer/BusinessLogic/LogFileFormats/ILogFileFormatRegistry.cs" />
   <Compile Include="../../../../src/Tailviewer/Ui/Settings/EncodingViewModel.cs" />
   <Compile Include="../../../../src/Tailviewer/Ui/Settings/CustomFormats/CustomFormatViewModel.cs" />

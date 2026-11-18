@@ -1,5 +1,4 @@
-#if NET10_0_OR_GREATER && PROFILE_PERSISTENCE_CONTRACTS
-// shortcut: enabled by the linked legacy runner until T011 ports the models into Core.
+#if NET10_0_OR_GREATER
 using System;
 using System.IO;
 using System.Reflection;
