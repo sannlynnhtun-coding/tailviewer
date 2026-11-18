@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Ready for implementation; all tasks pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001 complete, remaining tasks pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -25,7 +25,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [ ] T001 Run current modern build/Avalonia/API/Core suites and an isolated legacy build attempt using `specs/001-full-project-migration/quickstart.md`; record commit/environment/failures/skips in `artifacts/migration/baseline.md`, never label unavailable legacy tooling as passing. **Depends**: none.
+- [X] T001 Run current modern build/Avalonia/API/Core suites and an isolated legacy build attempt using `specs/001-full-project-migration/quickstart.md`; record commit/environment/failures/skips in `artifacts/migration/baseline.md`, never label unavailable legacy tooling as passing. **Depends**: none.
 - [ ] T002 Expand `specs/001-full-project-migration/feature-inventory.md` to exact menu/shortcut/CLI/settings/extension options and baseline tests; reconcile every project/reference with `specs/001-full-project-migration/dependency-inventory.md`. **Depends**: T001.
 - [ ] T003 Reuse/add deterministic log/profile/plugin/repository fixture definitions, expected values/order and hashes in `src/Tailviewer.Core.Tests/Migration/Fixtures/manifest.json`; generate large logs, do not commit huge binaries or real tokens. **Depends**: T002.
 - [ ] T004 Map every legacy host/Archiver/Serilog/repository/acceptance/system fixture and shared helper to a modern owner in `specs/001-full-project-migration/feature-inventory.md`; record replacements for WpfUnit cases without dropping behavior. **Depends**: T003.
