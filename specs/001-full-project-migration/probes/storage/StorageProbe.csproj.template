@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFrameworks>net452;net10.0</TargetFrameworks><OutputType>Exe</OutputType><AssemblyName>repository</AssemblyName><GenerateAssemblyInfo>false</GenerateAssemblyInfo><SignAssembly>true</SignAssembly><AssemblyOriginatorKeyFile>@@ROOT@@/sig/key.snk</AssemblyOriginatorKeyFile><LangVersion>latest</LangVersion><AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects></PropertyGroup>
+ <ItemGroup>
+  <PackageReference Include="protobuf-net" Version="2.4.0" /><PackageReference Include="IsabelDb" Version="0.6.21" /><PackageReference Include="System.Data.SQLite" Version="1.0.111.0" /><PackageReference Include="System.Data.SQLite.Core" Version="1.0.111.0" />
+  <ProjectReference Include="@@ROOT@@/src/Tailviewer.Archiver/Tailviewer.Archiver.csproj" />
+  <Compile Include="@@ROOT@@/src/GlobalAssemblyInfo.cs" Link="GlobalAssemblyInfo.cs" />
+  <Compile Include="@@ROOT@@/src/Tailviewer.PluginRepository/Entities/*.cs" Link="Entities/%(Filename)%(Extension)" />
+ </ItemGroup>
+</Project>
+
+
