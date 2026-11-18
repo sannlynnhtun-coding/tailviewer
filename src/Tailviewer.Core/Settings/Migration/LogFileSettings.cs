@@ -8,6 +8,7 @@ using Tailviewer.Core;
 
 namespace Tailviewer.Settings
 {
+	/// <summary>Persisted default log encoding; null retains automatic detection.</summary>
 	public sealed class LogFileSettings
 		: ILogFileSettings
 	{
@@ -15,10 +16,12 @@ namespace Tailviewer.Settings
 
 		#region Implementation of ILogFileSettings
 
+		/// <inheritdoc />
 		public Encoding DefaultEncoding { get; set; }
 
 		#endregion
 
+		/// <summary>Creates an independent settings copy.</summary>
 		[Pure]
 		public LogFileSettings Clone()
 		{
@@ -28,11 +31,13 @@ namespace Tailviewer.Settings
 			};
 		}
 
+		/// <summary>Writes the legacy defaultencoding attribute.</summary>
 		public void Save(XmlWriter writer)
 		{
 			writer.WriteAttributeString("defaultencoding", DefaultEncoding?.WebName ?? string.Empty);
 		}
 
+		/// <summary>Restores a known encoding, retaining the current value when invalid.</summary>
 		public void Restore(XmlReader reader)
 		{
 			for (int i = 0; i < reader.AttributeCount; ++i)

@@ -26,6 +26,8 @@
     <PackageReference Include="System.Threading.Extensions" Version="2.0.72" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net45'">
+    <!-- shortcut: legacy desktop compiles the shared migration models until its UI boundary moves. -->
+    <Compile Remove="Settings/Migration/**/*.cs" />
     <PackageReference Include="log4net" Version="2.0.12" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>

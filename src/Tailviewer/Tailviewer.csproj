@@ -164,7 +164,7 @@
     <Compile Include="Settings\Desktop.cs" />
     <Compile Include="Settings\ICustomFormatsSettings.cs" />
     <Compile Include="Settings\ILogViewerSettings.cs" />
-    <Compile Include="Settings\LogFileSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\LogFileSettings.cs"><Link>Settings\LogFileSettings.cs</Link></Compile>
     <Compile Include="Settings\LogLevelSettings.cs" />
     <Compile Include="Settings\ColorXmlExtensions.cs" />
     <Compile Include="Settings\LogViewerSettings.cs" />
@@ -227,11 +227,11 @@
     <Compile Include="Settings\DataSource.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="BusinessLogic\DataSources\DataSources.cs" />
-    <Compile Include="Settings\ExportSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\ExportSettings.cs"><Link>Settings\ExportSettings.cs</Link></Compile>
     <Compile Include="Settings\IApplicationSettings.cs" />
     <Compile Include="Settings\IAutoUpdateSettings.cs" />
     <Compile Include="Settings\CustomFormats\IDataSourcesSettings.cs" />
-    <Compile Include="Settings\IExportSettings.cs" />
+    <Compile Include="..\Tailviewer.Core\Settings\Migration\IExportSettings.cs"><Link>Settings\IExportSettings.cs</Link></Compile>
     <Compile Include="Settings\IMainWindowSettings.cs" />
     <Compile Include="Settings\MainWindowSettings.cs" />
     <Compile Include="SingleApplicationHelper.cs" />
