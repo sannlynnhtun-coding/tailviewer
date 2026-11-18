@@ -1,0 +1,11 @@
+# Generation provenance
+
+Tool: built-in `image_gen`; transparent background requested for both calls. The selected output is `tailviewer-master.png`. Only mechanical resizing/format export is performed by `scripts/export-branding.ps1`.
+
+## Initial prompt
+
+Use case: logo-brand. Create ONE finished transparent master logo for Tailviewer, a professional desktop log file viewer using Avalonia Fluent UI. This is an actual app icon, NOT a presentation or mockup. Square 1024x1024 canvas, genuine transparent alpha outside the mark. Match the existing app palette exactly: main blue #2196F3, dark blue #0069C0, white #FFFFFF only. Design a distinctive simple geometric mark combining a compact upright log document and an expressive short tail: a blue upright document silhouette with subtly rounded corners and a clean clipped upper-right corner; inside are two bold horizontal white log strokes, with a third bold white stroke that flows into a single clean hooked tail exiting at the lower-right. Make the tail and document one coherent strong silhouette, with generous clean negative space. Flat solid fills, vector-like precision, no gradients, no shadows, no texture, no tiny details, no eye, no magnifier, no letters, no words, no border frame, no background tile. Entire mark centered with balanced transparent padding around 10 percent; stays recognizable as a 16px favicon and 24px app titlebar icon; visible on both white and charcoal backgrounds. Only the single logo, no grids, no comparison variants, no labels.
+
+## Final refinement prompt
+
+Refine this exact Tailviewer logo into the final production master. Keep the document silhouette, clipped top-right corner, three white horizontal log strokes and hooked lower-right tail exactly the same. Change only rendering cleanliness: flat solid uniform main blue #2196F3 and solid white #FFFFFF, with a solid dark blue #0069C0 outline only if necessary for contrast; zero gradient, zero noise, zero texture, zero lighting, zero glow, zero detached stray pixels. Crisp vector-like edges with normal antialiasing only at shape boundaries. Preserve genuinely transparent alpha outside the mark. Center the entire mark with equal generous 12% transparent padding on all sides. One single square app logo, no text, no checkerboard, no mockup.
