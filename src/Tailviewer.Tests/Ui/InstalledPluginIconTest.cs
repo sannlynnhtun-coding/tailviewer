@@ -31,7 +31,7 @@ namespace Tailviewer.Tests.Ui
 				bytes = buffer.ToArray();
 			}
 			var description = new PluginDescription();
-			typeof(PluginDescription).GetProperty("Icon").SetValue(description, bytes);
+			description.Icon = bytes;
 			var viewModel = new InstalledPluginViewModel(description);
 			var image = (BitmapSource)viewModel.Icon;
 			Assert.That(image.PixelWidth, Is.EqualTo(1));
@@ -40,11 +40,11 @@ namespace Tailviewer.Tests.Ui
 			Assert.That(viewModel.Icon, Is.SameAs(image));
 		}
 
-		[Test]
-		public void TestMalformedIconKeepsPluginMetadataUsable()
+		[TestCase(0)]
+		[TestCase(3)]
+		public void TestMalformedIconKeepsPluginMetadataUsable(int length)
 		{
-			var description = new PluginDescription { Name = "Still usable" };
-			typeof(PluginDescription).GetProperty("Icon").SetValue(description, new byte[] { 1, 2, 3 });
+			var description = new PluginDescription { Name = "Still usable", Icon = new byte[length] };
 			var viewModel = new InstalledPluginViewModel(description);
 			Assert.That(viewModel.Icon, Is.Null);
 			Assert.That(viewModel.Name, Is.EqualTo("Still usable"));

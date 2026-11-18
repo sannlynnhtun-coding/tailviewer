@@ -4,8 +4,6 @@ using System.Diagnostics.Contracts;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using log4net;
 using Tailviewer.Api;
 using Tailviewer.Archiver.Plugins.Description;
@@ -444,16 +442,17 @@ namespace Tailviewer.Archiver.Plugins
 			return typeof(IPlugin).Assembly.GetType(description.InterfaceTypename);
 		}
 
-		private static ImageSource LoadIcon(Stream icon)
+		private static byte[] LoadIcon(Stream icon)
 		{
 			if (icon == null)
 				return null;
 
-			var image = new BitmapImage();
-			image.BeginInit();
-			image.StreamSource = icon;
-			image.EndInit();
-			return image;
+			using (icon)
+			using (var buffer = new MemoryStream())
+			{
+				icon.CopyTo(buffer);
+				return buffer.ToArray();
+			}
 		}
 
 		public Assembly LoadAssembly(string argsName)

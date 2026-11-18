@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Windows.Media;
 
 namespace Tailviewer.Archiver.Plugins.Description
 {
@@ -54,9 +53,9 @@ namespace Tailviewer.Archiver.Plugins.Description
 		Uri Website { get; }
 
 		/// <summary>
-		/// 
+		///     The encoded image bytes, or null if this plugin has no icon.
 		/// </summary>
-		ImageSource Icon { get; }
+		byte[] Icon { get; }
 
 		/// <summary>
 		///     A human readable error that explains why a plugin couldn't be loaded.

@@ -3,4 +3,5 @@
   <Project Path="src/Tailviewer.Core/Tailviewer.Core.csproj" />
   <Project Path="src/Tailviewer.Avalonia/Tailviewer.Avalonia.csproj" />
   <Project Path="src/Tailviewer.Avalonia.Tests/Tailviewer.Avalonia.Tests.csproj" />
+  <Project Path="src/Tailviewer.Archiver.Tests/Migration/Tailviewer.Archiver.Metadata.Tests.csproj" />
 </Solution>

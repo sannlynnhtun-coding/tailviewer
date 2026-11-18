@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
-using System.Windows.Media;
 
 namespace Tailviewer.Archiver.Plugins.Description
 {
@@ -52,7 +51,7 @@ namespace Tailviewer.Archiver.Plugins.Description
 		public Uri Website { get; set; }
 
 		/// <inheritdoc />
-		public ImageSource Icon { get; set; }
+		public byte[] Icon { get; set; }
 
 		/// <inheritdoc />
 		public string Error { get; set; }

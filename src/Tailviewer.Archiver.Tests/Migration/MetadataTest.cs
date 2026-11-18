@@ -61,8 +61,7 @@ namespace Tailviewer.Archiver.Tests.Migration
 				SerializableTypes = new Dictionary<string, string> { { "settings", "Example.Settings, Example" } },
 				Changes = Array.Empty<IChange>()
 			};
-			// Reflection keeps the old WPF contract compilable so the pre-fix failure is a behavioral assertion.
-			typeof(PluginDescription).GetProperty("Icon").SetValue(description, loaded);
+			description.Icon = loaded;
 			var restored = JsonSerializer.Deserialize<PluginDescription>(JsonSerializer.Serialize(description));
 			Assert.Multiple(() =>
 			{
@@ -77,7 +76,7 @@ namespace Tailviewer.Archiver.Tests.Migration
 				Assert.That(restored.SerializableTypes, Is.EquivalentTo(description.SerializableTypes));
 				Assert.That(restored.PluginImplementations, Is.Empty);
 				Assert.That(restored.Changes, Is.Empty);
-				Assert.That(typeof(PluginDescription).GetProperty("Icon").GetValue(restored), Is.EqualTo(bytes));
+				Assert.That(restored.Icon, Is.EqualTo(bytes));
 			});
 		}
 
