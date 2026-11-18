@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001 complete, remaining tasks pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T002 complete, remaining tasks pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -26,7 +26,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 ### Implementation / verification
 
 - [X] T001 Run current modern build/Avalonia/API/Core suites and an isolated legacy build attempt using `specs/001-full-project-migration/quickstart.md`; record commit/environment/failures/skips in `artifacts/migration/baseline.md`, never label unavailable legacy tooling as passing. **Depends**: none.
-- [ ] T002 Expand `specs/001-full-project-migration/feature-inventory.md` to exact menu/shortcut/CLI/settings/extension options and baseline tests; reconcile every project/reference with `specs/001-full-project-migration/dependency-inventory.md`. **Depends**: T001.
+- [X] T002 Expand `specs/001-full-project-migration/feature-inventory.md` to exact menu/shortcut/CLI/settings/extension options and baseline tests; reconcile every project/reference with `specs/001-full-project-migration/dependency-inventory.md`. **Depends**: T001.
 - [ ] T003 Reuse/add deterministic log/profile/plugin/repository fixture definitions, expected values/order and hashes in `src/Tailviewer.Core.Tests/Migration/Fixtures/manifest.json`; generate large logs, do not commit huge binaries or real tokens. **Depends**: T002.
 - [ ] T004 Map every legacy host/Archiver/Serilog/repository/acceptance/system fixture and shared helper to a modern owner in `specs/001-full-project-migration/feature-inventory.md`; record replacements for WpfUnit cases without dropping behavior. **Depends**: T003.
 - [ ] T005 Capture actual transitive/native/framework usage and advisory timestamp per target in `artifacts/migration/dependencies.md`; inspect code before removing EF/SQLite/protobuf/PE or other declared packages. **Depends**: T004.
@@ -54,7 +54,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [ ] T011 Port existing `src/Tailviewer/Settings/` UI-independent XML models/helpers into `src/Tailviewer.Core/Settings/Migration/`, preserving serialized names/defaults and plugin raw data; remove WPF color/Metrolib serializers at the boundary with primitive-value round-trip fixtures and UI conversion adapters; update callers/tests without introducing duplicate models. **Depends**: T010.
+- [ ] T011 Port existing `src/Tailviewer/Settings/` UI-independent XML models/helpers into `src/Tailviewer.Core/Settings/Migration/`, preserving serialized names/defaults, plugin raw data and proxy/DPAPI CurrentUser encrypted password/salt (retain raw data and request re-entry if unavailable, never log plaintext); remove WPF color/Metrolib serializers at the boundary with primitive-value round-trip fixtures and UI conversion adapters; update callers/tests without introducing duplicate models. **Depends**: T010.
 - [ ] T012 Implement separate modern path, bounded XML read, temporary validated save and same-volume atomic replacement in `src/Tailviewer.Core/Settings/Migration/ProfileStore.cs`; keep last valid profile on failure. **Depends**: T011.
 
 ### Tests / contract checks
@@ -174,7 +174,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 - [ ] T064 [US4] Version modern extension/API/archive compatibility in `src/Tailviewer.Api/Plugins/PluginInterfaceVersion.cs`, API `Ui/` and `src/Tailviewer.Archiver/Plugins/PluginPackageIndex.cs`; retain stable IDs and adapt all callers/tests. **Depends**: T063.
 - [ ] T065 [US4] Replace legacy resolver in `src/Tailviewer.Archiver/Plugins/PluginAssemblyLoader.cs` with dependency-aware load context sharing host API/framework identity; document trusted execution, no sandbox/hot-unload promise. **Depends**: T064, T061.
 - [ ] T066 [US4] Add keyed version-aware plugin settings reuse/conversion in `src/Tailviewer.Core/Settings/Migration/PluginSettingsConverter.cs`; stage conversion, retain raw data on failure. **Depends**: T062, T064.
-- [ ] T067 [US4] Modernize pack/inspect/metadata CLI in `src/Tailviewer.Archiver/Applications/` and desktop `/testloadplugin` mode in `src/Tailviewer.Avalonia/Program.cs`; preserve captured options/output/exit meanings and modern nuspec paths. **Depends**: T065, T066.
+- [ ] T067 [US4] Modernize pack/inspect/metadata CLI in `src/Tailviewer.Archiver/Applications/` and desktop `/testloadplugin` mode in `src/Tailviewer.Avalonia/Program.cs`; preserve captured options/output/exit meanings, including git-get-changes repository/since-last-tag/include/exclude/output behavior, and modern nuspec paths. **Depends**: T065, T066.
 
 ### Tests / contract checks
 

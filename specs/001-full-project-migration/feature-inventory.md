@@ -38,6 +38,12 @@
 
 Every public menu/command, shipping plugin contract, settings element and companion CLI operation must map to a row and fixture. Expand these families when code inspection finds an unlisted behavior. For each row record fixture IDs, old/new expected behavior, test command/result and platform in phase evidence; missing evidence keeps the row incomplete. No row is marked migrated by this planning document.
 
+## Baseline and declared-surface evidence
+
+- [T001 baseline](baseline.md): fresh modern build/tests and failed isolated legacy build attempts, with explicit limitations and raw artifact fingerprints.
+- [T002 declared surface](legacy-surface.md): 106 source groups and 414 concrete command/binding/schema/CLI/interface expressions, stable fixture IDs and candidate existing tests. These source findings do not establish runtime parity.
+- Preserve proxy/DPAPI credentials safely, delta/elapsed/empty-line/display choices, folder regex/recursive settings, and `git-get-changes` author tooling. Dormant dashboard schema must round-trip without activating playground-only features.
+
 ## Complete desktop source checklist
 
 The following leaf source paths allow reviewers to spot overlooked dialogs/settings/helpers; generated from the source tree, excluding build output. They are evidence pointers, not 1:1 new files to create.
