@@ -194,6 +194,7 @@
     <Compile Include="Ui\QuickFiltersSidePanelViewModelTest.cs" />
     <Compile Include="Ui\QuickFilterViewModelTest.cs" />
     <Compile Include="Ui\ToggleMenuViewModelTest.cs" />
+    <Compile Include="Ui\InstalledPluginIconTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Settings\settings_no_file_guid.xml">
