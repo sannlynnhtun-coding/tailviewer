@@ -1976,6 +1976,51 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task UnselectedFolderFilesIndexAndTailBeforeTheirFirstActivation()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _folder });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            var first = tree.Items.OfType<DataSource>().Single(source => source.File == _first);
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var item = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var second = item.Items.OfType<DataSource>().Single(source => source.File == _second);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            string? Count(DataSource source) => tree.GetVisualDescendants().OfType<SourcesView>().Single(view => view.Source.Id == source.Id)
+                .GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => AutomationProperties.GetName(text) == "Indexed line count")?.Text;
+            await WaitUntil(() => Count(second) == "1 indexed line");
+            File.AppendAllText(_second, "\nbackground append");
+            await WaitUntil(() => Count(second) == "2 indexed lines");
+            tree.SelectedItem.Should().BeSameAs(first);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await CopySelected(window, "first");
+            var addedPath = Path.Combine(_folder, "later.log");
+            File.WriteAllText(addedPath, "later\nsecond");
+            await WaitUntil(() => item.ItemCount == 3);
+            var added = item.Items.OfType<DataSource>().Single(source => source.File == addedPath);
+            await WaitUntil(() => Count(added) == "2 indexed lines");
+            File.Delete(addedPath);
+            await WaitUntil(() => item.ItemCount == 2);
+            File.WriteAllText(addedPath, "returned");
+            await WaitUntil(() => item.ItemCount == 3);
+            var returned = item.Items.OfType<DataSource>().Single(source => source.File == addedPath);
+            returned.Id.Should().Be(added.Id);
+            returned.Should().NotBeSameAs(added);
+            await WaitUntil(() => Count(returned) == "1 indexed line");
+            tree.SelectedItem = second;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains("second.log"));
+            await Copy(window, 1, "background append");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task UnselectedFolderChildReportsAndRecoversFromAnExclusiveLock()
     {
         var window = new MainWindow();
@@ -1983,6 +2028,7 @@ public sealed class SourcesTest
         window.Show();
         try
         {
+            exclusive = new FileStream(_second, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             await window.OpenFilesAsync(new[] { _first, _folder });
             var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
             var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
@@ -1997,7 +2043,6 @@ public sealed class SourcesTest
             tree.SelectedItem = first;
             await WaitUntil(() => Rows(window).ItemCount == 2);
             await Copy(window, 0, "first");
-            exclusive = new FileStream(_second, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             await WaitUntil(() => Status() == "File cannot be accessed.");
             tree.SelectedItem.Should().BeSameAs(first);
             Rows(window).Selection.SelectedIndexes.Should().Equal(0);
@@ -2005,6 +2050,8 @@ public sealed class SourcesTest
             exclusive.Dispose();
             exclusive = null;
             await WaitUntil(() => string.IsNullOrEmpty(Status()));
+            await WaitUntil(() => view.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                AutomationProperties.GetName(text) == "Indexed line count" && text.Text == "1 indexed line"));
             parent.Items.OfType<DataSource>().Single(source => source.File == _second).Should().BeSameAs(child);
             File.ReadAllText(_second).Should().Be("second");
         }

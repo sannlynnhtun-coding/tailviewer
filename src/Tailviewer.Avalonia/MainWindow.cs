@@ -51,7 +51,10 @@ public sealed class MainWindow : Window
     private readonly FileSourceStates _fileSourceStates;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private LogDocument? _document;
-    private readonly Dictionary<DataSourceId, (System.Text.Encoding? Encoding, LogDocument Document)> _documents = new();
+    private readonly SourceDocuments _readerOwner = new((source, encoding) => new LogDocument(source, encoding));
+    private readonly Dictionary<DataSourceId, SourceDocuments.Lease> _documents = new();
+    private SourceDocuments.Lease? _activeLease;
+    private long _lastReaderRefresh;
     // shortcut: viewport offsets are session-only until profile save/restore in T055.
     private readonly Dictionary<DataSourceId, (LogDocument Document, long Revision, Vector Offset)> _viewStates = new();
     private (LogDocument? Document, long Request) _pendingViewRestore;
@@ -317,8 +320,11 @@ public sealed class MainWindow : Window
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
             _timer.Stop();
-            foreach (var entry in _documents.Values) entry.Document.Dispose();
+            foreach (var entry in _documents.Values) entry.Dispose();
             _documents.Clear();
+            _activeLease?.Dispose();
+            _activeLease = null;
+            _readerOwner.Dispose();
             _viewStates.Clear();
             _pendingViewRestore = default;
             _navigation.BindDocument(null);
@@ -713,6 +719,7 @@ public sealed class MainWindow : Window
     private async Task OpenSourceAsync(string fileName, DataSource? selected)
     {
         var request = ++_openRequest;
+        SourceDocuments.Lease? pendingLease = null;
         _openingSource = selected?.Id ?? DataSourceId.Empty;
         _open.IsEnabled = false;
         UpdateCloseCommands();
@@ -753,6 +760,7 @@ public sealed class MainWindow : Window
                 }
                 SaveViewState();
                 _rows.ItemsSource = null;
+                ReleaseActiveLease();
                 _document = null;
                 _navigation.BindDocument(null);
                 _textSelection.BindDocument(null);
@@ -771,40 +779,31 @@ public sealed class MainWindow : Window
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             selected = source;
             _openingSource = source.Id;
-            if (!UpdateFileSourceTracking()) return;
-            var encoding = _encoding.Settings.DefaultEncoding;
-            _documents.TryGetValue(source.Id, out var cached);
-            var document = cached.Document != null && Equals(cached.Encoding, encoding) &&
-                string.Equals(cached.Document.FileName, path, comparison)
-                ? cached.Document : await Task.Run(() => new LogDocument(source, encoding));
-            if (_closed || request != _openRequest)
+            if (!ConfigureReaders()) return;
+            try { pendingLease = await _readerOwner.AcquireAsync(source.Id); }
+            catch (OperationCanceledException) when (!_closed && request == _openRequest)
             {
-                document.Dispose();
+                await OpenSourceAsync(fileName, source);
                 return;
             }
-            if (!Equals(encoding, _encoding.Settings.DefaultEncoding))
+            var document = pendingLease.Document;
+            if (_closed || request != _openRequest)
             {
-                document.Dispose();
+                return;
+            }
+            if (!Equals(pendingLease.Encoding, _encoding.Settings.DefaultEncoding))
+            {
+                pendingLease.Dispose();
+                pendingLease = null;
                 await OpenSourceAsync(fileName, source);
                 return;
             }
             SaveViewState();
             _rows.ItemsSource = null;
-            if (cached.Document != null && !ReferenceEquals(cached.Document, document)) cached.Document.Dispose();
-            if (!ReferenceEquals(cached.Document, document))
-            {
-                _viewStates.Remove(source.Id);
-                document.Lines.CollectionChanged += (_, args) =>
-                {
-                    if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset or
-                        System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
-                    {
-                        _viewStates.Remove(source.Id);
-                        source.SelectedLogLines.Clear();
-                    }
-                };
-            }
-            _documents[source.Id] = (encoding, document);
+            var lease = TrackDocument(source, pendingLease);
+            pendingLease = null;
+            ReleaseActiveLease();
+            _activeLease = lease;
             _document = document;
             _navigation.BindDocument(document);
             _textSelection.BindDocument(document);
@@ -860,6 +859,7 @@ public sealed class MainWindow : Window
         }
         finally
         {
+            pendingLease?.Dispose();
             if (request == _openRequest)
             {
                 _openingSource = DataSourceId.Empty;
@@ -888,6 +888,7 @@ public sealed class MainWindow : Window
     private void ClearDocument()
     {
         _rows.ItemsSource = null;
+        ReleaseActiveLease();
         _document = null;
         _pendingViewRestore = default;
         PruneDocuments();
@@ -915,7 +916,7 @@ public sealed class MainWindow : Window
             foreach (var child in children) _sourceStates.Remove(child.Id);
         _workspace.Remove(source.Id);
         PruneDocuments();
-        UpdateFileSourceTracking();
+        ConfigureReaders();
         _sourceStates.Remove(source.Id);
         UpdateCloseCommands();
         if (_sources.Count > 0)
@@ -941,7 +942,7 @@ public sealed class MainWindow : Window
         _folderChildren.Clear();
         _workspace.Clear();
         PruneDocuments();
-        UpdateFileSourceTracking();
+        ConfigureReaders();
         _sourceStates.Clear();
         UpdateCloseCommands();
     }
@@ -970,7 +971,19 @@ public sealed class MainWindow : Window
     private void RefreshSourceStates()
     {
         if (_closed) return;
-        UpdateFileSourceTracking();
+        var valid = Environment.TickCount64 - _lastReaderRefresh >= 500 ? ConfigureReaders() : UpdateFileSourceTracking();
+        var pendingReaders = new HashSet<DataSourceId>();
+        if (valid)
+            foreach (var source in _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Where(source => source.File != null))
+            {
+                if (_readerOwner.TryAcquire(source.Id, out var lease))
+                {
+                    var ready = TrackDocument(source, lease!);
+                    if (source.Id == _document?.SourceId && !ReferenceEquals(_document, ready.Document) && _openingSource == DataSourceId.Empty)
+                        _ = OpenSourceAsync(source.File, source);
+                }
+                else pendingReaders.Add(source.Id);
+            }
         foreach (var (id, entry) in _documents)
         {
             if (ReferenceEquals(entry.Document, _document)) continue;
@@ -985,6 +998,9 @@ public sealed class MainWindow : Window
         {
             var source = view.Source;
             var status = _sourceStates.GetValueOrDefault(source.Id);
+            var readerError = source.File != null ? _readerOwner.GetError(source.Id) : null;
+            if (readerError != null) status = "Cannot open file: " + readerError;
+            else if (pendingReaders.Contains(source.Id)) status = "Loading…";
             if (source.Id == _openingSource) status = "Loading…";
             else if (_folders.TryGetValue(source.Id, out var folder))
                 status = folder.Error ?? (_folderChildren[source.Id].Count == 0 ? "No matching files." : null);
@@ -994,7 +1010,61 @@ public sealed class MainWindow : Window
                      (observed != null || !_documents.ContainsKey(source.Id)))
                 status = observed;
             view.UpdateStatus(status);
+            view.UpdateIndexedCount(!pendingReaders.Contains(source.Id) && readerError == null && _documents.TryGetValue(source.Id, out var indexed)
+                ? indexed.Document.Lines.Count : null);
         }
+    }
+
+    private bool ConfigureReaders()
+    {
+        _lastReaderRefresh = Environment.TickCount64;
+        if (_closed || !UpdateFileSourceTracking()) return false;
+        try
+        {
+            _readerOwner.Configure(_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)), _encoding.Settings.DefaultEncoding);
+            return true;
+        }
+        catch (Exception error)
+        {
+            _status.Text = _operationError = "Cannot prepare source readers: " + error.Message;
+            return false;
+        }
+    }
+
+    private SourceDocuments.Lease TrackDocument(DataSource source, SourceDocuments.Lease lease)
+    {
+        var document = lease.Document;
+        if (_viewStates.TryGetValue(source.Id, out var view) && !ReferenceEquals(view.Document, document))
+        {
+            _viewStates.Remove(source.Id);
+            source.SelectedLogLines.Clear();
+        }
+        if (_documents.TryGetValue(source.Id, out var previous))
+        {
+            if (ReferenceEquals(previous.Document, document))
+            {
+                if (!ReferenceEquals(previous, lease)) lease.Dispose();
+                return previous;
+            }
+            if (!ReferenceEquals(previous, _activeLease)) previous.Dispose();
+        }
+        _documents[source.Id] = lease;
+        document.Lines.CollectionChanged += (_, args) =>
+        {
+            if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset or
+                System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
+            {
+                _viewStates.Remove(source.Id);
+                source.SelectedLogLines.Clear();
+            }
+        };
+        return lease;
+    }
+
+    private void ReleaseActiveLease()
+    {
+        if (_activeLease != null && !_documents.Values.Contains(_activeLease)) _activeLease.Dispose();
+        _activeLease = null;
     }
 
     private bool UpdateFileSourceTracking()
@@ -1035,7 +1105,7 @@ public sealed class MainWindow : Window
             {
                 _documents.Remove(id);
                 _viewStates.Remove(id);
-                entry.Document.Dispose();
+                if (!ReferenceEquals(entry, _activeLease)) entry.Dispose();
             }
     }
 
@@ -1058,6 +1128,7 @@ public sealed class MainWindow : Window
             children.Insert(index, item);
         }
         PruneDocuments();
+        ConfigureReaders();
     }
 
     private void ScrollToTail()

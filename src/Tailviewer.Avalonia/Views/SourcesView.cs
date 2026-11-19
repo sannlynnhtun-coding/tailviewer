@@ -9,6 +9,7 @@ namespace Tailviewer.Avalonia.Views;
 public sealed class SourcesView : StackPanel
 {
     private readonly TextBlock _status = new() { FontSize = 11, TextWrapping = global::Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _count = new() { FontSize = 11, IsVisible = false };
     public DataSource Source { get; }
     private readonly Border _dropPosition = new() { BorderBrush = Brushes.DodgerBlue, IsVisible = false, IsHitTestVisible = false };
 
@@ -17,8 +18,10 @@ public sealed class SourcesView : StackPanel
         Source = source;
         Background = Brushes.Transparent;
         AutomationProperties.SetName(_status, "Source status");
+        AutomationProperties.SetName(_count, "Indexed line count");
         Children.Add(new Grid { Children = { heading, _dropPosition } });
         Children.Add(_status);
+        Children.Add(_count);
     }
 
     public void UpdateStatus(string? text)
@@ -31,5 +34,12 @@ public sealed class SourcesView : StackPanel
     {
         _dropPosition.BorderThickness = after == null ? new Thickness(1) : after.Value ? new Thickness(0, 0, 0, 2) : new Thickness(0, 2, 0, 0);
         _dropPosition.IsVisible = visible;
+    }
+
+    internal void UpdateIndexedCount(int? count)
+    {
+        var unit = count == 1 ? "line" : "lines";
+        _count.Text = count.HasValue ? $"{count.Value:N0} indexed {unit}" : null;
+        _count.IsVisible = count.HasValue;
     }
 }

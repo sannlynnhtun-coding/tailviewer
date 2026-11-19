@@ -26,6 +26,7 @@ internal sealed class SourceDocuments : IDisposable
     {
         private Entry? _entry = entry;
         public LogDocument Document => (_entry ?? throw new ObjectDisposedException(nameof(Lease))).Opening.GetAwaiter().GetResult();
+        public Encoding? Encoding => (_entry ?? throw new ObjectDisposedException(nameof(Lease))).Encoding;
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _entry, null) is { } held) owner.Release(held);

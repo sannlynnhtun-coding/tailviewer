@@ -1101,3 +1101,35 @@ without capturing window titles, clipboard contents or logs. Evidence:
 artifacts/migration/t022-background-reader-native.log/TRX and
 artifacts/migration/t022-background-reader-pointer-diagnostic.log/TRX.
 The five drag cases still require an unobstructed-desktop rerun.
+
+## Background raw-reader integration (T022/T026, partial)
+
+MainWindow now configures SourceDocuments for every configured/discovered raw
+file, including sources never selected in the log view. Ready readers are
+leased into the existing cache; activation reuses the same reader. Removed or
+replaced readers remain alive while actively displayed, then release after
+rows detach. Pending/stale opens return their leases, and closure releases the
+catalog and view leases. Active decoder checks use the owner's frozen decoder
+snapshot. Failed first opens retry on the existing 500ms configuration refresh.
+
+Each file tree row exposes a separate accessible Indexed line count; existing
+availability/loading/error text remains distinct. Background refresh updates
+counts without changing the visible source, paused selection or clipboard copy.
+A behavioral test first failed without this integration, then passed after
+wiring the owner. Expanded owned-file tests verify append before first
+activation, newly discovered files, removal/reappearance with stable ID and a
+fresh reader, and recovery from an exclusive lock held before initial opening.
+The final activation copies the newly appended original text exactly.
+
+Evidence: artifacts/migration/t022-background-reader-ui-red.log/TRX,
+t022-background-reader-ui-focused.log/TRX (5/5),
+t022-background-reader-lifecycle.log/TRX (15/15 lifecycle/encoding cases), and
+t022-background-reader-final.log/TRX (81 Archiver + 201 Avalonia, zero failures
+or skips). The earlier t022-background-reader-modern pass predates the expanded
+lifecycle cases. Native results and their desktop-occlusion limitation are
+recorded above; the five tree drag cases are not claimed as passing.
+
+Core production code is unchanged. Per-document schedulers remain in use;
+shared scheduler lifetime and many-source CPU/memory measurements are still
+pending. Aggregate/parser sources and profile persistence are also unfinished.
+T022/T026 remain unchecked and the full migration goal remains active.
