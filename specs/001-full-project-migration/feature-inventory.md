@@ -4,8 +4,8 @@
 
 | ID | Legacy capability | Source evidence (brace paths denote multiple files/directories) | Requirement | Phase | Current state |
 |---|---|---|---|---|---|
-| F01 | Startup, arguments, single-instance handoff, file/folder open, drag/drop, close/all | src/Tailviewer/{ArgumentParser.cs,SingleApplicationHelper.cs,Ui/Menu/FileMenuViewModel.cs} | FR-002 | P03 | partial: one file/argument only |
-| F02 | Source tree, folders, groups, source naming, include/exclude, selection, missing/access states | src/Tailviewer/{BusinessLogic/DataSources,Ui/DataSourceTree,Ui/SidePanel/DataSources} | FR-002 | P03 | not ported except one-file errors |
+| F01 | Startup, arguments, single-instance handoff, file/folder open, drag/drop, close/all | src/Tailviewer/{ArgumentParser.cs,SingleApplicationHelper.cs,Ui/Menu/FileMenuViewModel.cs} | FR-002 | P03 | partial: file/folder argument and file picker; multi/drop/handoff/close pending |
+| F02 | Source tree, folders, groups, source naming, include/exclude, selection, missing/access states | src/Tailviewer/{BusinessLogic/DataSources,Ui/DataSourceTree,Ui/SidePanel/DataSources} | FR-002 | P03 | partial: selectable file/folder tree and live stable child IDs; groups/commands/error nodes pending |
 | F03 | Virtualized rows, horizontal/vertical scroll, text/line selection, original copy, go-to-line | src/Tailviewer/Ui/{LogView,GoToLine,QuickNavigation} | FR-003 | P04 | partial: line selection/cache only |
 | F04 | Append, pause/follow, file rewrite, rotation, disappearance, encoding changes | src/Tailviewer.Core/Sources/Text/Streaming | FR-003 | P04 | partial: metadata/end samples; encoding fixed at open |
 | F05 | Search forward/back, find all, pattern options, results and navigation | src/Tailviewer/{BusinessLogic/Searches,Ui/LogView} | FR-004 | P05 | not exposed |

@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T017 complete. Foundation suites and modern dependency/output boundaries verified; T018 file/folder/group lifecycle contracts are next. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T017 complete. Foundation suites and modern dependency/output boundaries verified; T018/T022 file/folder vertical slices are in progress; groups and close commands remain pending. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 

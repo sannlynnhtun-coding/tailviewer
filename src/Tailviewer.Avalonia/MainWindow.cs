@@ -15,6 +15,7 @@ using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Tailviewer.Api;
+using Tailviewer.Core;
 using Tailviewer.Settings;
 
 namespace Tailviewer.Avalonia;
@@ -29,6 +30,10 @@ public sealed class MainWindow : Window
     private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple };
     private readonly AvaloniaList<DataSource> _sources = new();
     private readonly TreeView _sourceTree = new();
+    private readonly Dictionary<DataSourceId, FolderSources> _folders = new();
+    private readonly Dictionary<DataSourceId, AvaloniaList<DataSource>> _folderChildren = new();
+    private readonly DefaultTaskScheduler _folderScheduler = new();
+    private readonly Lazy<IFilesystem> _folderFilesystem;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private LogDocument? _document;
     private string? _operationError;
@@ -36,6 +41,7 @@ public sealed class MainWindow : Window
 
     public MainWindow(string? fileName = null)
     {
+        _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
         Title = "Tailviewer — Avalonia prototype";
         using var logoStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
         var logo = new Bitmap(logoStream);
@@ -50,14 +56,20 @@ public sealed class MainWindow : Window
         AutomationProperties.SetName(_rows, "Log lines");
         AutomationProperties.SetName(_sourceTree, "Sources");
         _sourceTree.ItemsSource = _sources;
-        // shortcut: file-only templates until T022/T023 add folder/group nodes.
-        _sourceTree.ItemTemplate = new FuncDataTemplate<DataSource>((source, _) =>
+        // shortcut: folder nodes expose files; aggregate/group views remain T023/US2.
+        _sourceTree.ItemTemplate = new FuncTreeDataTemplate<DataSource>((source, _) =>
         {
-            var label = new TextBlock { Text = Path.GetFileName(source.File), TextTrimming = TextTrimming.CharacterEllipsis };
-            ToolTip.SetTip(label, source.File);
-            AutomationProperties.SetName(label, source.File);
+            var path = source.File ?? source.LogFileFolderPath;
+            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+            var label = new TextBlock { Text = string.IsNullOrEmpty(name) ? path : name, TextTrimming = TextTrimming.CharacterEllipsis };
+            ToolTip.SetTip(label, path);
+            AutomationProperties.SetName(label, path);
             return label;
-        });
+        }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : Array.Empty<DataSource>());
+        _sourceTree.ContainerPrepared += (_, args) =>
+        {
+            if (args.Container is TreeViewItem item) item.IsExpanded = true;
+        };
         ScrollViewer.SetHorizontalScrollBarVisibility(_rows, ScrollBarVisibility.Auto);
         _rows.ItemTemplate = new FuncDataTemplate<int>((index, _) =>
         {
@@ -102,7 +114,7 @@ public sealed class MainWindow : Window
         _sourceTree.SelectionChanged += async (_, _) =>
         {
             if (_sourceTree.SelectedItem is DataSource source && source.Id != _document?.SourceId)
-                await OpenFileAsync(source.File);
+                await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
         };
         _follow.IsCheckedChanged += (_, _) => ScrollToTail();
         _rows.SelectionChanged += (_, _) =>
@@ -120,6 +132,8 @@ public sealed class MainWindow : Window
             _closed = true;
             _timer.Stop();
             _document?.Dispose();
+            foreach (var folder in _folders.Values) folder.Dispose();
+            _folderScheduler.Dispose();
             logo.Dispose();
         };
         _timer.Start();
@@ -150,30 +164,70 @@ public sealed class MainWindow : Window
         }
     }
 
-    public async Task OpenFileAsync(string fileName)
+    public Task OpenFileAsync(string fileName) => OpenSourceAsync(fileName, null);
+
+    private async Task OpenSourceAsync(string fileName, DataSource? selected)
     {
         _open.IsEnabled = false;
         try
         {
+            if (_closed) return;
             var path = Path.GetFullPath(fileName);
             var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            var source = _sources.FirstOrDefault(item => string.Equals(item.File, path, comparison)) ??
-                new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
+            var source = selected ?? _sources.FirstOrDefault(item => string.Equals(item.File ?? item.LogFileFolderPath, path, comparison));
+            var isFolder = source?.LogFileFolderPath != null ||
+                (source == null && await Task.Run(() => Directory.Exists(path)));
+            if (_closed) return;
+            if (isFolder)
+            {
+                if (source == null)
+                {
+                    var defaults = new DataSourceSettings();
+                    source = new DataSource
+                    {
+                        Id = DataSourceId.CreateNew(), LogFileFolderPath = path,
+                        LogFileSearchPattern = defaults.FolderDataSourcePattern, Recursive = defaults.FolderDataSourceRecursive,
+                        FollowTail = true
+                    };
+                }
+                if (!_folders.ContainsKey(source.Id))
+                {
+                    var folder = await Task.Run(() => new FolderSources(_folderFilesystem.Value, source));
+                    if (_closed)
+                    {
+                        folder.Dispose();
+                        return;
+                    }
+                    _folders.Add(source.Id, folder);
+                    _folderChildren.Add(source.Id, new AvaloniaList<DataSource>());
+                    var id = source.Id;
+                    folder.Changed += () => Dispatcher.UIThread.Post(() => RefreshFolder(id));
+                    RefreshFolder(id);
+                }
+                SaveFollowState();
+                _rows.ItemsSource = null;
+                _document?.Dispose();
+                _document = null;
+                if (!_sources.Contains(source)) _sources.Add(source);
+                if (!ReferenceEquals(_sourceTree.SelectedItem, source)) _sourceTree.SelectedItem = source;
+                _operationError = null;
+                _path.Text = path;
+                Title = $"{Path.GetFileName(path)} — Tailviewer prototype";
+                RefreshDocument();
+                return;
+            }
+            source ??= new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
             var document = await Task.Run(() => new LogDocument(source));
             if (_closed)
             {
                 document.Dispose();
                 return;
             }
-            if (_document != null)
-            {
-                var previous = _sources.FirstOrDefault(item => item.Id == _document.SourceId);
-                if (previous != null) previous.FollowTail = _follow.IsChecked == true;
-            }
+            SaveFollowState();
             _rows.ItemsSource = null;
             _document?.Dispose();
             _document = document;
-            if (!_sources.Contains(source)) _sources.Add(source);
+            if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             _sourceTree.SelectedItem = source;
             _operationError = null;
             _rows.ItemsSource = document.Lines;
@@ -195,10 +249,39 @@ public sealed class MainWindow : Window
     private void RefreshDocument()
     {
         if (_document == null)
+        {
+            if (_sourceTree.SelectedItem is DataSource selected && _folders.TryGetValue(selected.Id, out var folder))
+                _status.Text = folder.Error ?? (_folderChildren[selected.Id].Count == 0 ? "No matching files." : "Select a file in this folder.");
             return;
+        }
         if (_document.Refresh())
             ScrollToTail();
         _status.Text = _operationError ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")}";
+    }
+
+    private void SaveFollowState()
+    {
+        if (_document == null) return;
+        var previous = _sources.Concat(_folderChildren.Values.SelectMany(children => children))
+            .FirstOrDefault(source => source.Id == _document.SourceId);
+        if (previous != null) previous.FollowTail = _follow.IsChecked == true;
+    }
+
+    private void RefreshFolder(DataSourceId id)
+    {
+        if (_closed) return;
+        var desired = _folders[id].Sources;
+        var children = _folderChildren[id];
+        var ids = desired.Select(source => source.Id).ToHashSet();
+        foreach (var removed in children.Where(source => !ids.Contains(source.Id)).ToArray()) children.Remove(removed);
+        var existing = children.ToDictionary(source => source.Id);
+        for (var index = 0; index < desired.Count; ++index)
+        {
+            if (index < children.Count && children[index].Id == desired[index].Id) continue;
+            if (existing.TryGetValue(desired[index].Id, out var item)) children.Remove(item);
+            else item = desired[index];
+            children.Insert(index, item);
+        }
     }
 
     private void ScrollToTail()

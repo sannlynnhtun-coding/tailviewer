@@ -94,8 +94,48 @@ public sealed class SourcesTest
             var sources = window.GetVisualDescendants().OfType<TreeView>().SingleOrDefault();
             sources.Should().NotBeNull("because folder arguments must create a selectable folder source");
             sources!.ItemCount.Should().Be(2, "because adding a folder must preserve the already open file");
-            await WaitUntil(() => Rows(window).ItemCount == 3);
+            var folder = sources.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath == _folder);
+            await WaitUntil(() => (sources.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var children = ((TreeViewItem)sources.ContainerFromItem(folder)!).Items.OfType<DataSource>().ToArray();
+            children.Select(source => source.File).Should().BeEquivalentTo(_first, _second);
+            sources.SelectedItem = children.Single(source => source.File == _first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 1, "  original spaces  ");
+            sources.SelectedItem = children.Single(source => source.File == _second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+            sources.ItemCount.Should().Be(2, "because folder members must not be duplicated as root entries");
             File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task LiveFolderMembershipKeepsTheSelectedChildAndItsIdentity()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single();
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var container = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var second = container.Items.OfType<DataSource>().Single(source => source.File == _second);
+            tree.SelectedItem = second;
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+            var added = Path.Combine(_folder, "aaa.log");
+            File.WriteAllText(added, "new");
+            await WaitUntil(() => container.ItemCount == 3);
+            tree.SelectedItem.Should().BeSameAs(second);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(second.Id);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 0, "second");
+            File.Delete(added);
+            await WaitUntil(() => container.ItemCount == 2);
+            tree.SelectedItem.Should().BeSameAs(second);
         }
         finally { window.Close(); }
     }

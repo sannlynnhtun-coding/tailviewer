@@ -96,3 +96,60 @@ states, close-current/all, stale open-request ordering and complete per-source
 selection/position persistence remain their assigned tasks. The expected folder
 failure remains ordinary and visible in the suite. No native desktop/clipboard
 acceptance or full Core rerun was performed for this UI-only change.
+## Slice 4: live folder discovery and child navigation
+
+Ported the folder discovery portion of legacy FolderDataSource into Core
+Sources/Migration/FolderSources.cs. It reuses the installed IFilesystem watchdog,
+semicolon-separated case-sensitive/unanchored '*' rules, recursive configuration
+and disposal ownership. The helper retains the folder configuration and derives
+child IDs from folder ID plus normalized path, so removal/reappearance and reopen
+do not assign new identities. It reports missing folders/bounded pattern failures
+without writing logs or dropping the configured root. Ordinary status reads do
+not enumerate directory contents. A blank pattern accepts all files, as in the
+legacy implementation. MainWindow uses fresh DataSourceSettings defaults until
+actual workspace/settings binding is implemented; it does not silently load a
+real user profile or invent new pattern/recursion defaults.
+
+Folder nodes now expose live selectable child files in the source tree. Opening
+a folder preserves existing root files, and selecting a child opens its configured
+identity without adding a duplicate root entry. Membership reconciliation keeps
+unchanged child models/selection/pause state. Folder probing and watcher creation
+run off the UI thread; queued updates ignore closed windows. Windows own/dispose
+their directory watchers and shared folder scheduler.
+
+### Corrected baseline assumption (not an aggregate implementation)
+
+The earlier plain-text fixture's expected aggregate count of three was wrong:
+legacy MergedDataSource constructs Core MergedLogSource, whose
+MergedLogSourceIndex.ComputeIndices requires timestamp != null. Raw plain-text
+entries are excluded from that merged representation. This evidence is in
+BusinessLogic/DataSources/MergedDataSource.cs and Core/Sources/Merged/
+MergedLogSourceIndex.cs; no merge behavior was changed to satisfy a UI test.
+The folder contract now checks both discovered child paths and selects/copies
+actual original text from each file, retaining the separate root file. Folder
+aggregate/timestamp parsing/provenance remains the assigned US2 work; the folder
+node explicitly asks users to select a child instead of pretending to aggregate.
+
+### Executed checks
+
+- Eight real-filesystem Core cases: recursive/nonrecursive semicolon patterns,
+  legacy unanchored/case-sensitive/literal-question/pipe behavior, blank pattern,
+  missing folder recovery and stable child IDs across removal/reopen.
+- Migration suite checkpoint: 191 passed, zero failures/skips.
+- Modern solution checkpoint: 81 Archiver + 33 Avalonia passed.
+- Final full Avalonia suite after async/lazy watcher setup: 33 passed, zero
+  failures/skips. Includes actual child selection/copy and live insertion/removal
+  while another child remains selected with its original ID and paused follow.
+- Final focused Core helper rerun after removing an unused snapshot allocation:
+  all eight passed. No package, timeout or skipped-test changes.
+
+Evidence: ignored artifacts/migration/t018-folder-core.log,
+t018-folder-migration-final.log, t018-folder-solution-final.log,
+t018-folder-ui-final.log and t018/t018-folder-ui.trx.
+
+The prior ordinary source-tree/folder failures are resolved for this slice.
+T018/T022 remain unchecked: group/close-current/all contracts, complete source
+view/loading/error bindings, saved workspace integration and group/aggregate UI
+remain pending. Full Core, native desktop/clipboard, large-folder cost, junctions
+and SMB were not validated by this slice. Discovery child snapshots are still
+rebuilt per watcher change; broader bounds/performance remain acceptance work.
