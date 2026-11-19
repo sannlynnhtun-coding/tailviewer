@@ -32,6 +32,15 @@ namespace Tailviewer.Core
 
 		#region Implementation of IFileLogSourceFactory
 
+		/// <summary>Opens an existing text log with UTF-8 fallback and per-read BOM detection.</summary>
+		/// <remarks>Validates access without preventing writers or file replacement.</remarks>
+		public ILogSource OpenRead(string fileName)
+		{
+			fileName = Path.GetFullPath(fileName);
+			using (_filesystem.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+				return OpenRead(fileName, LogFileFormats.GenericText, Encoding.UTF8);
+		}
+
 		/// <inheritdoc />
 		public ILogSource OpenRead(string fileName, ILogFileFormat format, Encoding encoding)
 		{

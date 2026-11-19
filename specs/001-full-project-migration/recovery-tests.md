@@ -207,3 +207,37 @@ t020-preamble-legacy-build.log, t020-preamble-modern.log,
 t020-preamble-native.log and the corresponding preamble/native TRX files.
 General concurrent rewrite/index/digest consistency and representative large-file
 performance remain T027 work. The legacy test project was built, not executed.
+
+## Default file-open factory and BOM replacement fallback (T022/T027)
+
+LogDocument previously probed a file with StreamReader.Peek and passed that
+initial detected encoding as Core's permanent fallback. A meaningful UI regression
+opens UTF-16/BOM text, replaces it with BOM-less UTF-8 and verifies new Unicode
+rows/copy. It failed before the change because the initial UTF-16 encoding was
+retained after its BOM disappeared.
+
+StreamingTextLogSourceFactory now has an existing-file default entry point. It
+normalizes the path and validates read access with writer/delete sharing, then
+uses UTF-8 fallback with the scanner/reader's existing per-read BOM detection.
+LogDocument delegates to that entry point and removes its duplicate BOM probe.
+The existing three-argument factory/interface entry point remains unchanged for
+explicit encodings and legacy/plugin consumers; call sites were audited.
+
+Eight new Core cases cover UTF-8 with/without BOM, UTF-16 LE/BE, UTF-32 LE/BE,
+leading empty/Unicode lines, replacement by BOM-less UTF-8, and missing/locked
+file rejection followed by recovery. Streaming fixture 28/28 passes. Complete
+Core net10.0: 7,120 pass / 0 failed / 5 unchanged pre-existing skips. Legacy
+net471 test-project build: zero errors, five existing warnings (not executed).
+Modern solution: 81 Archiver + 166 Avalonia pass. Native command-line variants,
+file picker and secondary-instance handoff: 4/4 pass, zero skips.
+
+Ignored evidence under artifacts/migration: t022-file-open-red.log,
+t022-file-open-focused.log, t022-file-factory-core-focused.log,
+t022-file-factory-core-full.log, t022-file-factory-legacy-build.log,
+t022-file-factory-modern.log, t022-file-factory-native.log and corresponding TRX
+files. No packages, warning suppression or test timeout changes were introduced.
+
+T022 remains partial for inactive-source lifecycle/state monitoring. This does
+not complete T027's concurrent rewrite/performance requirements or T028's explicit
+encoding selector/persistence. The entire native gesture matrix was not rerun
+for this file-opening change; the four relevant entry-point cases were executed.

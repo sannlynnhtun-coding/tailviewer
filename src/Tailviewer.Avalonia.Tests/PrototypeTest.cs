@@ -120,6 +120,22 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task DefaultDecoderReturnsToUtf8WhenAUtf16BomFileIsReplacedWithoutABom()
+    {
+        File.WriteAllText(_path, "old\nမြန်မာ", Encoding.Unicode);
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 2; });
+        (await document.CopyTextAsync(new[] { 0, 1 })).Should().Be("old" + Environment.NewLine + "မြန်မာ");
+        File.WriteAllText(_path, "replacement\n😀 UTF8", new UTF8Encoding(false));
+        await WaitUntil(() =>
+        {
+            document.Refresh();
+            return document.Lines.Count == 2 && document.GetLine(0).Text == "replacement" && document.GetLine(1).Text == "😀 UTF8";
+        });
+        (await document.CopyTextAsync(new[] { 0, 1 })).Should().Be("replacement" + Environment.NewLine + "😀 UTF8");
+    }
+
+    [AvaloniaTest]
     public async Task TestEmptyFileAndPartialLineTailing()
     {
         File.WriteAllText(_path, "");

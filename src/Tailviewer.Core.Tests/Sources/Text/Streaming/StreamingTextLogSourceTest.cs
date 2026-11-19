@@ -276,6 +276,50 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
+        public void DefaultFactoryDetectsBomWithoutChangingItsUtf8ReplacementFallback(int variant)
+        {
+            var encodings = new Encoding[]
+            {
+                new UTF8Encoding(false), new UTF8Encoding(true),
+                new UnicodeEncoding(false, true), new UnicodeEncoding(true, true),
+                new UTF32Encoding(false, true), new UTF32Encoding(true, true)
+            };
+            File.WriteAllText(_path, "\nမြန်မာ 😀\nlast", encodings[variant]);
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var source = (StreamingTextLogSource)factory.OpenRead(_path))
+            {
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(3));
+                Assert.That(Read(source, 3), Is.EqualTo(new[] { "", "မြန်မာ 😀", "last" }));
+                File.WriteAllText(_path, "new\nမြန်မာ 😀\nend", new UTF8Encoding(false));
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(3));
+                Assert.That(Read(source, 3), Is.EqualTo(new[] { "new", "မြန်မာ 😀", "end" }));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void DefaultFactoryRejectsMissingOrLockedFilesAndCanRetryAfterRecovery(bool locked)
+        {
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var exclusive = locked ? new FileStream(_path, FileMode.Create, FileAccess.ReadWrite, FileShare.None) : null)
+                Assert.Catch<IOException>(() => factory.OpenRead(_path));
+            Write("recovered");
+            using (var source = (StreamingTextLogSource)factory.OpenRead(_path))
+            {
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(1));
+                Assert.That(Read(source, 1), Is.EqualTo(new[] { "recovered" }));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;
