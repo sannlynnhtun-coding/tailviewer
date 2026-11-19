@@ -7,6 +7,12 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 internal static class NativeKeyboard
 {
+    public static bool IsForeground(Process process)
+    {
+        GetWindowThreadProcessId(GetForegroundWindow(), out var owner);
+        return owner == process.Id;
+    }
+
     public static void SelectAll(Process process, AutomationElement list)
     {
         if (IntPtr.Size != 8 || Marshal.SizeOf<Input>() != 40)

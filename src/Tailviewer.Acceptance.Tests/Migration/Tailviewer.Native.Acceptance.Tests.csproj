@@ -10,8 +10,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="SourceEntryPointTest.cs" />
+    <Compile Include="SourceEntryPointTest.Performance.cs" />
     <Compile Include="NativeOleDrag.cs" />
     <Compile Include="NativeKeyboard.cs" />
+    <Compile Include="../../../tools/Tailviewer.SourcePerformance/PacedLogWriter.cs" Link="Shared/PacedLogWriter.cs" />
     <Compile Include="../../Tailviewer.Avalonia/SingleApplicationHelper.cs" Link="Shared/SingleApplicationHelper.cs" />
     <ProjectReference Include="../../Tailviewer.Avalonia/Tailviewer.Avalonia.csproj" ReferenceOutputAssembly="false" />
     <PackageReference Include="NUnit" Version="3.12.0" />

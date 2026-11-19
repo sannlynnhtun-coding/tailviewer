@@ -9,7 +9,7 @@ using NUnit.Framework;
 namespace Tailviewer.Acceptance.Tests.Migration;
 
 [TestFixture, NonParallelizable, Apartment(ApartmentState.STA)]
-public sealed class SourceEntryPointTest
+public sealed partial class SourceEntryPointTest
 {
     private string _folder = null!;
     private string _path = null!;

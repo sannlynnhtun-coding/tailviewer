@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using Tailviewer.Api;
 using Tailviewer.Core;
@@ -11,7 +10,7 @@ internal static class LiveTailWorkload
 {
     public static async Task Run(string path, CancellationToken cancellationToken)
     {
-        const int batches = 3000, batchSize = 100, records = batches * batchSize;
+        const int batches = PacedLogWriter.Batches, records = PacedLogWriter.Records;
         File.WriteAllText(path, "");
         using var scheduler = new DefaultTaskScheduler();
         using var source = new StreamingTextLogSourceFactory(new Filesystem(scheduler), scheduler).OpenRead(path);
@@ -22,26 +21,13 @@ internal static class LiveTailWorkload
         var clock = Stopwatch.StartNew();
         var lastFlush = 0d;
         var flushedRecords = 0;
-        var writing = Task.Run(async () =>
+        var writing = Task.Run(() => PacedLogWriter.WriteAsync(path, clock, (end, flushed, lateness) =>
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
-            using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n" };
-            for (var batch = 1; batch <= batches; ++batch)
-            {
-                var due = batch * 100d;
-                var wait = due - clock.Elapsed.TotalMilliseconds;
-                if (wait > 0) await Task.Delay(TimeSpan.FromMilliseconds(wait), stop.Token);
-                stop.Token.ThrowIfCancellationRequested();
-                for (var index = (batch - 1) * batchSize; index < batch * batchSize; ++index)
-                    writer.WriteLine(index.ToString(CultureInfo.InvariantCulture));
-                await writer.FlushAsync(stop.Token);
-                var flushed = clock.Elapsed.TotalMilliseconds;
-                writerLateness.Add(Math.Max(0, flushed - due));
-                Volatile.Write(ref lastFlush, flushed);
-                Volatile.Write(ref flushedRecords, batch * batchSize);
-                pending.Enqueue((batch * batchSize, flushed));
-            }
-        }, stop.Token);
+            writerLateness.Add(lateness);
+            Volatile.Write(ref lastFlush, flushed);
+            Volatile.Write(ref flushedRecords, end);
+            pending.Enqueue((end, flushed));
+        }, stop.Token), stop.Token);
         try
         {
             var nextProgress = 15000d;

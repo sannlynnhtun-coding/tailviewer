@@ -49,3 +49,25 @@ This is Core availability after flush, not native UI display latency. Rendered
 UI/pause/navigation, full-application memory and the wider source matrix still
 need their own acceptance evidence. Unknown command-line modes exit 2 before
 creating a fixture.
+
+## Native Windows live-tail gate
+
+```powershell
+dotnet test src/Tailviewer.Acceptance.Tests/Migration/Tailviewer.Native.Acceptance.Tests.csproj -c Release --filter FullyQualifiedName~NativeFiveMinuteTail
+```
+
+This isolated interactive Windows x64 fixture links the same `PacedLogWriter`
+as the Core workload. Close existing Tailviewer instances first. It owns its
+process and synthetic file, snapshots/restores the clipboard conditionally, and
+requires its viewer to remain foreground throughout sampling. It records visible
+numeric UI Automation text after each batch, including delayed batches after
+failed observations; unavailable UIA samples are logged, not counted as success.
+The nearest-rank p95 budget remains 1,000 ms for all 3,000 batches.
+
+After five minutes it uses actual Ctrl+A and the Copy selected command to verify
+all 300,000 records and the terminal newline through the native clipboard. An
+extra append must retain paused follow state and the original selection. Numeric
+JSONL progress/measurements are attached to the NUnit result; no clipboard data
+is logged. Visible accessibility text is the observation boundary, not a pixel
+presentation timestamp. This does not replace the wider recovery, memory,
+navigation or mixed-monitor acceptance matrix.

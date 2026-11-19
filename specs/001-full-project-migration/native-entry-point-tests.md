@@ -369,3 +369,44 @@ mixed-monitor movement and the complete cross-parent/keyboard/accessibility
 matrix remain unproven. T023 remains partial. Modern/Core and the full native
 picker/OLE/handoff suite were not rerun for this test-only addition; the previous
 complete native checkpoint was 17/17 and later focused hover coverage is separate.
+
+## Five-minute native live-tail gate (T027, not yet passing)
+
+Added an explicit Performance-category case using the same paced producer as
+the Core harness: 100 LF-terminated numeric records per 100 ms for 300 seconds.
+It requires the owned Windows x64 app to remain foreground. UIA visible numeric
+text supplies batch observations; unavailable/COM observations are reported and
+all pending batches retain their original flush times, including across failed
+observations. All 3,000 batches must meet the unchanged nearest-rank p95 budget
+of 1,000 ms. Accessibility visibility is not a pixel presentation timestamp.
+
+The test then uses owned Ctrl+A and Copy selected to compare every record and
+the terminal newline through the actual clipboard, and appends another record
+to verify paused follow/selection. Those final checks have NOT executed in a
+complete five-minute run yet. The existing small native terminal-newline test
+separately exercises owned Ctrl+A/copy; its prerequisite commit is 1a6490f1.
+
+Initial integration found a missing System.IO import in the linked producer and
+an unsupported window SetFocus; the fixture now focuses the log list, as the
+existing keyboard helper does. Initial UIA traversal failed with E_FAIL during
+live changes. Poll failures are now recorded without crediting success or
+discarding delayed batches. The subsequent run reached 180 seconds / 180,000
+written records / 1,798 observed batches, then failed its foreground ownership
+guard at about 188 seconds. It is an interrupted, unqualified run, not a pass
+or an inferred p95 result. Cleanup left no owned app/testhost processes.
+
+Evidence: artifacts/migration/t027-native-tail.log and matching TRX directory;
+the attached native-live-tail-48ac8f0ceb8a4aab99ae7c68f5f28ce6.jsonl retains
+numeric observations and failed UIA HRESULTs. The earlier UIA failure is kept in
+t027-native-tail-uia-failure.log. The shared producer tool builds with zero
+errors and two inherited NU1902 warnings. Reproduction command and boundaries
+are in tools/Tailviewer.SourcePerformance/README.md. T027 and full migration
+remain open; no performance threshold, timeout or focus guard was relaxed.
+
+The subsequent focused terminal-newline regression also failed its existing
+ten-second native EOF-row observation (t027-native-tail-keyboard.log/TRX), before
+keyboard/copy validation. Its previously recorded passing prerequisite is not
+evidence of a passing current native run. No production code changed in this
+slice; this desktop observation failure remains to diagnose. Both fixtures
+completed cleanup and left no native fixture directories. The Archiver suite
+was independently rechecked at 81 pass / zero failures or skips in this turn.
