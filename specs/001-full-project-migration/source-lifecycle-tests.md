@@ -1523,3 +1523,41 @@ t043-parser-epoch-green.log/TRX, t043-epoch-explorer-focused.log/TRX and
 t022-explorer-epoch-modern.log/TRX and t043-parser-epoch-core-final.log/TRX.
 Full migration and T026/T043 remain open;
 custom/plugin parser integration and broader acceptance are still pending.
+
+## Containing-folder actions (T022/F13, partial)
+
+The source context menu restores Open Containing Folder for files/folders and
+Open Containing Folder(s) for groups. It snapshots current filesystem members,
+walks nested groups with identity deduplication, groups selections by directory
+and performs filesystem/shell work on a worker thread. Missing paths fall back
+to the nearest existing folder without deleting their source configuration.
+Errors appear in the existing status area and do not replace a newer open's
+status. No user log is executed or modified.
+
+The original IFileExplorer contract is linked into Avalonia, not Core. The
+Windows implementation uses platform COM/PIDL APIs instead of building Explorer
+command strings. It validates immediate-child paths, preserves Unicode/comma
+names, frees owned PIDLs and balances successful COM initialization, including
+shell error paths. No dependency or WPF reference was added. See Microsoft's
+[selection API](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shopenfolderandselectitems)
+and [path parsing API](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shparsedisplayname).
+
+The initial UI regression failed because the menu command was absent. Tests
+now verify file/group selection requests, original selection/copy retention,
+missing-path fallback, visible shell failure, retained configuration and
+unchanged file contents. Native interop tests exercise real COM/PIDL parsing
+and injected success/failure at the final shell-selection call; no Explorer
+window is opened by those tests. Path validation also rejects outside-directory
+items, null input and embedded NULs.
+
+Final checks: modern solution 81 Archiver + 214 Avalonia passed; full Core
+7,171 passed with five existing skips; native folder-picker apply/cancel,
+folder-options browse apply/cancel and Ctrl+G passed 5/5. The first Core run
+caught the misplaced interface link; the namespace assertion was preserved.
+Evidence under ignored artifacts/migration/: t022-explorer-ui-red.log/TRX,
+t022-explorer-interop.log/TRX, t022-explorer-epoch-modern.log/TRX,
+t043-parser-epoch-core-final.log/TRX and t022-explorer-epoch-native.log/TRX.
+
+Actual Explorer-window selection acceptance, action-center history/progress,
+help/about/changelog and full migration remain unfinished. No task checklist
+was marked complete by this slice.

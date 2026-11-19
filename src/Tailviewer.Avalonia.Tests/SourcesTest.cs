@@ -22,6 +22,80 @@ namespace Tailviewer.Avalonia.Tests;
 [TestFixture]
 public sealed class SourcesTest
 {
+    private sealed class RecordingExplorer : Tailviewer.BusinessLogic.FileExplorer.IFileExplorer
+    {
+        public readonly System.Collections.Concurrent.ConcurrentQueue<(string Kind, string Path, string[] Files)> Calls = new();
+        public bool Fail;
+        public void SelectFile(string path) { Check(); Calls.Enqueue(("file", path, Array.Empty<string>())); }
+        public void SelectFiles(string path, params string[] files) { Check(); Calls.Enqueue(("files", path, files)); }
+        public void OpenFolder(string path) { Check(); Calls.Enqueue(("folder", path, Array.Empty<string>())); }
+        private void Check() { if (Fail) throw new IOException("owned explorer failure"); }
+    }
+
+    [AvaloniaTest]
+    public async Task ContainingFolderActionsSelectGroupMembersAndRetainMissingSourcesOnFailure()
+    {
+        var explorer = new RecordingExplorer();
+        var window = new MainWindow(null, null, explorer);
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var first = workspace.All.Single(source => source.File == _first);
+            var second = workspace.All.Single(source => source.File == _second);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            await Invoke(first, "Open Containing Folder");
+            await WaitUntil(() => explorer.Calls.Count == 1);
+            var firstCall = explorer.Calls.ToArray()[0];
+            firstCall.Kind.Should().Be("file");
+            firstCall.Path.Should().Be(_first);
+            firstCall.Files.Should().BeEmpty();
+            tree.SelectedItem.Should().BeSameAs(first);
+            await CopySelected(window, "first");
+            var group = workspace.GroupWith(first.Id, second.Id);
+            tree.SelectedItem = group;
+            await Invoke(group, "Open Containing Folder(s)");
+            await WaitUntil(() => explorer.Calls.Count == 2);
+            var selected = explorer.Calls.ToArray()[1];
+            selected.Kind.Should().Be("files");
+            selected.Path.Should().Be(_folder);
+            selected.Files.Should().Equal(_first, _second);
+            var missing = new DataSource(Path.Combine(_folder, "missing", "unavailable.log")) { Id = DataSourceId.CreateNew() };
+            workspace.Roots.Add(missing);
+            await Invoke(missing, "Open Containing Folder");
+            await WaitUntil(() => explorer.Calls.Count == 3);
+            explorer.Calls.ToArray()[2].Path.Should().Be(_folder);
+            explorer.Calls.ToArray()[2].Kind.Should().Be("folder");
+            explorer.Fail = true;
+            await Invoke(missing, "Open Containing Folder");
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("owned explorer failure") == true));
+            workspace.All.Should().Contain(missing);
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+            File.ReadAllText(_second).Should().Be("second");
+
+            async Task Invoke(DataSource source, string header)
+            {
+                await WaitUntil(() => tree.ContainerFromItem(source) is TreeViewItem);
+                var item = (TreeViewItem)tree.ContainerFromItem(source)!;
+                item.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+                var menu = item.ContextMenu!;
+                try
+                {
+                    await WaitUntil(() => menu.IsOpen);
+                    var command = menu.Items.OfType<MenuItem>().SingleOrDefault(entry => Equals(entry.Header, header));
+                    command.Should().NotBeNull();
+                    command!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                }
+                finally { menu.Close(); }
+            }
+        }
+        finally { window.Close(); }
+    }
+
     private string _folder = null!;
     private string _first = null!;
     private string _second = null!;

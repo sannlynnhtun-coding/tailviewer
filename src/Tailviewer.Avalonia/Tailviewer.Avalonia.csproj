@@ -10,6 +10,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Tailviewer/BusinessLogic/FileExplorer/IFileExplorer.cs" Link="Platform/IFileExplorer.cs" />
     <InternalsVisibleTo Include="Tailviewer.Avalonia.Tests" />
     <AvaloniaResource Include="Assets/Tailviewer.png" />
     <ProjectReference Include="../Tailviewer.Core/Tailviewer.Core.csproj" />

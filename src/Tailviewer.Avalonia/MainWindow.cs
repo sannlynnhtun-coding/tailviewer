@@ -56,6 +56,7 @@ public sealed class MainWindow : Window
     private SourceDocuments.Lease? _activeLease;
     private GroupDocument? _activeGroup;
     private readonly Dictionary<DataSourceId, GroupDocument> _groupDocuments = new();
+    private readonly Tailviewer.BusinessLogic.FileExplorer.IFileExplorer _fileExplorer = new WindowsFileExplorer();
     private long _lastGroupRefresh;
     private long _lastReaderRefresh;
     // shortcut: viewport offsets are session-only until profile save/restore in T055.
@@ -353,6 +354,9 @@ public sealed class MainWindow : Window
         }
     }
 
+    internal MainWindow(string? fileName, ILogFileSettings? settings, Tailviewer.BusinessLogic.FileExplorer.IFileExplorer fileExplorer)
+        : this(fileName, settings) => _fileExplorer = fileExplorer ?? throw new ArgumentNullException(nameof(fileExplorer));
+
     private async Task PickSourcesAsync(bool folders)
     {
         try
@@ -549,6 +553,13 @@ public sealed class MainWindow : Window
         void RefreshMenu()
         {
             menu.Items.Clear();
+            var containing = new MenuItem
+            {
+                Header = SourcesViewModel.IsGroup(source) ? "Open Containing Folder(s)" : "Open Containing Folder",
+                IsEnabled = ExplorerPaths(source).Length != 0
+            };
+            containing.Click += async (_, _) => await OpenContainingFoldersAsync(source);
+            menu.Items.Add(containing);
             var singleLine = new MenuItem { Header = "Single Line", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.IsSingleLine };
             ToolTip.SetTip(singleLine, "Treat every single line as a separate log entry");
             singleLine.Click += async (_, _) =>
@@ -640,6 +651,63 @@ public sealed class MainWindow : Window
         // Refresh before context routing opens menus created before a group existed.
         menu.Tag = (Action)RefreshMenu;
         return menu;
+    }
+
+    private string[] ExplorerPaths(DataSource source)
+    {
+        var pending = new Stack<DataSource>();
+        var seen = new HashSet<DataSourceId>();
+        var paths = new List<string>();
+        pending.Push(source);
+        while (pending.TryPop(out var current))
+        {
+            if (!seen.Add(current.Id)) continue;
+            if (current.File is { } file) paths.Add(file);
+            else if (current.LogFileFolderPath is { } folder) paths.Add(folder);
+            else foreach (var child in GroupChildren(current).Reverse()) pending.Push(child);
+        }
+        return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private async Task OpenContainingFoldersAsync(DataSource source)
+    {
+        if (_closed) return;
+        var request = _openRequest;
+        try
+        {
+            if (!_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Any(item => ReferenceEquals(item, source))) return;
+            var paths = ExplorerPaths(source);
+            if (paths.Length == 0) return;
+            var group = SourcesViewModel.IsGroup(source);
+            await Task.Run(() =>
+            {
+                var fullPaths = paths.Select(Path.GetFullPath).ToArray();
+                if (!group)
+                {
+                    if (File.Exists(fullPaths[0])) _fileExplorer.SelectFile(fullPaths[0]);
+                    else _fileExplorer.OpenFolder(ExistingFolder(fullPaths[0]));
+                    return;
+                }
+                foreach (var items in fullPaths.GroupBy(path => Path.GetDirectoryName(path) ?? path, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (Directory.Exists(items.Key)) _fileExplorer.SelectFiles(items.Key, items.ToArray());
+                    else _fileExplorer.OpenFolder(ExistingFolder(items.Key));
+                }
+            });
+        }
+        catch (Exception error)
+        {
+            if (!_closed && request == _openRequest) _status.Text = _operationError = "Cannot open containing folder: " + error.Message;
+        }
+
+        static string ExistingFolder(string path)
+        {
+            var current = path;
+            while (!Directory.Exists(current))
+                current = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(current)) ??
+                    throw new DirectoryNotFoundException("No containing folder is currently available.");
+            return current;
+        }
     }
 
     private async Task EditFolderAsync(DataSource source, Action refreshHeading)
