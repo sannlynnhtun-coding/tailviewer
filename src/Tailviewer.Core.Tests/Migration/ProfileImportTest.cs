@@ -85,6 +85,35 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public async Task ExistingTargetBookmarksRequireAnExplicitDecision()
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_target));
+            var targetBookmarks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(targetBookmarks, "<xml current='keep'/>");
+            var before = File.ReadAllBytes(targetBookmarks);
+            var result = await Import();
+            Assert.That(result.Status, Is.EqualTo(ProfileImportStatus.Conflict));
+            Assert.That(result.HasVerifiedBackup, Is.False);
+            Assert.That(Directory.Exists(_backups), Is.False);
+            Assert.That(File.Exists(_target), Is.False);
+            Assert.That(File.ReadAllBytes(targetBookmarks), Is.EqualTo(before));
+        }
+
+        [TestCase(ProfileImportChoice.KeepExisting)]
+        [TestCase(ProfileImportChoice.ReplaceExisting)]
+        public async Task BookmarkDestinationCannotAlsoBeSettingsDestination(ProfileImportChoice choice)
+        {
+            var before = File.ReadAllBytes(_source);
+            var destination = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            var result = await _importer.ImportAsync(_source, destination, _backups, choice);
+            Assert.That(result.Status, Is.EqualTo(ProfileImportStatus.Failed));
+            Assert.That(result.ErrorCode, Is.EqualTo("InvalidPaths"));
+            Assert.That(File.ReadAllBytes(_source), Is.EqualTo(before));
+            Assert.That(File.Exists(destination), Is.False);
+            Assert.That(Directory.Exists(_backups), Is.False);
+        }
+
+        [Test]
         public async Task KeepExistingDoesNotWriteOrCreateBackup()
         {
             var before = CreateTarget();

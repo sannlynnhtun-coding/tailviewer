@@ -28,17 +28,21 @@ namespace Tailviewer.Settings
                 targetFile = Path.GetFullPath(targetFile);
                 backupFolder = Path.GetFullPath(backupFolder);
                 var sourceFolder = Path.GetDirectoryName(sourceFile);
+                var targetBookmarks = Path.Combine(Path.GetDirectoryName(targetFile), "bookmarks.xml");
                 var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
                 if (string.Equals(sourceFolder, Path.GetDirectoryName(targetFile), comparison) ||
+                    string.Equals(targetFile, targetBookmarks, comparison) ||
                     string.Equals(sourceFile, targetFile, comparison) ||
                     backupFolder.StartsWith(Path.TrimEndingDirectorySeparator(sourceFolder) + Path.DirectorySeparatorChar, comparison) ||
                     string.Equals(sourceFolder, backupFolder, comparison))
                     return Result(ProfileImportStatus.Failed, error);
                 RejectLinks(sourceFile);
                 RejectLinks(targetFile);
+                RejectLinks(targetBookmarks);
                 RejectLinks(backupFolder);
                 if (choice == ProfileImportChoice.KeepExisting) return Result(ProfileImportStatus.Kept);
-                if (File.Exists(targetFile) && choice == ProfileImportChoice.RequireChoice) return Result(ProfileImportStatus.Conflict);
+                if ((File.Exists(targetFile) || File.Exists(targetBookmarks)) && choice == ProfileImportChoice.RequireChoice)
+                    return Result(ProfileImportStatus.Conflict);
                 var sourceBookmarks = Path.Combine(sourceFolder, "bookmarks.xml");
                 RejectLinks(sourceBookmarks);
                 error = "SourceReadFailed";
@@ -90,7 +94,7 @@ namespace Tailviewer.Settings
                                     return Result(ProfileImportStatus.Failed, error);
                                 verifiedBackup = backup;
                                 error = "InvalidBookmarks";
-                                Bookmarks.Bookmarks.FromDocument(targetFile, ProfileStore.Read(bookmarkBackup));
+                                Bookmarks.Bookmarks.FromDocument(targetBookmarks, ProfileStore.Read(bookmarkBackup));
                             }
                             // shortcut: publication waits for a recoverable bundle transaction in T014.
                             return Result(ProfileImportStatus.Failed, "DependentSettingsNotSupported");
@@ -113,7 +117,8 @@ namespace Tailviewer.Settings
                             model.QuickFilters.GroupBy(item => item.Id).Any(group => group.Count() > 1))
                             return Result(ProfileImportStatus.Failed, "DuplicateIdentity");
                         cancellationToken.ThrowIfCancellationRequested();
-                        if (File.Exists(targetFile) && choice == ProfileImportChoice.RequireChoice) return Result(ProfileImportStatus.Conflict);
+                        if ((File.Exists(targetFile) || File.Exists(targetBookmarks)) && choice == ProfileImportChoice.RequireChoice)
+                            return Result(ProfileImportStatus.Conflict);
                         error = "PublishFailed";
                         ProfileStore.Write(targetFile, writer => model.BuildDocument().Save(writer), candidate =>
                         {

@@ -67,3 +67,18 @@ bundles until recoverable multi-file publication is implemented. T014 is not
 complete, and the contract guard remains. Existing result hashes describe the
 selected settings file; bundle verification additionally checks bookmarks before
 setting BackupFile. No bundle metadata result/API or UI is claimed complete.
+## T014 slice 3 — destination bundle conflicts
+
+An existing destination bookmarks.xml requires an explicit conflict decision even
+when settings.xml does not exist. Both destination paths are checked for reparse
+points. Settings and bookmark destinations cannot be the same file. These checks
+run before keep/backup/publication; the profile-only importer no longer silently
+ignores an existing bookmark destination when deciding whether to ask.
+
+Three new regression cases failed behaviorally before the fix and now pass.
+Full import contracts: 21 pass, one bundle-publication failure (22 total).
+Default Migration regressions: 138 passed. Evidence: ignored artifacts/migration/
+t014-bundle-conflict-red.log, t014-bundle-conflict.log and
+t014-bundle-conflict-regression.log. Recoverable publication is still pending;
+these early and prepublication checks alone do not eliminate concurrent writer
+races. T014 remains incomplete and no import UI is enabled.
