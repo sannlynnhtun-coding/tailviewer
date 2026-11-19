@@ -417,3 +417,13 @@ The same EOF text, Ctrl+A and exact trailing-newline copy assertions now pass
 1/1 (t027-eof-peer.log/TRX), with no timeout/assertion relaxation or production
 change. This addresses the stale-peer observation path; it does not establish
 five-minute foreground performance acceptance.
+
+The subsequent combined native EOF and Unicode CLI regression run passes 3/3,
+zero failures/skips (t027-eof-peer-regression.log/TRX). The five-minute recheck
+again fails foreground ownership, this time at about 61 seconds, after the
+45-second progress sample recorded 45,000 writes and 446 observed batches
+(t027-native-tail-recheck.log/TRX and attached cfa62bebc975411eb457a29e04a221cd
+JSONL). It does not reach final copy/pause checks or produce a qualified p95.
+The original foreground failure remains in t027-native-tail-foreground-failure.log.
+No owned processes or native fixture directories remain. Further foreground
+acceptance needs an uninterrupted interactive desktop; T027 stays unchecked.
