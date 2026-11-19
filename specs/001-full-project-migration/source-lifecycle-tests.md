@@ -1840,3 +1840,48 @@ onward), later profile persistence (T055), plugin-provided sources (US4),
 remaining navigation/performance acceptance and full migration remain open.
 The separately recorded native clipboard/focus failures were not rerun or
 reclassified as passing by these headless tests.
+
+### T023 ordered group commands checkpoint (2026-11-20)
+
+T023 is complete for ordered membership, include/exclude, group rename,
+close-current/all, identity retention and the baseline merge tie/missing-timestamp
+rules. SourcesViewModel owns those commands; Core SourceGroup preserves member
+slots and borrows readers. Existing group tests cover cycles/duplicates,
+reordering and navigation insertion order, moving between groups, promotion,
+exclusion inheritance, unavailable paths, group naming and invalid operations.
+SourcesTest exercises the corresponding UI commands, live aggregates and copy.
+Core SourceGroupTest pins timestamp ties to member order and the legacy rule
+that unassociated unstamped entries do not enter the merged output.
+
+The close audit found an additional capacity bug: removing a nested group could
+promote its children into an already-full parent, exceeding the 255 source-slot
+limit after mutation. The new regression first failed (no exception); exact-limit
+and root-promotion controls passed. Remove now rejects overflow before changing
+membership or exclusions. Close-current attempts that validated command before
+releasing the active document, suppresses intermediate selection activation, and
+reports rejection while retaining the document, selected text and paused tail.
+Root source count remains unrestricted; the limit applies to each merged group.
+
+Four model capacity cases and a headless rejected-close/copy/close-all journey
+cover the change. The UI fixture initially needed its helper/button names fixed,
+the nested container resolved through its parent, and timestamped log input:
+the initial raw strings yielded zero merged rows under the preserved Core rule.
+Temporary diagnostics were removed; no production merge rule or timeout changed.
+Final focused suite: 40 passed, zero failures/skips. Core SourceGroupTest:
+4 passed, zero failures/skips.
+
+The full modern solution run passed 81 Archiver tests and 249/250 Avalonia tests.
+All 39 SourceGroupsTest and all 88 SourcesTest cases passed, including the close
+regression. The failing independent SourceDocumentsTest case was
+ManyConfiguredFilesTailIndependentlyAndReleaseTheirHandlesOnClosure: immediate
+exclusive reopen of reader-39.log after lease disposal reported a sharing
+violation. This new reader-cleanup observation remains unresolved for T026;
+the full solution is not green and T032/US1 acceptance remains open.
+Native focus/clipboard failures, physical drag acceptance, performance and
+shipping restart persistence were not revalidated by this headless checkpoint.
+
+Evidence under ignored artifacts/migration/: t023-promotion-red.log/TRX,
+t023-promotion-green.log/TRX, t023-promotion-ui*.log/TRX,
+t023-promotion-final-focused.log/TRX, t023-core-group.log/TRX and
+t023-modern-final.log/TRX. Production changes are confined to group removal
+validation and its close-command caller; Core production sources are unchanged.

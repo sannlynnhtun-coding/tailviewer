@@ -1063,16 +1063,23 @@ public sealed class MainWindow : Window
     private async Task CloseCurrentSourceAsync()
     {
         if (_closed || _sourceTree.SelectedItem is not DataSource source || !_workspace.Contains(source.Id)) return;
+        SaveViewState();
+        _changingSourceSelection = true;
+        try { _workspace.Remove(source.Id); }
+        catch (ArgumentException error)
+        {
+            _status.Text = _operationError = "Cannot close source: " + error.Message;
+            return;
+        }
+        finally { _changingSourceSelection = false; }
         ++_openRequest;
         _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
-        SaveViewState();
         ClearDocument();
         SelectSource(null);
         if (_folders.Remove(source.Id, out var folder)) folder.Dispose();
         if (_folderChildren.Remove(source.Id, out var children))
             foreach (var child in children) _sourceStates.Remove(child.Id);
-        _workspace.Remove(source.Id);
         PruneDocuments();
         ConfigureReaders();
         _sourceStates.Remove(source.Id);

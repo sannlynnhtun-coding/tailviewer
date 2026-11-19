@@ -173,6 +173,9 @@ public sealed class SourcesViewModel
         var source = Find(id);
         var parent = source.ParentId == DataSourceId.Empty ? null : Find(source.ParentId);
         var container = parent == null ? Roots : _groups[parent.Id];
+        if (parent != null && _groups.TryGetValue(id, out var promoted) &&
+            container.Count - 1 + promoted.Count > LogEntrySourceId.MaxSources)
+            throw new ArgumentException("Closing this group would exceed its parent's source limit. Move members out first.");
         var index = container.IndexOf(source);
         var excluded = parent?.ExcludedDataSources.Contains(source.Id) == true;
         parent?.ExcludedDataSources.Remove(source.Id);

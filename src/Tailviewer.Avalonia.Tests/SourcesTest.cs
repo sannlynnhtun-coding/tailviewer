@@ -2013,6 +2013,50 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task RejectedNestedGroupCloseKeepsTheActiveDocumentSelectionAndPausedTail()
+    {
+        const string firstLine = "2026-11-20 12:00:01.000 INFO first";
+        File.WriteAllText(_first, firstLine);
+        File.WriteAllText(_second, "2026-11-20 12:00:02.000 INFO second");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = workspace.All.Single(source => source.File == _first);
+            var second = workspace.All.Single(source => source.File == _second);
+            var nested = workspace.GroupWith(first.Id, second.Id);
+            var parent = workspace.AddGroup();
+            workspace.AddToGroup(nested.Id, parent.Id);
+            for (var index = 1; index < LogEntrySourceId.MaxSources; ++index)
+                workspace.AddToGroup(workspace.AddGroup().Id, parent.Id);
+            await WaitUntil(() => tree.ContainerFromItem(parent) is TreeViewItem);
+            ((TreeViewItem)tree.ContainerFromItem(parent)!).IsExpanded = true;
+            await WaitUntil(() => ((TreeViewItem)tree.ContainerFromItem(parent)!).ContainerFromItem(nested) is TreeViewItem);
+            tree.SelectedItem = nested;
+            await WaitUntil(() => Rows(window).ItemCount == 2 &&
+                window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == nested.Id);
+            await Copy(window, 0, firstLine);
+            var document = window.GetVisualDescendants().OfType<NavigationView>().Single().Document;
+            var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>()
+                .Any(text => text.Text?.StartsWith("Cannot close source:") == true));
+            workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
+            tree.SelectedItem.Should().BeSameAs(nested);
+            window.GetVisualDescendants().OfType<NavigationView>().Single().Document.Should().BeSameAs(document);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await CopySelected(window, firstLine);
+            Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            workspace.All.Should().BeEmpty();
+            Rows(window).ItemCount.Should().Be(0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task RemovingAGroupMemberPromotesTheRemainingFileWithoutClosingEitherLog()
     {
         var window = new MainWindow();

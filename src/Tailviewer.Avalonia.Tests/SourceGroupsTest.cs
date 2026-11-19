@@ -397,5 +397,49 @@ public sealed class SourceGroupsTest
         workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
     }
 
+    [TestCase(false, false)]
+    [TestCase(false, true)]
+    [TestCase(true, false)]
+    [TestCase(true, true)]
+    public void ClosingNestedGroupChecksPromotionCapacityBeforeChangingMembership(bool root, bool overflow)
+    {
+        var workspace = new SourcesViewModel();
+        var parent = root ? null : workspace.AddGroup();
+        var nested = workspace.AddGroup();
+        if (parent != null) workspace.AddToGroup(nested.Id, parent.Id);
+        var members = new[] { File("nested-first.log"), File("nested-second.log") };
+        foreach (var member in members)
+        {
+            workspace.Roots.Add(member);
+            workspace.AddToGroup(member.Id, nested.Id);
+        }
+        for (var index = 0; index < LogEntrySourceId.MaxSources - (overflow ? 1 : 2); ++index)
+        {
+            var sibling = File($"sibling-{index}.log");
+            workspace.Roots.Add(sibling);
+            if (parent != null) workspace.AddToGroup(sibling.Id, parent.Id);
+        }
+        nested.ExcludedDataSources.Add(members[1].Id);
+        parent?.ExcludedDataSources.Add(nested.Id);
+        var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
+        if (overflow && parent != null)
+        {
+            Assert.Throws<ArgumentException>(() => workspace.Remove(nested.Id));
+            workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
+            workspace.GetChildren(nested.Id).Should().Equal(members);
+            parent!.ExcludedDataSources.Should().Equal(nested.Id);
+            nested.ExcludedDataSources.Should().Equal(members[1].Id);
+        }
+        else
+        {
+            workspace.Remove(nested.Id);
+            workspace.Contains(nested.Id).Should().BeFalse();
+            var promoted = parent == null ? workspace.Roots : workspace.GetChildren(parent.Id);
+            promoted.Take(2).Should().Equal(members);
+            promoted.Count().Should().Be(LogEntrySourceId.MaxSources + (overflow ? 1 : 0));
+            if (parent != null) parent.ExcludedDataSources.Should().BeEquivalentTo(members.Select(member => member.Id));
+        }
+    }
+
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }
