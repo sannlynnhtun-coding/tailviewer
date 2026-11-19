@@ -51,6 +51,7 @@ public sealed class MainWindow : Window
     private readonly FileSourceStates _fileSourceStates;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private LogDocument? _document;
+    private readonly Dictionary<DataSourceId, (System.Text.Encoding? Encoding, LogDocument Document)> _documents = new();
     private string? _operationError;
     private bool _closed;
     private bool _changingSourceSelection;
@@ -308,7 +309,8 @@ public sealed class MainWindow : Window
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
             _timer.Stop();
-            _document?.Dispose();
+            foreach (var entry in _documents.Values) entry.Document.Dispose();
+            _documents.Clear();
             _navigation.BindDocument(null);
             _textSelection.BindDocument(null);
             _quickNavigation.Dismiss();
@@ -598,13 +600,13 @@ public sealed class MainWindow : Window
                 }
                 SaveFollowState();
                 _rows.ItemsSource = null;
-                _document?.Dispose();
                 _document = null;
                 _navigation.BindDocument(null);
                 _textSelection.BindDocument(null);
                 _quickNavigation.Dismiss();
                 if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
                 SelectSource(source);
+                PruneDocuments();
                 _operationError = null;
                 _path.Text = path;
                 Title = $"{Path.GetFileName(path)} — Tailviewer prototype";
@@ -617,7 +619,10 @@ public sealed class MainWindow : Window
             selected = source;
             _openingSource = source.Id;
             var encoding = _encoding.Settings.DefaultEncoding;
-            var document = await Task.Run(() => new LogDocument(source, encoding));
+            _documents.TryGetValue(source.Id, out var cached);
+            var document = cached.Document != null && Equals(cached.Encoding, encoding) &&
+                string.Equals(cached.Document.FileName, path, comparison)
+                ? cached.Document : await Task.Run(() => new LogDocument(source, encoding));
             if (_closed || request != _openRequest)
             {
                 document.Dispose();
@@ -631,7 +636,8 @@ public sealed class MainWindow : Window
             }
             SaveFollowState();
             _rows.ItemsSource = null;
-            _document?.Dispose();
+            if (cached.Document != null && !ReferenceEquals(cached.Document, document)) cached.Document.Dispose();
+            _documents[source.Id] = (encoding, document);
             _document = document;
             _navigation.BindDocument(document);
             _textSelection.BindDocument(document);
@@ -644,6 +650,7 @@ public sealed class MainWindow : Window
             _path.Text = document.FileName;
             Title = $"{Path.GetFileName(document.FileName)} — Tailviewer prototype";
             RefreshDocument();
+            PruneDocuments();
         }
         catch (Exception ex)
         {
@@ -683,8 +690,8 @@ public sealed class MainWindow : Window
     private void ClearDocument()
     {
         _rows.ItemsSource = null;
-        _document?.Dispose();
         _document = null;
+        PruneDocuments();
         _navigation.BindDocument(null);
         _textSelection.BindDocument(null);
         _quickNavigation.Dismiss();
@@ -708,6 +715,7 @@ public sealed class MainWindow : Window
         if (_folderChildren.Remove(source.Id, out var children))
             foreach (var child in children) _sourceStates.Remove(child.Id);
         _workspace.Remove(source.Id);
+        PruneDocuments();
         _fileSourceStates.SetSources(_workspace.All);
         _sourceStates.Remove(source.Id);
         UpdateCloseCommands();
@@ -733,6 +741,7 @@ public sealed class MainWindow : Window
         _folders.Clear();
         _folderChildren.Clear();
         _workspace.Clear();
+        PruneDocuments();
         _fileSourceStates.SetSources(_workspace.All);
         _sourceStates.Clear();
         UpdateCloseCommands();
@@ -763,6 +772,13 @@ public sealed class MainWindow : Window
     {
         if (_closed) return;
         _fileSourceStates.SetSources(_workspace.All);
+        foreach (var (id, entry) in _documents)
+        {
+            if (ReferenceEquals(entry.Document, _document)) continue;
+            entry.Document.Refresh();
+            _sourceStates[id] = entry.Document.Error ?? (entry.Document.IsLoading ? "Loading…" :
+                entry.Document.Lines.Count == 0 ? "No log lines." : null);
+        }
         if (_document != null && _document.SourceId != _openingSource)
             _sourceStates[_document.SourceId] = _document.Error ?? (_document.IsLoading ? "Loading…" :
                 _document.Lines.Count == 0 ? "No log lines." : null);
@@ -775,7 +791,8 @@ public sealed class MainWindow : Window
                 status = folder.Error ?? (_folderChildren[source.Id].Count == 0 ? "No matching files." : null);
             else if (SourcesViewModel.IsGroup(source))
                 status = _workspace.GetChildren(source.Id).Any() ? null : "No sources in this group.";
-            else if (source.File != null && source.Id != _document?.SourceId && _fileSourceStates.TryGetStatus(source.Id, out var observed))
+            else if (source.File != null && source.Id != _document?.SourceId && _fileSourceStates.TryGetStatus(source.Id, out var observed) &&
+                     (observed != null || !_documents.ContainsKey(source.Id)))
                 status = observed;
             view.UpdateStatus(status);
         }
@@ -787,6 +804,18 @@ public sealed class MainWindow : Window
         var previous = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
             .FirstOrDefault(source => source.Id == _document.SourceId);
         if (previous != null) previous.FollowTail = _follow.IsChecked == true;
+    }
+
+    private void PruneDocuments()
+    {
+        var retained = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
+            .Select(source => source.Id).ToHashSet();
+        foreach (var (id, entry) in _documents.ToArray())
+            if (id != _document?.SourceId && !retained.Contains(id))
+            {
+                _documents.Remove(id);
+                entry.Document.Dispose();
+            }
     }
 
     private void RefreshFolder(DataSourceId id)
@@ -807,6 +836,7 @@ public sealed class MainWindow : Window
             else item = desired[index];
             children.Insert(index, item);
         }
+        PruneDocuments();
     }
 
     private void ScrollToTail()

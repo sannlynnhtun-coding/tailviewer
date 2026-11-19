@@ -724,3 +724,61 @@ window-level active-drag handler was added; focused cases and the strengthened
 native pointer/hover/edge cases pass afterward. Full validation details and the
 separate native baseline are in [native entry-point tests](native-entry-point-tests.md).
 T023 remains partial for its remaining integration and acceptance scope.
+
+## Retained open-file documents (T022/T026)
+
+Legacy sources retain their reader/index while another source is visible. The
+Avalonia shell instead disposed its only document on every switch. A new
+regression failed because appending to an inactive file never advanced its
+existing line collection (t022-inactive-document-red.log/TRX).
+
+MainWindow now retains successfully opened documents by configured source ID
+and decoder choice. The existing timer refreshes inactive document collections
+and status while the active view/copy/navigation remains bound to one document.
+Returning with the same decoder reuses the existing index and bounded page
+cache; a changed decoder replaces/disposes that source's previous document.
+Window close and Close all dispose all retained documents. Closing a file or
+folder prunes documents no longer configured; removed folder children are
+pruned once they are no longer active. No new dependency or reader abstraction
+was added. Core's existing generation fences remain responsible for rejecting
+old reads after replacement/disposal.
+
+New headless cases exercise inactive append before reactivation, exact document
+reuse, paused follow, Close all followed by fresh identity/document, same-size
+same-mtime inactive rewrite of cached text with stale selection cleared, and a
+decoder change while the affected source is inactive. Existing source tests
+cover unavailable/access/empty state and folder/close/racing-open paths.
+
+The first focused integration run passed 57 cases but exposed one regression:
+the reader's missing-file explanation replaced the established cached
+"File is unavailable." status. Availability failures/empty status now retain
+precedence while nonempty accessible files show reader progress/errors.
+A subsequent run passed 59 cases and failed the new encoding fixture because
+it looked up a nonexistent "Open file" automation name; it now waits through
+the existing "Open folder" enabled-state helper. Neither failure was hidden or
+resolved by extending timeouts.
+
+This retains documents that have actually been opened. Newly discovered folder
+members still use availability probes until first activation; parser/aggregate
+output and automatic activation of every discovered reader remain pending.
+Each retained source keeps its existing index/scheduler, so many-source memory,
+CPU and responsiveness still require the planned concurrency acceptance.
+Selection/viewport restoration across switches and shipping disk-profile
+persistence are separate remaining tasks. T022/T026 and US1 remain incomplete.
+
+Final review also caught a cache-key edge: changing a configured file path while
+retaining its source ID could return the previous file's document. A separate
+headless regression failed before adding canonical-path comparison to the
+existing ID/decoder check (t022-cached-path-red.log/TRX). It now verifies exact
+new-file copy and retained ID with a different document collection.
+
+Validation: the modern solution passes 81 Archiver + 181 Avalonia tests without
+failures/skips before that final path guard; the final affected SourcesTest suite
+passes 56/56, including the additional path case, without failures/skips.
+Native multi-file picker/arguments, relative-path handoff and Ctrl+G pass 4/4
+before the path-only guard. Evidence is under artifacts/migration:
+t022-inactive-document-modern.log/TRX, t022-inactive-document-final.log/TRX and
+t022-inactive-document-native.log/TRX. Earlier failed focused/recheck logs are
+retained. Core code did not change, so its full suite was not repeated; the full
+native/performance matrix was not repeated after changing retained-reader
+lifecycle. Existing multi-target legacy NU1902 warnings remain visible.

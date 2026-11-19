@@ -367,6 +367,128 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task InactiveSourceKeepsIndexingAndReusesItsDocumentWhenSelectedAgain()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            var firstLines = (global::Avalonia.Collections.AvaloniaList<int>)Rows(window).ItemsSource!;
+            await Copy(window, 0, "first");
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            File.AppendAllText(_first, "\nappended while inactive");
+            await WaitUntil(() => firstLines.Count == 3);
+            ((DataSource)tree.SelectedItem!).File.Should().Be(_second);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            Rows(window).ItemsSource.Should().BeSameAs(firstLines);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 2, "appended while inactive");
+            Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            tree.ItemCount.Should().Be(0);
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            Rows(window).ItemsSource.Should().NotBeSameAs(firstLines);
+            ((DataSource)tree.SelectedItem!).Id.Should().NotBe(first.Id);
+            await Copy(window, 2, "appended while inactive");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ReturningToAnInactiveRewrittenSourceDoesNotPublishItsOldCachedText()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            var firstLines = Rows(window).ItemsSource;
+            await Copy(window, 0, "first");
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var timestamp = File.GetLastWriteTimeUtc(_first);
+            var reset = false;
+            ((global::Avalonia.Collections.AvaloniaList<int>)firstLines!).CollectionChanged += (_, args) =>
+                reset |= args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset ||
+                    args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove;
+            File.WriteAllText(_first, "other\n  original spaces  ");
+            File.SetLastWriteTimeUtc(_first, timestamp);
+            await WaitUntil(() => reset);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            Rows(window).ItemsSource.Should().BeSameAs(firstLines);
+            Rows(window).Selection.SelectedIndexes.Should().BeEmpty();
+            await Copy(window, 0, "other");
+            first.FollowTail.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task AnInactiveDocumentIsReplacedWhenItsEncodingChoiceChanges()
+    {
+        File.WriteAllText(_first, "café", new System.Text.UTF8Encoding(false));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            var firstLines = Rows(window).ItemsSource;
+            await Copy(window, 0, "café");
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1 && window.Title!.Contains("second.log"));
+            var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "us-ascii"));
+            await WaitUntil(() => Command(window, "Open folder").IsEnabled);
+            tree.SelectedItem = first;
+            await WaitUntil(() => window.Title!.Contains("first.log") && Rows(window).ItemCount == 1);
+            Rows(window).ItemsSource.Should().NotBeSameAs(firstLines);
+            await Copy(window, 0, "caf??");
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(first.Id);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ChangingAConfiguredFilePathCannotReuseThePreviousFilesDocument()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            var previousLines = Rows(window).ItemsSource;
+            await Copy(window, 0, "first");
+            await window.OpenFileAsync(_second);
+            var changedPath = Path.Combine(_folder, "changed.log");
+            File.WriteAllText(changedPath, "changed target");
+            first.File = changedPath;
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 1 && window.Title!.Contains("changed.log"));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(first.Id);
+            Rows(window).ItemsSource.Should().NotBeSameAs(previousLines);
+            await Copy(window, 0, "changed target");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs()
     {
         var window = new MainWindow();
