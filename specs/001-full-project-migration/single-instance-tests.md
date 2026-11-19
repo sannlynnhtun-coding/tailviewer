@@ -132,3 +132,18 @@ T025 remains open for real-process crash/timeout behavior, off-screen/hidden
 window handling and the remaining source-task dependencies. No full Core rerun
 was performed because shared Core code did not change. This is an unreleased
 working-tree application change; published alpha artifacts are unchanged.
+
+## Slice 5: native lifecycle contracts
+
+The real shipping entry point now has native evidence for restart after both a
+graceful exit and an owned-process crash, including abandoned-mutex recovery with
+a retained witness handle. An occupied mutex without a listener exercises the
+five-second production connection timeout, visible error window, exit code one
+and preservation of the existing ownership lease. No runtime fix was required.
+
+Focused lifecycle cases pass 3/3; the complete native suite passes all 14 cases
+with no failures/skips. Details and evidence paths are in
+[native-entry-point-tests.md](native-entry-point-tests.md), slice 7. T021's test
+contract is complete. T025 remains open for its implementation dependencies and
+remaining window behavior; no cross-user/session isolation or fully completed
+single-instance migration is claimed.

@@ -294,6 +294,54 @@ public sealed class SourceEntryPointTest
         CopyAndCheck(window, PickerLine);
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void ANewPrimaryCanStartAfterTheOwnedPrimaryExits(bool crash)
+    {
+        var first = StartApplication();
+        SelectSecondLine(first);
+        CopyAndCheck(first);
+        var channel = Tailviewer.Avalonia.SingleApplicationHelper.GetChannelName();
+        // Keep the kernel object alive across a crash so restart exercises abandoned ownership.
+        using var witness = new Mutex(false, channel,
+            new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = true });
+        if (crash) _process!.Kill(entireProcessTree: true);
+        else Assert.That(_process!.CloseMainWindow(), Is.True);
+        Assert.That(_process.WaitForExit(10000), Is.True, "Only the owned primary is stopped.");
+        if (!crash) Assert.That(_process.ExitCode, Is.EqualTo(0));
+        _process.Dispose();
+        _process = null;
+        var restarted = StartApplication();
+        SelectSecondLine(restarted);
+        CopyAndCheck(restarted);
+        SendSecondary();
+        Assert.That(_process!.HasExited, Is.False);
+        Assert.That(restarted.Current.ProcessId, Is.EqualTo(_process.Id));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
+    [Test]
+    public void OccupiedChannelWithoutAListenerShowsAnErrorAndExitsWithoutTakingOwnership()
+    {
+        var channel = Tailviewer.Avalonia.SingleApplicationHelper.GetChannelName();
+        using var occupied = Tailviewer.Avalonia.SingleApplicationHelper.TryAcquire(channel);
+        Assert.That(occupied, Is.Not.Null);
+        var error = StartApplication();
+        Assert.That(error.Current.Name, Is.EqualTo("Tailviewer — connection error"));
+        Assert.That(error.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), Is.Null,
+            "An unresponsive primary must not create a second workspace.");
+        var message = error.FindAll(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text))
+            .Cast<AutomationElement>().FirstOrDefault(element => element.Current.Name.Contains("Cannot contact the existing Tailviewer instance.", StringComparison.Ordinal));
+        Assert.That(message, Is.Not.Null, "The timeout must be visible to the user.");
+        InvokeButton(error, "Close");
+        Assert.That(_process!.WaitForExit(5000), Is.True);
+        Assert.That(_process.ExitCode, Is.EqualTo(1));
+        Assert.That(Tailviewer.Avalonia.SingleApplicationHelper.TryAcquire(channel), Is.Null,
+            "The owned occupancy lease must remain intact after the secondary exits.");
+    }
+
     private void SendSecondary(params string[] paths)
     {
         var start = new ProcessStartInfo(_process!.StartInfo.FileName) { UseShellExecute = false, WorkingDirectory = _folder };

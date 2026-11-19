@@ -247,3 +247,38 @@ T021/T025 remain open for crash/unresponsive-primary/error-window acceptance,
 foreground/off-screen/hidden-window behavior, broader isolation and preceding
 source implementation dependencies. Native service/install/update behavior and
 cross-user/session security were not exercised here.
+
+## Slice 7: primary exit/crash recovery and timeout UI (T021 complete)
+
+Two new native cases close or terminate only the fixture-owned primary, then
+start a new primary, verify original Unicode clipboard text and successfully
+hand off an empty request. A non-owning witness handle retains the named kernel
+mutex across exit; the crash case therefore exercises abandoned ownership rather
+than merely creating a new mutex after the old object disappeared. Graceful exit
+must return zero, and source bytes remain unchanged.
+
+A third case holds an owned user/session lease without a pipe listener. A real
+secondary reaches its production connection deadline, displays an actionable
+connection-error window with no log workspace, and exits one through its Close
+button. The fixture's lease remains held; the app neither takes over nor kills
+its owner. All application handles and clipboard/temp-directory cleanup use the
+existing ownership boundaries.
+
+New focused cases: 3 pass / 0 failed / 0 skipped. Complete native entry-point
+suite: 14 pass / 0 failed / 0 skipped, covering both startup-file variants,
+picker open/cancel/multiple paths, folder picker open/cancel, cross-process OLE
+file/folder and invalid-text drops, Unicode clipboard, relative-path handoff,
+restore, graceful/crash restart and unresponsive-channel errors. No OLE helper,
+timeout or ownership assertion was changed to obtain this result. The preceding
+full-run occlusion failure remains recorded in slice 6 as a desktop flakiness
+observation; this new run is a complete passing checkpoint.
+
+Evidence: artifacts/migration/t025-lifecycle-native.log,
+t025-lifecycle-full.log and t021-native/t025-lifecycle*.trx. Production code did
+not change, so modern/Core suites were not repeated for these test additions.
+Post-run audit found no remaining app/testhost processes or native fixture dirs.
+
+T021 is complete as a native test-contract task with its T017 dependency met.
+This is not completion of T024/T025 or US1: source/group implementation and
+foreground/off-screen/hidden-window behavior remain open. It does not establish
+cross-user/session security, installer/service behavior or whole-app accessibility.

@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T020 complete. File/folder/group lifecycle and navigation/selection contracts are verified. T020 recovery contracts pass, including hidden middle rewrites and BOM changes; T021/T024 native arguments/pickers/clipboard and cross-process OLE file/folder drop cases pass; single-instance file/restore handoff passes; crash/timeout scenarios remain pending; T029/T030 implementation dependencies and broader acceptance remain open. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T021 complete. File/folder/group lifecycle and navigation/selection contracts are verified. T020 recovery contracts pass, including hidden middle rewrites and BOM changes; T021 native arguments/pickers/clipboard/OLE and single-instance handoff/restore/restart/timeout contracts pass (14 cases); T024/T025 implementation dependencies and remaining window behavior stay open; T029/T030 implementation dependencies and broader acceptance remain open. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -86,7 +86,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 - [X] T018 [P] [US1] Add file/folder/group/open/close/switch/missing-state tests in `src/Tailviewer.Avalonia.Tests/SourcesTest.cs`, including cycles/duplicates and persisted IDs. **Depends**: T017.
 - [X] T019 [P] [US1] Add go-to-line/quick-navigation/character-and-line selection tests in `src/Tailviewer.Avalonia.Tests/NavigationTest.cs`; expected copy preserves original text/source order. **Depends**: T017.
 - [X] T020 [P] [US1] Extend `src/Tailviewer.Core.Tests/Sources/Text/Streaming/StreamingTextLogSourceTest.cs` with middle-only same-size rewrite/indistinguishable metadata, truncate/regrow and changed-encoding fixtures; assert final contents and stale-result rejection. **Depends**: T017.
-- [ ] T021 [P] [US1] Add native picker/drop/clipboard/single-instance scenarios in `src/Tailviewer.Acceptance.Tests/Migration/SourceEntryPointTest.cs`; own test processes/temp paths, keep current tooling until project port. **Depends**: T017.
+- [X] T021 [P] [US1] Add native picker/drop/clipboard/single-instance scenarios in `src/Tailviewer.Acceptance.Tests/Migration/SourceEntryPointTest.cs`; own test processes/temp paths, keep current tooling until project port. **Depends**: T017.
 
 ### Implementation / verification
 
