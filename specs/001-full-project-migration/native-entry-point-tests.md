@@ -410,3 +410,10 @@ evidence of a passing current native run. No production code changed in this
 slice; this desktop observation failure remains to diagnose. Both fixtures
 completed cleanup and left no native fixture directories. The Archiver suite
 was independently rechecked at 81 pass / zero failures or skips in this turn.
+
+Follow-up EOF fixture repair: reacquire the third realized row inside each
+observation instead of holding the first peer across asynchronous page updates.
+The same EOF text, Ctrl+A and exact trailing-newline copy assertions now pass
+1/1 (t027-eof-peer.log/TRX), with no timeout/assertion relaxation or production
+change. This addresses the stale-peer observation path; it does not establish
+five-minute foreground performance acceptance.

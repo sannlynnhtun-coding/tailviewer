@@ -117,9 +117,16 @@ public sealed partial class SourceEntryPointTest
             var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
             return items.Count == 3 ? items[2] : null;
         }, "The complete terminal newline must have its indexed EOF row.");
-        WaitFor(() => last.FindAll(TreeScope.Descendants,
+        WaitFor(() =>
+        {
+            // Reacquire the realized row after asynchronous page updates replace its peer.
+            var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
+            if (items.Count != 3) return null;
+            last = items[2];
+            return last.FindAll(TreeScope.Descendants,
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
-            .Any(text => text.Current.Name.Trim() == "3") ? last : null,
+                .Any(text => text.Current.Name.Trim() == "3") ? last : null;
+        },
             "The EOF row must render its line number without a permanent Loading label.");
         NativeKeyboard.SelectAll(_process!, rows);
         CopyAndCheck(window, string.Join(Environment.NewLine, "first", SelectedLine, ""));
