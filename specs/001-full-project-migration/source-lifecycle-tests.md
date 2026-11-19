@@ -423,3 +423,31 @@ t022-grouped-folder-focused.log and t022-grouped-folder-modern.log. T022/T023
 remain partial; native folder-group menus/accessibility and the full Core suite
 were not rerun for this UI activation guard. Pointer tree drag and aggregation
 remain separate pending work.
+
+## Group-on-file operation and menu slice (T023)
+
+Legacy DataSourcesViewModel.Drag creates a group at the destination's root
+position, with the dragged source first and destination second. Dropping onto
+an existing group/member instead reuses that group. SourcesViewModel.GroupWith
+now implements those rules using AddGroup, MoveRelative and AddToGroup; existing
+validation, source limits, exclusion cleanup and old-group dissolution are reused.
+Self targets, folder targets/sources and dragged groups are rejected before
+creating any group, matching the legacy grouping gesture policy.
+
+The source menu exposes Group with for other ungrouped file/custom sources;
+existing groups remain available through Add to group. Creating a pair selects
+its group, as the legacy grouping operation does. A headless menu regression
+failed first because the command was absent. It now verifies ordered children,
+stable identities, selecting/copying a member and unchanged original file bytes.
+Six model cases pin both root directions, destination position, insertion-order
+navigation, ordered configuration snapshots, old-sibling promotion, existing
+group/member reuse, idempotence and invalid-target atomicity.
+
+Complete modern solution: 81 Archiver + 159 Avalonia pass, no failures/skips.
+Ignored evidence: artifacts/migration/t023-pair-red.log,
+t023-pair-focused.log and t023-pair-modern.log. No dependencies were added.
+
+Pointer tree gesture routing is not implemented by this menu/model slice.
+Native drag/menu accessibility and timestamp-aware merged rendering remain open;
+group selection still asks for an individual member. Full Core/native suites
+were not rerun for these UI/model changes. T023 and full migration stay open.

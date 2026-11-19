@@ -463,6 +463,24 @@ public sealed class MainWindow : Window
             }
             add.IsEnabled &= add.Items.Count > 0;
             menu.Items.Add(add);
+            if (!SourcesViewModel.IsGroup(source) && source.LogFileFolderPath == null)
+            {
+                var pair = new MenuItem { Header = "Group with" };
+                foreach (var targetSource in _sources.Where(item => item.Id != source.Id && !SourcesViewModel.IsGroup(item) && item.LogFileFolderPath == null))
+                {
+                    var target = new MenuItem { Header = targetSource.File ?? targetSource.DisplayName ?? "Custom source", Tag = targetSource.Id };
+                    target.Click += async (_, _) =>
+                    {
+                        if (_closed) return;
+                        try { await ActivateSourceAsync(_workspace.GroupWith(source.Id, targetSource.Id)); }
+                        catch (Exception error) when (error is XmlException || error is ArgumentException)
+                        { _status.Text = _operationError = "Cannot group sources: " + error.Message; }
+                    };
+                    pair.Items.Add(target);
+                }
+                pair.IsEnabled = pair.Items.Count > 0;
+                menu.Items.Add(pair);
+            }
             if (source.ParentId != DataSourceId.Empty)
             {
                 var parent = _workspace.All.Single(item => item.Id == source.ParentId);

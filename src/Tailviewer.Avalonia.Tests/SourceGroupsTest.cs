@@ -324,5 +324,78 @@ public sealed class SourceGroupsTest
         workspace.GetChildren(full.Id).Count().Should().Be(LogEntrySourceId.MaxSources);
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void PairGroupingUsesDestinationPositionAndLegacyMemberOrder(bool reversedRoots)
+    {
+        var workspace = new SourcesViewModel();
+        var before = File("before.log");
+        var after = File("after.log");
+        var source = File("source.log");
+        var target = File("target.log");
+        workspace.Roots.AddRange(reversedRoots ? new[] { before, target, source, after } : new[] { before, source, target, after });
+        var group = workspace.GroupWith(source.Id, target.Id);
+        workspace.Roots.Should().Equal(before, group, after);
+        workspace.GetChildren(group.Id).Should().Equal(source, target);
+        source.ParentId.Should().Be(group.Id);
+        target.ParentId.Should().Be(group.Id);
+        workspace.GetAdjacentSource(reversedRoots ? target.Id : source.Id, false)!.Id.Should().Be(reversedRoots ? source.Id : target.Id);
+        var settings = new DataSourceSettings();
+        settings.AddRange(workspace.All);
+        new SourceConfiguration(settings).GetMembers(group.Id).Select(item => item.Id).Should().Equal(source.Id, target.Id);
+    }
+
+    [Test]
+    public void PairGroupingTransfersAMemberAndPromotesItsOldSibling()
+    {
+        var workspace = new SourcesViewModel();
+        var previous = workspace.AddGroup();
+        var source = File("source.log");
+        var remaining = File("remaining.log");
+        var target = File("target.log");
+        workspace.Roots.AddRange(new[] { source, remaining, target });
+        workspace.AddToGroup(source.Id, previous.Id);
+        workspace.AddToGroup(remaining.Id, previous.Id);
+        workspace.SetExcluded(source.Id, true);
+        var group = workspace.GroupWith(source.Id, target.Id);
+        workspace.Roots.Should().Equal(remaining, group);
+        workspace.GetChildren(group.Id).Should().Equal(source, target);
+        workspace.Contains(previous.Id).Should().BeFalse();
+        remaining.ParentId.Should().Be(DataSourceId.Empty);
+        previous.ExcludedDataSources.Should().NotContain(source.Id);
+        group.ExcludedDataSources.Should().BeEmpty();
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void GroupingOntoAGroupOrItsMemberReusesTheExistingGroup(bool targetMember)
+    {
+        var workspace = new SourcesViewModel();
+        var group = workspace.AddGroup();
+        var source = File("source.log");
+        var target = File("target.log");
+        workspace.Roots.AddRange(new[] { source, target });
+        workspace.AddToGroup(target.Id, group.Id);
+        workspace.GroupWith(source.Id, targetMember ? target.Id : group.Id).Should().BeSameAs(group);
+        workspace.GroupWith(source.Id, target.Id).Should().BeSameAs(group);
+        workspace.Roots.Should().Equal(group);
+        workspace.GetChildren(group.Id).Should().Equal(target, source);
+    }
+
+    [Test]
+    public void InvalidPairTargetsAreRejectedBeforeCreatingAnyGroup()
+    {
+        var workspace = new SourcesViewModel();
+        var group = workspace.AddGroup();
+        var file = File("source.log");
+        var folder = new DataSource { Id = DataSourceId.CreateNew(), LogFileFolderPath = "missing-folder" };
+        workspace.Roots.AddRange(new[] { file, folder });
+        var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
+        foreach (var pair in new[] { (file.Id, file.Id), (group.Id, file.Id), (folder.Id, file.Id),
+                     (file.Id, folder.Id), (file.Id, DataSourceId.CreateNew()) })
+            Assert.Throws<ArgumentException>(() => workspace.GroupWith(pair.Item1, pair.Item2));
+        workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
+    }
+
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }

@@ -1138,6 +1138,46 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task GroupWithFileCreatesAnOrderedGroupAtTheDestinationAndKeepsOriginalFiles()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = tree.Items.OfType<DataSource>().First();
+            var second = (DataSource)tree.SelectedItem!;
+            await WaitUntil(() => tree.ContainerFromItem(second) is TreeViewItem item && item.ContextMenu != null);
+            var container = (TreeViewItem)tree.ContainerFromItem(second)!;
+            var menu = container.ContextMenu!;
+            container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+            try
+            {
+                await WaitUntil(() => menu.IsOpen);
+                var pair = menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Header, "Group with"));
+                pair.Should().NotBeNull("because dropping a file onto another file creates a new ordered group");
+                pair!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, first.Id))
+                    .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            }
+            finally { menu.Close(); }
+            var workspace = (SourcesViewModel)window.DataContext!;
+            await WaitUntil(() => tree.ItemCount == 1 && tree.SelectedItem is DataSource selected && SourcesViewModel.IsGroup(selected));
+            var group = (DataSource)tree.SelectedItem!;
+            group.Id.Should().NotBe(first.Id).And.NotBe(second.Id);
+            workspace.GetChildren(group.Id).Should().Equal(second, first);
+            first.ParentId.Should().Be(group.Id);
+            second.ParentId.Should().Be(group.Id);
+            tree.SelectedItem = second;
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
     private static string? SourceStatus(TreeView tree, DataSource source) =>
         (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;

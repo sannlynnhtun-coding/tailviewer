@@ -88,6 +88,25 @@ public sealed class SourcesViewModel
         Reparent(member, groupId, _groups[groupId], _groups[groupId].Count);
     }
 
+    public DataSource GroupWith(DataSourceId id, DataSourceId targetId)
+    {
+        var source = Find(id);
+        var target = Find(targetId);
+        if (id == targetId || IsGroup(source) || source.LogFileFolderPath != null || target.LogFileFolderPath != null)
+            throw new ArgumentException("Only distinct file/custom sources can be grouped onto a source or group.");
+        if (IsGroup(target) || target.ParentId != DataSourceId.Empty)
+        {
+            var parent = IsGroup(target) ? target : Find(target.ParentId);
+            AddToGroup(id, parent.Id);
+            return parent;
+        }
+        var group = AddGroup();
+        MoveRelative(group.Id, target.Id, false);
+        AddToGroup(source.Id, group.Id);
+        AddToGroup(target.Id, group.Id);
+        return group;
+    }
+
     public void MoveRelative(DataSourceId id, DataSourceId targetId, bool after)
     {
         var source = Find(id);
