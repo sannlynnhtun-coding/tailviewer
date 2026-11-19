@@ -560,6 +560,16 @@ public sealed class MainWindow : Window
             };
             containing.Click += async (_, _) => await OpenContainingFoldersAsync(source);
             menu.Items.Add(containing);
+            var lineNumbers = new MenuItem { Header = "Show line numbers", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.ShowLineNumbers };
+            lineNumbers.Click += (_, _) =>
+            {
+                if (_closed || !_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Any(item => ReferenceEquals(item, source))) return;
+                source.ShowLineNumbers = !source.ShowLineNumbers;
+                lineNumbers.IsChecked = source.ShowLineNumbers;
+                if (_document?.SourceId == source.Id) _document.SetShowLineNumbers(source.ShowLineNumbers);
+                _textSelection.Refresh();
+            };
+            menu.Items.Add(lineNumbers);
             var singleLine = new MenuItem { Header = "Single Line", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.IsSingleLine };
             ToolTip.SetTip(singleLine, "Treat every single line as a separate log entry");
             singleLine.Click += async (_, _) =>
@@ -947,6 +957,7 @@ public sealed class MainWindow : Window
 
     private void ShowDocument(DataSource source, LogDocument document, long request, string? path, string? name)
     {
+        document.SetShowLineNumbers(source.ShowLineNumbers);
         _document = document;
         _navigation.BindDocument(document);
         _textSelection.BindDocument(document);

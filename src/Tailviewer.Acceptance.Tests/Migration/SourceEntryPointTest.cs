@@ -107,6 +107,34 @@ public sealed partial class SourceEntryPointTest
     }
 
     [Test]
+    public void NativeLineNumberTogglePreservesOriginalSelectionAndCopy()
+    {
+        var window = StartApplication();
+        SelectSecondLine(window);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        var source = WaitFor(() => tree.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.NameProperty, _path)), "The owned source must be selectable.");
+        foreach (var hidden in new[] { true, false })
+        {
+            NativeKeyboard.OpenContextMenu(_process!, source);
+            var condition = new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+                new PropertyCondition(AutomationElement.NameProperty, "Show line numbers"));
+            var command = WaitFor(() => window.FindFirst(TreeScope.Descendants, condition) ??
+                AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, _process!.Id))
+                    .Cast<AutomationElement>().Select(root => root.FindFirst(TreeScope.Subtree, condition)).FirstOrDefault(item => item != null),
+                "The keyboard context menu must expose line-number visibility.");
+            ((InvokePattern)command.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            WaitFor(() => window.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .FirstOrDefault(item => hidden ? item.Current.Name == SelectedLine : item.Current.Name.TrimStart() == "2  " + SelectedLine),
+                "The original selected line must render with the chosen number visibility.");
+            CopyAndCheck(window);
+        }
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
+    [Test]
     public void NativeSystemCodePageChoiceDecodesAndCopiesOriginalText()
     {
         var encoding = CodePagesEncodingProvider.Instance.GetEncoding(0) ?? Encoding.Default;

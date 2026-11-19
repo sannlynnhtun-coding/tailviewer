@@ -27,6 +27,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     private int _reset;
     private readonly SourceConfiguration _configuration;
     private string? _readError;
+    private bool _showLineNumbers;
 
     public string FileName { get; }
     public DataSourceId SourceId { get; }
@@ -47,6 +48,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         {
             ArgumentNullException.ThrowIfNull(configuration);
             _singleLine = configuration.IsSingleLine;
+            _showLineNumbers = configuration.ShowLineNumbers;
             _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
             SourceId = configuration.Id;
             FileName = Path.GetFullPath(configuration.File);
@@ -70,6 +72,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
             SourceId = configuration.Id;
             FileName = configuration.LogFileFolderPath ?? configuration.DisplayName ?? "Group";
+            _showLineNumbers = configuration.ShowLineNumbers;
             _group = new SourceGroup(_scheduler);
             _group.Configure(configuration, members);
             _source = _group.LogSource;
@@ -132,11 +135,18 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         {
             if (_pages.Count >= MaxPages)
                 _pages.Remove(_pages.Keys.First());
-            rows = Enumerable.Range(page * PageSize, PageSize).Select(i => new LogLine(i)).ToArray();
+            rows = Enumerable.Range(page * PageSize, PageSize).Select(i => new LogLine(i, _showLineNumbers)).ToArray();
             _pages.Add(page, rows);
             _ = LoadPageAsync(page, rows);
         }
         return rows[index % PageSize];
+    }
+
+    internal void SetShowLineNumbers(bool visible)
+    {
+        if (_showLineNumbers == visible) return;
+        _showLineNumbers = visible;
+        foreach (var row in _pages.Values.SelectMany(rows => rows)) row.SetShowLineNumbers(visible);
     }
 
     private async Task LoadPageAsync(int page, LogLine[] rows)
@@ -226,12 +236,20 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     }
 }
 
-public sealed class LogLine(int index) : INotifyPropertyChanged
+public sealed class LogLine(int index, bool showLineNumbers = true) : INotifyPropertyChanged
 {
+    private bool _showLineNumbers = showLineNumbers;
     public int Index { get; } = index;
     public string? Text { get; private set; }
-    public string DisplayText => $"{Index + 1,7}  {Text ?? "Loading…"}";
+    public string DisplayText => _showLineNumbers ? $"{Index + 1,7}  {Text ?? "Loading…"}" : Text ?? "Loading…";
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal void SetShowLineNumbers(bool visible)
+    {
+        if (_showLineNumbers == visible) return;
+        _showLineNumbers = visible;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayText)));
+    }
 
     internal void SetText(string? text)
     {

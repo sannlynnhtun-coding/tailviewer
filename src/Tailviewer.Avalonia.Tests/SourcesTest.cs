@@ -100,6 +100,75 @@ public sealed class SourcesTest
     private string _first = null!;
     private string _second = null!;
 
+    [AvaloniaTest]
+    public Task FileLineNumbersCanBeHiddenWithoutChangingSelection() => LineNumberVisibility("file");
+
+    [AvaloniaTest]
+    public Task FolderLineNumbersCanBeHiddenWithoutChangingSelection() => LineNumberVisibility("folder");
+
+    [AvaloniaTest]
+    public Task GroupLineNumbersCanBeHiddenWithoutChangingSelection() => LineNumberVisibility("group");
+
+    private async Task LineNumberVisibility(string kind)
+    {
+        const string first = "2026-11-20 12:00:01.000 INFO မြန်မာ";
+        const string second = "2026-11-20 12:00:02.000 WARN second";
+        File.WriteAllText(_first, first);
+        File.WriteAllText(_second, second);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var file = workspace.All.Single(source => source.File == _first);
+            var other = workspace.All.Single(source => source.File == _second);
+            var source = file;
+            if (kind == "folder") { await window.OpenFileAsync(_folder); source = (DataSource)tree.SelectedItem!; }
+            else if (kind == "group") source = workspace.GroupWith(file.Id, other.Id);
+            tree.SelectedItem = source;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == source.Id && Rows(window).ItemCount > 0);
+            await Copy(window, 0, first);
+            var document = window.GetVisualDescendants().OfType<NavigationView>().Single().Document!;
+            await WaitUntil(() => document.GetLine(0).Text == first);
+            await ClickSourceMenu(tree, source, "Show line numbers");
+            source.ShowLineNumbers.Should().BeFalse();
+            document.GetLine(0).DisplayText.Should().Be(first);
+            window.GetVisualDescendants().OfType<NavigationView>().Single().Document.Should().BeSameAs(document);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await CopySelected(window, first);
+            Rows(window).Focus();
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, KeyModifiers = KeyModifiers.Alt | KeyModifiers.Shift });
+            await CopySelected(window, "2");
+            await ClickSourceMenu(tree, source, "Show line numbers");
+            source.ShowLineNumbers.Should().BeTrue();
+            document.GetLine(0).DisplayText.Should().EndWith("1  " + first);
+            await CopySelected(window, "2");
+            await ClickSourceMenu(tree, source, "Show line numbers");
+            tree.SelectedItem = other;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == other.Id);
+            await Copy(window, 0, second);
+            other.ShowLineNumbers.Should().BeTrue();
+            tree.SelectedItem = source;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == source.Id);
+            var returned = window.GetVisualDescendants().OfType<NavigationView>().Single().Document!;
+            await WaitUntil(() => returned.GetLine(0).Text == first);
+            returned.GetLine(0).DisplayText.Should().Be(first);
+            var profilePath = Path.Combine(_folder, "line-number-settings.xml");
+            var profile = new ApplicationSettings(profilePath);
+            foreach (var item in workspace.All) profile.DataSources.Add(item.Clone());
+            profile.Save().Should().BeTrue();
+            var restored = new ApplicationSettings(profilePath);
+            restored.Restore();
+            restored.DataSources.Single(item => item.Id == source.Id).ShowLineNumbers.Should().BeFalse();
+            File.ReadAllText(_first).Should().Be(first);
+            File.ReadAllText(_second).Should().Be(second);
+        }
+        finally { window.Close(); }
+    }
+
     [SetUp]
     public void SetUp()
     {

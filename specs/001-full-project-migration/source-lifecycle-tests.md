@@ -1561,3 +1561,37 @@ t043-parser-epoch-core-final.log/TRX and t022-explorer-epoch-native.log/TRX.
 Actual Explorer-window selection acceptance, action-center history/progress,
 help/about/changelog and full migration remain unfinished. No task checklist
 was marked complete by this slice.
+
+## Per-source line-number visibility (T030, partial)
+
+File, discovered-file, folder and group context menus now expose the legacy
+Show line numbers checkbox using DataSource.ShowLineNumbers and its existing
+XML field. The display change updates cached rows and future pages without
+reopening readers, invalidating source revisions or changing the raw text.
+Activation reapplies the current setting to reused documents. Text-selection
+offsets continue to derive from the displayed prefix length, so hiding the
+number does not add/remove characters from copied text.
+
+Three file/folder/group journeys first failed on the absent menu command, then
+passed. They verify retained document/line selection and paused follow, exact
+whole-line and character copy through both toggle directions, independent
+source settings, return activation, XML round-trip and unchanged owned logs.
+The first test draft referenced a nonexistent ApplicationSettings.FileName;
+using the existing explicit profile path corrected that compile error before
+capturing the three behavioral failures.
+
+The modern solution passes 81 Archiver + 217 Avalonia = 298 tests with no
+failures/skips. A new native Windows test passes: keyboard context-menu toggle
+off/on updates the accessible rendered original Burmese line, preserves the
+selected line and copies its exact original contents through the real clipboard.
+It uses the existing owned-process/temp-path/clipboard restoration safeguards.
+
+Evidence under ignored artifacts/migration/: t030-line-numbers-red.log (compile),
+-red-behavior.log/TRX (three missing-menu failures), -green.log/TRX (3/3),
+-modern.log/TRX (298/298) and -native.log/TRX (1/1).
+After the no-op display-update guard, the final navigation/selection and three
+visibility journeys pass 32/32 in -navigation-final.log/TRX.
+Shipping profile save/restore, broader native/performance acceptance and the
+remaining legacy source/column controls are still pending. T030 and the full
+migration remain open; Core production code and dependencies were unchanged,
+so the full Core suite was not rerun for this UI-only change.
