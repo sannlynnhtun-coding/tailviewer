@@ -8,7 +8,35 @@ namespace Tailviewer.Avalonia.ViewModels;
 public sealed class SourcesViewModel
 {
     private readonly Dictionary<DataSourceId, AvaloniaList<DataSource>> _groups = new();
+    private readonly Dictionary<DataSourceId, long> _sourceOrder = new();
+    private long _nextSourceOrder;
     public AvaloniaList<DataSource> Roots { get; } = new();
+
+    public SourcesViewModel()
+    {
+        Roots.CollectionChanged += (_, args) =>
+        {
+            if (args.NewItems == null) return;
+            foreach (DataSource source in args.NewItems)
+                if (!_sourceOrder.ContainsKey(source.Id)) _sourceOrder.Add(source.Id, _nextSourceOrder++);
+        };
+    }
+
+    public IReadOnlyList<DataSourceSuggestionViewModel> FindNavigationMatches(string? term)
+    {
+        if (string.IsNullOrEmpty(term)) return Array.Empty<DataSourceSuggestionViewModel>();
+        var result = new List<DataSourceSuggestionViewModel>();
+        foreach (var source in All.OrderBy(source => _sourceOrder.GetValueOrDefault(source.Id, long.MaxValue)))
+        {
+            var name = source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "";
+            var index = name.IndexOf(term, StringComparison.CurrentCultureIgnoreCase);
+            if (index < 0) continue;
+            // Culture comparisons can match different UTF-16 lengths; never slice beyond the original name.
+            var length = Math.Min(term.Length, name.Length - index);
+            result.Add(new DataSourceSuggestionViewModel(source, name[..index], name.Substring(index, length), name[(index + length)..]));
+        }
+        return result;
+    }
 
     public IReadOnlyList<DataSource> All
     {
@@ -86,12 +114,15 @@ public sealed class SourcesViewModel
                     parent.ExcludedDataSources.Add(child.Id);
                 container.Insert(index++, child);
             }
+        _sourceOrder.Remove(id);
     }
 
     public void Clear()
     {
         Roots.Clear();
         _groups.Clear();
+        _sourceOrder.Clear();
+        _nextSourceOrder = 0;
     }
 
     private DataSource Find(DataSourceId id) => All.SingleOrDefault(source => source.Id == id) ??

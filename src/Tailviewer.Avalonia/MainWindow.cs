@@ -36,6 +36,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _status = new() { Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy" };
     private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple, Focusable = true };
     private readonly NavigationView _navigation = new();
+    private readonly QuickNavigationView _quickNavigation;
     private readonly SourcesViewModel _workspace = new();
     private AvaloniaList<DataSource> _sources => _workspace.Roots;
     private readonly TreeView _sourceTree = new();
@@ -53,6 +54,7 @@ public sealed class MainWindow : Window
     public MainWindow(string? fileName = null)
     {
         _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
+        _quickNavigation = new QuickNavigationView(_workspace);
         DataContext = _workspace;
         Title = "Tailviewer — Avalonia prototype";
         using var logoStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
@@ -134,15 +136,16 @@ public sealed class MainWindow : Window
         sourcePanel.Children.Add(_newGroup);
         Grid.SetRow(_sourceTree, 2);
         sourcePanel.Children.Add(_sourceTree);
-        Grid.SetRow(_navigation, 2);
-        Grid.SetColumnSpan(_navigation, 2);
+        var navigationPanel = new StackPanel { Children = { _navigation, _quickNavigation } };
+        Grid.SetRow(navigationPanel, 2);
+        Grid.SetColumnSpan(navigationPanel, 2);
         Grid.SetRow(sourcePanel, 3);
         Grid.SetRow(_rows, 3);
         Grid.SetColumn(_rows, 1);
         Grid.SetRow(_status, 4);
         Grid.SetColumnSpan(_status, 2);
         layout.Children.Add(_path);
-        layout.Children.Add(_navigation);
+        layout.Children.Add(navigationPanel);
         layout.Children.Add(sourcePanel);
         layout.Children.Add(_rows);
         layout.Children.Add(_status);
@@ -161,6 +164,27 @@ public sealed class MainWindow : Window
             _rows.Focus();
         };
         _navigation.Cancelled += () =>
+        {
+            if (_document != null) _rows.Focus();
+            else _sourceTree.Focus();
+        };
+        _quickNavigation.SourceChosen += async source =>
+        {
+            if (_closed) return;
+            if (_document?.SourceId == source.Id && _sourceTree.SelectedItem is DataSource current && current.Id == source.Id)
+            {
+                ++_openRequest;
+                _open.IsEnabled = true;
+                UpdateCloseCommands();
+            }
+            else await ActivateSourceAsync(source);
+            if (!_closed && _sourceTree.SelectedItem is DataSource active && active.Id == source.Id)
+            {
+                if (_document != null) _rows.Focus();
+                else _sourceTree.Focus();
+            }
+        };
+        _quickNavigation.Cancelled += () =>
         {
             if (_document != null) _rows.Focus();
             else _sourceTree.Focus();
@@ -195,6 +219,7 @@ public sealed class MainWindow : Window
             _timer.Stop();
             _document?.Dispose();
             _navigation.BindDocument(null);
+            _quickNavigation.Dismiss();
             foreach (var folder in _folders.Values) folder.Dispose();
             _folderScheduler.Dispose();
             logo.Dispose();
@@ -335,6 +360,7 @@ public sealed class MainWindow : Window
                 _document?.Dispose();
                 _document = null;
                 _navigation.BindDocument(null);
+                _quickNavigation.Dismiss();
                 if (!_sources.Contains(source)) _sources.Add(source);
                 SelectSource(source);
                 _operationError = null;
@@ -355,6 +381,7 @@ public sealed class MainWindow : Window
             _document?.Dispose();
             _document = document;
             _navigation.BindDocument(document);
+            _quickNavigation.Dismiss();
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             SelectSource(source);
             _operationError = null;
@@ -401,6 +428,7 @@ public sealed class MainWindow : Window
         _document?.Dispose();
         _document = null;
         _navigation.BindDocument(null);
+        _quickNavigation.Dismiss();
         _copy.IsEnabled = false;
         _operationError = null;
         _path.Text = "Open a log file to begin.";
@@ -518,7 +546,9 @@ public sealed class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0 && e.Key is Key.O or Key.C or Key.G)
+        if (e.Key == Key.C && e.Source is Visual origin && origin.GetSelfAndVisualAncestors().Any(control => control is TextBox))
+            return;
+        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0 && e.Key is Key.O or Key.C or Key.G or Key.T)
         {
             e.Handled = true;
             if (e.Key == Key.O && _open.IsEnabled)
@@ -526,7 +556,15 @@ public sealed class MainWindow : Window
             else if (e.Key == Key.C)
                 await CopyAsync();
             else if (e.Key == Key.G)
+            {
+                _quickNavigation.Dismiss();
                 _navigation.BeginNavigation();
+            }
+            else if (e.Key == Key.T)
+            {
+                _navigation.IsVisible = false;
+                _quickNavigation.BeginNavigation();
+            }
         }
         else if (_rows.IsKeyboardFocusWithin && e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
         {

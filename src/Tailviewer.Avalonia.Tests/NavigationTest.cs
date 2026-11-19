@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FluentAssertions;
 using NUnit.Framework;
+using Tailviewer.Avalonia.ViewModels;
 
 namespace Tailviewer.Avalonia.Tests;
 
@@ -32,6 +33,162 @@ public sealed class NavigationTest
     {
         Path.GetDirectoryName(Path.GetFullPath(_folder)).Should().Be(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())));
         Directory.Delete(_folder, true);
+    }
+
+    [AvaloniaTest]
+    public async Task QuickNavigationKeyboardChoosesTheHighlightedCandidate()
+    {
+        var other = Path.Combine(_folder, "other.log");
+        File.WriteAllText(other, "other");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await window.OpenFileAsync(other);
+            var input = OpenQuickNavigation(window);
+            input.Text = ".log";
+            var matches = QuickMatches(window);
+            await Until(() => matches.ItemCount == 2);
+            matches.SelectedIndex.Should().Be(0);
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down });
+            matches.SelectedIndex.Should().Be(1);
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Up });
+            matches.SelectedIndex.Should().Be(0);
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+            await Until(() => Rows(window).ItemCount == 3 && window.Title!.Contains("navigation.log"));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ChoosingTheCurrentSourceKeepsItsSelectionAndPausedFollow()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            Rows(window).Selection.Select(1);
+            OpenQuickNavigation(window).Text = "navigation.log";
+            await Until(() => QuickMatches(window).ItemCount == 1);
+            ChooseQuick(window);
+            await Until(() => window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Open file…")).IsEnabled);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task QuickNavigationClearsStaleCandidatesForEmptyAndUnmatchedInput()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            var input = OpenQuickNavigation(window);
+            input.Text = "navigation.log";
+            var matches = QuickMatches(window);
+            await Until(() => matches.ItemCount == 1);
+            input.Text = "not-an-open-source";
+            await Until(() => matches.ItemCount == 0);
+            matches.SelectedItem.Should().BeNull();
+            window.GetVisualDescendants().OfType<Button>().Single(control =>
+                AutomationProperties.GetName(control) == "Open selected source").IsEnabled.Should().BeFalse();
+            ChooseQuick(window);
+            Rows(window).ItemCount.Should().Be(3);
+            window.Title.Should().Contain("navigation.log");
+            input.Text = "";
+            await Until(() => matches.ItemCount == 0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CancellingQuickNavigationDoesNotSwitchSourceOrSelection()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            Rows(window).Selection.Select(1);
+            var input = OpenQuickNavigation(window);
+            input.Text = "navigation.log";
+            await Until(() => QuickMatches(window).ItemCount == 1);
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            input.IsEffectivelyVisible.Should().BeFalse();
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1);
+            Rows(window).IsKeyboardFocusWithin.Should().BeTrue();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CopyInTheSourceSearchBoxDoesNotCopyTheSelectedLogLine()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            Rows(window).Selection.Select(0);
+            var input = OpenQuickNavigation(window);
+            input.Text = "NAVIGATION.LOG";
+            input.SelectionStart = 0;
+            input.SelectionEnd = input.Text.Length;
+            var clipboard = window.Clipboard!;
+            await clipboard.SetTextAsync("pending");
+            input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.C, KeyModifiers = KeyModifiers.Control });
+            await CheckClipboard(clipboard, "NAVIGATION.LOG");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task QuickNavigationFindsAndActivatesAGroupByItsName()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var group = ((SourcesViewModel)window.DataContext!).AddGroup();
+            var input = OpenQuickNavigation(window);
+            input.Text = "MERGED";
+            await Until(() => QuickMatches(window).ItemCount == 1);
+            ((DataSourceSuggestionViewModel)QuickMatches(window).SelectedItem!).DataSource.Id.Should().Be(group.Id);
+            ChooseQuick(window);
+            await Until(() => window.Title!.Contains("Merged Data Source"));
+            Rows(window).ItemCount.Should().Be(0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task QuickNavigationChoosesAnExistingSourceByCaseInsensitivePath()
+    {
+        var other = Path.Combine(_folder, "other.log");
+        File.WriteAllText(other, "other");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await window.OpenFileAsync(other);
+            OpenQuickNavigation(window).Text = "NAVIGATION.LOG";
+            var matches = QuickMatches(window);
+            await Until(() => matches.ItemCount == 1);
+            matches.ItemCount.Should().Be(1);
+            ChooseQuick(window);
+            await Until(() => Rows(window).ItemCount == 3 && window.Title!.Contains("navigation.log"));
+        }
+        finally { window.Close(); }
     }
 
     [AvaloniaTest]
@@ -169,6 +326,25 @@ public sealed class NavigationTest
         return input;
     }
 
+    private static TextBox OpenQuickNavigation(MainWindow window)
+    {
+        window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.T, KeyModifiers = KeyModifiers.Control });
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        var input = window.GetVisualDescendants().OfType<TextBox>()
+            .SingleOrDefault(control => AutomationProperties.GetName(control) == "Source search");
+        input.Should().NotBeNull("because Ctrl+T must search already open sources");
+        input!.IsEffectivelyVisible.Should().BeTrue();
+        return input;
+    }
+
+    private static ComboBox QuickMatches(MainWindow window) => window.GetVisualDescendants().OfType<ComboBox>()
+        .Single(control => AutomationProperties.GetName(control) == "Source matches");
+
+    private static void ChooseQuick(MainWindow window) => window.GetVisualDescendants().OfType<Button>()
+        .Single(control => AutomationProperties.GetName(control) == "Open selected source")
+        .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
     private static void Go(MainWindow window) => window.GetVisualDescendants().OfType<Button>()
         .Single(control => AutomationProperties.GetName(control) == "Go to line")
         .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -181,6 +357,11 @@ public sealed class NavigationTest
         await clipboard.SetTextAsync("pending-" + Guid.NewGuid().ToString("N"));
         window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
             .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await CheckClipboard(clipboard, expected);
+    }
+
+    private static async Task CheckClipboard(IClipboard clipboard, string expected)
+    {
         var timer = Stopwatch.StartNew();
         while (timer.Elapsed < TimeSpan.FromSeconds(8))
         {
