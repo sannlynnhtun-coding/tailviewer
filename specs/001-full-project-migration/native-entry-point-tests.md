@@ -70,3 +70,34 @@ T021 stays unchecked: native drag/drop, multi-file/folder entry points and
 single-instance handoff/owned-process cleanup scenarios still need work alongside
 T024/T025. Native keyboard, text-range drag, accessibility and full US1 acceptance
 are not implied by these three passing cases.
+
+## Slice 2: multi-file picker and startup arguments
+
+Two new real-process cases initially failed because the command line discarded
+all but its first path and the native picker allowed only a single file. The app
+now passes every startup path through MainWindow.OpenFilesAsync. The picker
+allows multiple files and resolves all returned local paths before applying any.
+Both callers reuse the existing file/folder opening and stable-identity logic.
+The native multiple-picker case includes the already configured first file,
+asserts exactly two root sources and copies the last file's different content;
+this catches duplicate source creation as well as silently discarded paths.
+
+Batch opening snapshots its input before mutation, applies paths in order and
+retains errors from all failed paths even if a later path succeeds. Empty input
+leaves the current source/selection/follow state alone. Each awaited open is
+fenced by the existing request counter: close-all, closure or another user open
+invalidates the remainder instead of allowing a late batch to revive sources.
+Three headless cases cover empty input, partial success with two reported missing
+paths, and close-all during an outstanding batch. Picker cancellation still
+passes its native preservation test.
+
+Final results: 5 native tests, 85 Avalonia tests and 81 Archiver tests passed with
+zero failures/skips in these suites. Evidence: artifacts/migration/
+t021-multiple-red.log and t021-native/t021-multiple-red.trx (two meaningful
+failures), t021-multiple-native.log, t024-multiple-modern.log,
+t021-multiple-native-final.log and t021-native/t021-multiple-final.trx.
+The full Core suite was not repeated for this UI/startup-only change.
+
+T021/T024 remain open: folder picker, drag/drop and single-instance handoff still
+need integration/acceptance. Startup file/folder path arguments are covered here;
+legacy plugin-loader command modes are not claimed as ported by this change.

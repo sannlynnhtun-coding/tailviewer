@@ -117,6 +117,33 @@ public sealed class SourceEntryPointTest
         File.WriteAllText(other, "picked-first\n" + PickerLine + "\npicked-last");
         var window = StartApplication();
         var dialog = OpenPicker(window);
+        SubmitPicker(dialog, other);
+        WaitFor(() => window.Current.IsEnabled && window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) ? window : null,
+            "The picked owned file must become the active source.");
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void MultiFileEntryPointsKeepBothSourcesAndActivateTheLastFile(bool picker)
+    {
+        var other = Path.Combine(_folder, "picked မြန်မာ.log");
+        File.WriteAllText(other, "picked-first\n" + PickerLine + "\npicked-last");
+        var window = picker ? StartApplication() : StartApplication(_path, other);
+        if (picker) SubmitPicker(OpenPicker(window), "\"" + _path + "\" \"" + other + "\"");
+        var sources = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        WaitFor(() => window.Current.IsEnabled &&
+            sources.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 2 &&
+            window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) ? window : null,
+            "Both requested sources must remain open and the last must become active without duplicating the first.");
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+    }
+
+    private static void SubmitPicker(AutomationElement dialog, string paths)
+    {
         var fileName = WaitFor(() => dialog.FindFirst(TreeScope.Descendants,
             new PropertyCondition(AutomationElement.AutomationIdProperty, "1148")), "The native picker must expose its file-name field.");
         if (!fileName.TryGetCurrentPattern(ValuePattern.Pattern, out var value))
@@ -125,15 +152,11 @@ public sealed class SourceEntryPointTest
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
             value = fileName.GetCurrentPattern(ValuePattern.Pattern);
         }
-        ((ValuePattern)value).SetValue(other);
+        ((ValuePattern)value).SetValue(paths);
         var open = WaitFor(() => dialog.FindFirst(TreeScope.Descendants,
             new AndCondition(new PropertyCondition(AutomationElement.AutomationIdProperty, "1"),
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))), "The native picker must expose its Open button.");
         ((InvokePattern)open.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-        WaitFor(() => window.Current.IsEnabled && window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) ? window : null,
-            "The picked owned file must become the active source.");
-        SelectSecondLine(window);
-        CopyAndCheck(window, PickerLine);
     }
 
     private AutomationElement OpenPicker(AutomationElement window)
@@ -148,12 +171,12 @@ public sealed class SourceEntryPointTest
             "The owned process must show its native file picker.");
     }
 
-    private AutomationElement StartApplication()
+    private AutomationElement StartApplication(params string[] paths)
     {
         var executable = Path.Combine(TestContext.CurrentContext.TestDirectory, "app", "Tailviewer.Avalonia.exe");
         Assert.That(File.Exists(executable), Is.True, "Build the isolated native acceptance project first.");
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = _folder };
-        start.ArgumentList.Add(_path);
+        foreach (var path in paths.Length == 0 ? new[] { _path } : paths) start.ArgumentList.Add(path);
         _process = Process.Start(start) ?? throw new InvalidOperationException("The owned app process did not start.");
         return WaitFor(() =>
         {

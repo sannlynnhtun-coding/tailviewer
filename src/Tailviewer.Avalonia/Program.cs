@@ -18,7 +18,11 @@ public sealed class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow(desktop.Args?.FirstOrDefault());
+        {
+            var window = new MainWindow();
+            window.Opened += async (_, _) => await window.OpenFilesAsync(desktop.Args ?? Array.Empty<string>());
+            desktop.MainWindow = window;
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

@@ -537,6 +537,68 @@ public sealed class SourcesTest
         (await secondDocument.CopyTextAsync(new[] { 0 })).Should().Be("second");
     }
 
+    [AvaloniaTest]
+    public async Task EmptyBatchPreservesTheActiveSourceSelectionAndFollowState()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            Rows(window).Selection.Select(1);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var identity = ((DataSource)tree.SelectedItem!).Id;
+            await window.OpenFilesAsync(Array.Empty<string>());
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(identity);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 1, "  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task BatchKeepsValidFilesAndReportsEachFailedPath()
+    {
+        var missing = Path.Combine(_folder, "missing-one.log");
+        var otherMissing = Path.Combine(_folder, "missing-two.log");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { missing, _first, otherMissing, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            tree.ItemCount.Should().Be(2);
+            ((DataSource)tree.SelectedItem!).File.Should().Be(_second);
+            window.GetVisualDescendants().OfType<TextBlock>().Should().Contain(block => block.Text != null &&
+                block.Text.Contains("missing-one.log") && block.Text.Contains("missing-two.log"));
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingAllDuringABatchDoesNotOpenTheRemainingPaths()
+    {
+        var third = Path.Combine(_folder, "third.log");
+        File.WriteAllText(third, "third");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            var batch = window.OpenFilesAsync(new[] { _second, third });
+            Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await batch;
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(0);
+            Rows(window).ItemCount.Should().Be(0);
+            File.ReadAllText(third).Should().Be("third");
+        }
+        finally { window.Close(); }
+    }
+
     private static Button Command(MainWindow window, string name)
     {
         var button = window.GetVisualDescendants().OfType<Button>()

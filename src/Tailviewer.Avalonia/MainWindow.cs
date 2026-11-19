@@ -249,14 +249,13 @@ public sealed class MainWindow : Window
                 throw new NotSupportedException("File picking is unavailable. Pass a local file path on the command line.");
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Open log file", AllowMultiple = false
+                Title = "Open log file", AllowMultiple = true
             });
             if (files.Count == 0)
                 return;
-            var path = files[0].TryGetLocalPath();
-            if (path == null)
-                throw new NotSupportedException("This prototype opens local files only.");
-            await OpenFileAsync(path);
+            var paths = files.Select(file => file.TryGetLocalPath() ??
+                throw new NotSupportedException("This prototype opens local files only.")).ToArray();
+            await OpenFilesAsync(paths);
         }
         catch (Exception ex)
         {
@@ -265,6 +264,20 @@ public sealed class MainWindow : Window
     }
 
     public Task OpenFileAsync(string fileName) => OpenSourceAsync(fileName, null);
+
+    public async Task OpenFilesAsync(IEnumerable<string> fileNames)
+    {
+        var errors = new List<string>();
+        foreach (var fileName in fileNames.ToArray())
+        {
+            if (_closed) return;
+            var request = _openRequest + 1;
+            await OpenFileAsync(fileName);
+            if (_closed || request != _openRequest) return;
+            if (_operationError != null) errors.Add(_operationError);
+        }
+        if (errors.Count > 0) _status.Text = _operationError = string.Join(Environment.NewLine, errors);
+    }
 
     private async Task ActivateSourceAsync(DataSource source)
     {
