@@ -20,6 +20,7 @@ using Tailviewer.Settings;
 using Tailviewer.Avalonia.ViewModels;
 using System.Xml;
 using Avalonia.VisualTree;
+using Tailviewer.Avalonia.Views;
 
 namespace Tailviewer.Avalonia;
 
@@ -33,7 +34,8 @@ public sealed class MainWindow : Window
     private readonly CheckBox _follow = new() { Content = "Follow _tail", IsChecked = true };
     private readonly TextBlock _path = new() { Text = "Open a log file to begin.", TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new() { Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy" };
-    private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple };
+    private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple, Focusable = true };
+    private readonly NavigationView _navigation = new();
     private readonly SourcesViewModel _workspace = new();
     private AvaloniaList<DataSource> _sources => _workspace.Roots;
     private readonly TreeView _sourceTree = new();
@@ -115,7 +117,7 @@ public sealed class MainWindow : Window
         };
         var layout = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto"),
             ColumnDefinitions = new ColumnDefinitions("200,*"),
             Margin = new Thickness(12), RowSpacing = 8, ColumnSpacing = 8
         };
@@ -132,12 +134,15 @@ public sealed class MainWindow : Window
         sourcePanel.Children.Add(_newGroup);
         Grid.SetRow(_sourceTree, 2);
         sourcePanel.Children.Add(_sourceTree);
-        Grid.SetRow(sourcePanel, 2);
-        Grid.SetRow(_rows, 2);
+        Grid.SetRow(_navigation, 2);
+        Grid.SetColumnSpan(_navigation, 2);
+        Grid.SetRow(sourcePanel, 3);
+        Grid.SetRow(_rows, 3);
         Grid.SetColumn(_rows, 1);
-        Grid.SetRow(_status, 3);
+        Grid.SetRow(_status, 4);
         Grid.SetColumnSpan(_status, 2);
         layout.Children.Add(_path);
+        layout.Children.Add(_navigation);
         layout.Children.Add(sourcePanel);
         layout.Children.Add(_rows);
         layout.Children.Add(_status);
@@ -145,6 +150,21 @@ public sealed class MainWindow : Window
 
         _open.Click += async (_, _) => await PickFileAsync();
         _copy.Click += async (_, _) => await CopyAsync();
+        _navigation.LineChosen += index =>
+        {
+            if (_document == null || !ReferenceEquals(_document, _navigation.Document)) return;
+            _follow.IsChecked = false;
+            _rows.Selection.Clear();
+            _rows.Selection.Select(index);
+            _rows.ScrollIntoView(index);
+            _operationError = null;
+            _rows.Focus();
+        };
+        _navigation.Cancelled += () =>
+        {
+            if (_document != null) _rows.Focus();
+            else _sourceTree.Focus();
+        };
         _closeSource.Click += async (_, _) => await CloseCurrentSourceAsync();
         _closeAll.Click += (_, _) => CloseAllSources();
         _newGroup.Click += async (_, _) =>
@@ -174,6 +194,7 @@ public sealed class MainWindow : Window
             ++_openRequest;
             _timer.Stop();
             _document?.Dispose();
+            _navigation.BindDocument(null);
             foreach (var folder in _folders.Values) folder.Dispose();
             _folderScheduler.Dispose();
             logo.Dispose();
@@ -313,6 +334,7 @@ public sealed class MainWindow : Window
                 _rows.ItemsSource = null;
                 _document?.Dispose();
                 _document = null;
+                _navigation.BindDocument(null);
                 if (!_sources.Contains(source)) _sources.Add(source);
                 SelectSource(source);
                 _operationError = null;
@@ -332,6 +354,7 @@ public sealed class MainWindow : Window
             _rows.ItemsSource = null;
             _document?.Dispose();
             _document = document;
+            _navigation.BindDocument(document);
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             SelectSource(source);
             _operationError = null;
@@ -377,6 +400,7 @@ public sealed class MainWindow : Window
         _rows.ItemsSource = null;
         _document?.Dispose();
         _document = null;
+        _navigation.BindDocument(null);
         _copy.IsEnabled = false;
         _operationError = null;
         _path.Text = "Open a log file to begin.";
@@ -435,7 +459,7 @@ public sealed class MainWindow : Window
         }
         if (_document.Refresh())
             ScrollToTail();
-        _status.Text = _operationError ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")}";
+        _status.Text = _operationError ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
     }
 
     private void SaveFollowState()
@@ -494,13 +518,15 @@ public sealed class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0 && e.Key is Key.O or Key.C)
+        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0 && e.Key is Key.O or Key.C or Key.G)
         {
             e.Handled = true;
             if (e.Key == Key.O && _open.IsEnabled)
                 await PickFileAsync();
             else if (e.Key == Key.C)
                 await CopyAsync();
+            else if (e.Key == Key.G)
+                _navigation.BeginNavigation();
         }
         else if (_rows.IsKeyboardFocusWithin && e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
         {
