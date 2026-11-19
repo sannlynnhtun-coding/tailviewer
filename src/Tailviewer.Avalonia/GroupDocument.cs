@@ -11,6 +11,7 @@ internal sealed class GroupDocument : IDisposable
     private readonly Dictionary<DataSourceId, long> _revisions = new();
     private readonly List<LogDocument> _groups = new();
     private readonly List<ILogSource> _emptySources = new();
+    private readonly List<ILogSource> _entryViews = new();
     private readonly List<DataSourceId> _failedReaders = new();
     private readonly List<string> _errors = new();
     private readonly List<(DataSource Source, DataSourceId[] Members, HashSet<DataSourceId> Excluded, bool SingleLine)> _snapshots = new();
@@ -62,7 +63,13 @@ internal sealed class GroupDocument : IDisposable
                     }
                 }
                 else document = await Build(member, ancestors, configuration.IsSingleLine);
-                sources.Add((member.Id, configuration.IsSingleLine ? document.ParsedSource : document.EntrySource));
+                var input = document.ParsedSource;
+                if (member.File != null && !configuration.IsSingleLine && !member.IsSingleLine)
+                {
+                    input = document.CreateMultiLineView();
+                    result._entryViews.Add(input);
+                }
+                sources.Add((member.Id, input));
             }
             ancestors.Remove(parent.Id);
             var merged = new LogDocument(configuration, sources);
@@ -104,6 +111,8 @@ internal sealed class GroupDocument : IDisposable
     {
         for (var index = _groups.Count - 1; index >= 0; --index) _groups[index].Dispose();
         _groups.Clear();
+        foreach (var view in _entryViews) view.Dispose();
+        _entryViews.Clear();
         foreach (var lease in _leases) lease.Dispose();
         _leases.Clear();
         foreach (var empty in _emptySources) empty.Dispose();

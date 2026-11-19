@@ -30,6 +30,40 @@ public sealed class SourceDocumentsTest
     }
 
     [Test]
+    public async Task ClosingAnAggregateKeepsOtherMultilineViewsAliveAndRebuildsAfterReplacement()
+    {
+        const string original = "2026-11-20 12:00:01.000 INFO original\n    at first frame";
+        File.WriteAllText(_source.File, original);
+        using var owner = new SourceDocuments((source, encoding) => new LogDocument(source, encoding));
+        owner.Configure(new[] { _source }, null);
+        var inner = new DataSource { Id = DataSourceId.CreateNew(), DisplayName = "inner" };
+        var outer = new DataSource { Id = DataSourceId.CreateNew(), DisplayName = "outer" };
+        IReadOnlyList<DataSource> Children(DataSource source) => source.Id == outer.Id ? new[] { inner } : new[] { _source };
+        using var first = await GroupDocument.OpenAsync(inner, owner, Children);
+        using var nested = await GroupDocument.OpenAsync(outer, owner, Children);
+        await Ready(first.Document, 2);
+        await Ready(nested.Document, 2);
+        first.Dispose();
+        File.AppendAllText(_source.File, "\n    at appended frame");
+        await Ready(nested.Document, 3);
+        Assert.That(await nested.Document.CopyTextAsync(new[] { 0, 1, 2 }),
+            Is.EqualTo((original + "\n    at appended frame").Replace("\n", Environment.NewLine)));
+        const string replaced = "20/11/2026 12:00:02:000 WARN replacement\n    at new frame";
+        File.WriteAllText(_source.File, replaced);
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(8) && nested.IsCurrent(owner, Children)) await Task.Delay(10);
+        Assert.That(nested.IsCurrent(owner, Children), Is.False, "replacement must invalidate the old aggregate generation");
+        using var rebuilt = await GroupDocument.OpenAsync(outer, owner, Children);
+        nested.Dispose();
+        await Ready(rebuilt.Document, 2);
+        Assert.That(await rebuilt.Document.CopyTextAsync(new[] { 0, 1 }), Is.EqualTo(replaced.Replace("\n", Environment.NewLine)));
+        rebuilt.Dispose();
+        owner.Dispose();
+        using var exclusive = new FileStream(_source.File, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        Assert.That(exclusive.Length, Is.GreaterThan(0), "closing all owned views must release the raw file handle");
+    }
+
+    [Test]
     public async Task ConcurrentAcquisitionsShareOneOpenAndRetiredReadersLiveUntilTheirLastLease()
     {
         var opens = 0;
@@ -256,15 +290,15 @@ public sealed class SourceDocumentsTest
         }
     }
 
-    private static async Task Ready(LogDocument document)
+    private static async Task Ready(LogDocument document, int expected = 1)
     {
         var clock = Stopwatch.StartNew();
         while (clock.Elapsed < TimeSpan.FromSeconds(8))
         {
             document.Refresh();
-            if (document.Lines.Count == 1) return;
+            if (document.Lines.Count == expected) return;
             await Task.Delay(10);
         }
-        Assert.Fail("The owned one-line fixture must finish indexing.");
+        Assert.Fail($"The owned fixture must finish indexing {expected} lines.");
     }
 }

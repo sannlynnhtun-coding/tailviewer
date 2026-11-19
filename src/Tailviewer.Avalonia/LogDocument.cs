@@ -15,11 +15,8 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     private readonly DefaultTaskScheduler _scheduler = new();
     private readonly ILogSource _source;
     private readonly SourceGroup? _group;
-    private readonly bool _singleLine;
-    private ILogSource? _multiLine;
     internal ILogSource ParsedSource { get; }
-    internal ILogSource EntrySource => _singleLine || _group != null ? ParsedSource :
-        _multiLine ??= FileLogSourceFactory.CreateMultiLineView(_scheduler, ParsedSource);
+    internal ILogSource CreateMultiLineView() => FileLogSourceFactory.CreateMultiLineView(_scheduler, ParsedSource);
     private readonly Dictionary<int, LogLine[]> _pages = new();
     private readonly Dictionary<int, LogLine[]> _loading = new();
     private volatile bool _disposed;
@@ -47,7 +44,6 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         try
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            _singleLine = configuration.IsSingleLine;
             _showLineNumbers = configuration.ShowLineNumbers;
             _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
             SourceId = configuration.Id;
@@ -228,7 +224,6 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         _disposed = true;
         _configuration.Invalidate(SourceId);
         _source.RemoveListener(this);
-        _multiLine?.Dispose();
         if (_group != null) _group.Dispose();
         else ParsedSource.Dispose();
         _scheduler.Dispose();
