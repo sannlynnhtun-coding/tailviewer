@@ -771,6 +771,7 @@ public sealed class MainWindow : Window
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             selected = source;
             _openingSource = source.Id;
+            if (!UpdateFileSourceTracking()) return;
             var encoding = _encoding.Settings.DefaultEncoding;
             _documents.TryGetValue(source.Id, out var cached);
             var document = cached.Document != null && Equals(cached.Encoding, encoding) &&
@@ -914,7 +915,7 @@ public sealed class MainWindow : Window
             foreach (var child in children) _sourceStates.Remove(child.Id);
         _workspace.Remove(source.Id);
         PruneDocuments();
-        _fileSourceStates.SetSources(_workspace.All);
+        UpdateFileSourceTracking();
         _sourceStates.Remove(source.Id);
         UpdateCloseCommands();
         if (_sources.Count > 0)
@@ -940,7 +941,7 @@ public sealed class MainWindow : Window
         _folderChildren.Clear();
         _workspace.Clear();
         PruneDocuments();
-        _fileSourceStates.SetSources(_workspace.All);
+        UpdateFileSourceTracking();
         _sourceStates.Clear();
         UpdateCloseCommands();
     }
@@ -969,7 +970,7 @@ public sealed class MainWindow : Window
     private void RefreshSourceStates()
     {
         if (_closed) return;
-        _fileSourceStates.SetSources(_workspace.All);
+        UpdateFileSourceTracking();
         foreach (var (id, entry) in _documents)
         {
             if (ReferenceEquals(entry.Document, _document)) continue;
@@ -993,6 +994,20 @@ public sealed class MainWindow : Window
                      (observed != null || !_documents.ContainsKey(source.Id)))
                 status = observed;
             view.UpdateStatus(status);
+        }
+    }
+
+    private bool UpdateFileSourceTracking()
+    {
+        try
+        {
+            _fileSourceStates.SetSources(_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)));
+            return true;
+        }
+        catch (XmlException error)
+        {
+            _status.Text = _operationError = "Cannot monitor source availability: " + error.Message;
+            return false;
         }
     }
 

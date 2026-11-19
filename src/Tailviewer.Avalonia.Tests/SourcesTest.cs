@@ -1976,6 +1976,76 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task UnselectedFolderChildReportsAndRecoversFromAnExclusiveLock()
+    {
+        var window = new MainWindow();
+        FileStream? exclusive = null;
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _folder });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            var first = tree.Items.OfType<DataSource>().Single(source => source.File == _first);
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var parent = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var child = parent.Items.OfType<DataSource>().Single(source => source.File == _second);
+            await WaitUntil(() => parent.ContainerFromItem(child) is TreeViewItem);
+            var view = (TreeViewItem)parent.ContainerFromItem(child)!;
+            string? Status() => view.GetVisualDescendants().OfType<TextBlock>()
+                .FirstOrDefault(text => AutomationProperties.GetName(text) == "Source status")?.Text;
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            exclusive = new FileStream(_second, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            await WaitUntil(() => Status() == "File cannot be accessed.");
+            tree.SelectedItem.Should().BeSameAs(first);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await CopySelected(window, "first");
+            exclusive.Dispose();
+            exclusive = null;
+            await WaitUntil(() => string.IsNullOrEmpty(Status()));
+            parent.Items.OfType<DataSource>().Single(source => source.File == _second).Should().BeSameAs(child);
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { exclusive?.Dispose(); window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task DiscoveredChildIdentityConflictsAreReportedWithoutBreakingTheActiveDocument()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _folder });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            var first = tree.Items.OfType<DataSource>().Single(source => source.File == _first);
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var child = ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single(source => source.File == _second);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            var conflict = new DataSource(_second) { Id = child.Id };
+            ((SourcesViewModel)window.DataContext!).Roots.Add(conflict);
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                text.Text?.StartsWith("Cannot monitor source availability:") == true));
+            tree.Items.OfType<DataSource>().Should().Contain(conflict);
+            tree.SelectedItem.Should().BeSameAs(first);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await window.OpenFileAsync(_second);
+            Rows(window).ItemCount.Should().Be(2, "because a conflicting identity must not activate another document");
+            await CopySelected(window, "first");
+            ((SourcesViewModel)window.DataContext!).Remove(conflict.Id);
+            tree.SelectedItem = child;
+            await WaitUntil(() => Rows(window).ItemCount == 1 && window.Title!.Contains("second.log"));
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task InactiveFileAvailabilityRecoversWithoutSwitchingTheActiveDocument()
     {
         var window = new MainWindow();

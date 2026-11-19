@@ -1002,3 +1002,42 @@ After adding storage-object disposal, both native picker cases pass 2/2 and
 the headless unavailable-picker/manual-Apply case passes 1/1, no failures/skips:
 t022-folder-browse-cleanup-native.log/TRX and
 t022-folder-browse-cleanup-headless.log/TRX. No owned viewer processes remain.
+
+## Discovered-file access state and global identities (T022/T026)
+
+The availability tracker previously received only configured workspace roots
+and group members; folder-managed children were omitted until activation.
+A regression locked an unselected child with FileShare.None and failed because
+its row never reported File cannot be accessed. The tracker now receives the
+complete configured/discovered snapshot. Refresh, Close current and Close all
+reuse that same snapshot helper, preserving existing generation invalidation
+and cached background-only filesystem probes.
+
+Full-snapshot validation can detect a configured ID colliding with a generated
+folder-child ID. Validation failures are reported without replacing the previous
+probe snapshot, and file activation validates the same snapshot before creating
+or reusing a reader. No conflicting source/configuration is silently deleted.
+A test verifies the error, rejection of activation while identities conflict,
+continued active-source copy, and successful child activation after removing
+the conflicting configuration.
+
+The lock/recovery test additionally verifies unchanged selected source/line,
+exact copy, retained discovered-child object identity and unchanged owned file
+contents after releasing the lock. The affected availability/identity cases
+pass 3/3; the final modern solution passes 81 Archiver + 193 Avalonia cases,
+zero failures/skips. Evidence: artifacts/migration/t022-folder-child-access-red
+(.log/TRX), t022-folder-child-access-focused (.log/TRX) and
+t022-folder-child-access-modern (.log/TRX).
+
+This closes the discovered-child availability gap, not the remaining reader
+lifecycle: unopened files still need coordinated background reader ownership
+and aggregate/parser integration. LogSourceProxy is a replaceable forwarding
+source, not an existing reference-counted reader owner. No second index or
+speculative shared-reader abstraction was added here. Core production code is
+unchanged; full Core/native/performance and many-source cost checks were not
+repeated. T022/T026 and the full migration remain open.
+
+Targeted native folder-picker apply/cancel and Ctrl+G checks pass 3/3 with no
+failures/skips (t022-folder-child-access-native.log/TRX). These verify normal
+file/folder activation after adding the global identity check; they are not a
+native lock-state or full-suite run.
