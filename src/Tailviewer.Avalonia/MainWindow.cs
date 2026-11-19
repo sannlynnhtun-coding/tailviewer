@@ -492,6 +492,24 @@ public sealed class MainWindow : Window
                 options.Click += async (_, _) => await EditFolderAsync(source, refreshHeading);
                 menu.Items.Add(options);
             }
+            if (SourcesViewModel.IsGroup(source) || source.LogFileFolderPath != null)
+            {
+                foreach (var excluded in new[] { false, true })
+                {
+                    var all = new MenuItem { Header = excluded ? "Exclude all" : "Include all" };
+                    all.Click += (_, _) =>
+                    {
+                        if (_closed || !_workspace.Contains(source.Id)) return;
+                        IEnumerable<DataSource> children = _folderChildren.TryGetValue(source.Id, out var files)
+                            ? files : _workspace.GetChildren(source.Id);
+                        var members = children.Where(member => !SourcesViewModel.IsGroup(member) && member.LogFileFolderPath == null)
+                            .Select(member => member.Id);
+                        if (excluded) source.ExcludedDataSources.UnionWith(members);
+                        else source.ExcludedDataSources.ExceptWith(members);
+                    };
+                    menu.Items.Add(all);
+                }
+            }
             var add = new MenuItem { Header = "Add to group" };
             foreach (var group in _workspace.All.Where(SourcesViewModel.IsGroup))
             {

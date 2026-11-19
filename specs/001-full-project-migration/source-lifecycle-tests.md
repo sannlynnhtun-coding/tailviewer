@@ -902,3 +902,30 @@ The final pattern/recursion fixture additionally asserts that the active line
 selection and paused follow remain unchanged before any new copy selection.
 That strengthened case passes 1/1 (t022-folder-options-pause.log/TRX); production
 code is unchanged from the 268-case passing modern solution above.
+
+## Bulk group/folder inclusion controls (T023)
+
+Legacy IncludeAllInGroupViewModel/ExcludeAllInGroupViewModel operate only on
+direct ISingleDataSourceViewModel members. File/folder renaming is explicitly
+unsupported in the legacy viewmodels, so no additional rename feature was
+introduced. Group and configured-folder menus now expose Include all/Exclude
+all, acting on current direct file/custom members. Nested groups/folders and
+unavailable member IDs retain their saved exclusions. Include all removes only
+current eligible IDs, rather than clearing the whole persisted set.
+
+New headless tests verify bulk group exclusions, preserving a nested group and
+an unknown ID, XML round-trip, folder discovery of a new member, and unchanged
+active source/selection/paused follow/original copy. The existing per-member
+group exclusion case also passes: 3/3, zero failures/skips. Evidence:
+artifacts/migration/t023-bulk-exclusion-behavior-red.log/TRX and
+t023-bulk-exclusion-contracts.log/TRX. Initial fixture API compile mistakes are
+retained in t023-bulk-exclusion-red.log; they are not the behavioral red. One
+focused run passed the exclusion assertions but failed its active-tree-item
+assertion because direct model reparenting had cleared fixture selection before
+the command. The fixture now explicitly reselects its prepared active source.
+
+These are configuration controls. Aggregate output/filtering remains US2;
+changing inclusion does not close an individual log or remove its saved source.
+Full modern/native/Core/performance suites were not repeated for this small
+menu-only slice. Folder-child single-member controls and remaining T023/US1
+integration are separate work; the full migration remains incomplete.

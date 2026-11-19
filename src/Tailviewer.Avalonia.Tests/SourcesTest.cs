@@ -1130,6 +1130,98 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task BulkGroupExclusionOnlyChangesDirectLeafMembersAndPreservesUnknownIds()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var first = workspace.Roots.Single(source => source.File == _first);
+            var second = workspace.Roots.Single(source => source.File == _second);
+            var group = workspace.AddGroup();
+            workspace.AddToGroup(first.Id, group.Id);
+            workspace.AddToGroup(second.Id, group.Id);
+            var nested = workspace.AddGroup();
+            workspace.AddToGroup(nested.Id, group.Id);
+            var unknown = DataSourceId.CreateNew();
+            group.ExcludedDataSources.UnionWith(new[] { unknown, nested.Id });
+            tree.SelectedItem = second;
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+            await ClickSourceMenu(tree, group, "Exclude all");
+            group.ExcludedDataSources.Should().BeEquivalentTo(new[] { unknown, nested.Id, first.Id, second.Id });
+            await ClickSourceMenu(tree, group, "Include all");
+            group.ExcludedDataSources.Should().BeEquivalentTo(new[] { unknown, nested.Id });
+            tree.SelectedItem.Should().BeSameAs(second);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await CopySelected(window, "second");
+            var profilePath = Path.Combine(_folder, "bulk.xml");
+            var profile = new ApplicationSettings(profilePath);
+            foreach (var source in workspace.All) profile.DataSources.Add(source.Clone());
+            profile.Save().Should().BeTrue();
+            var restored = new ApplicationSettings(profilePath);
+            restored.Restore();
+            restored.DataSources.Single(source => source.Id == group.Id).ExcludedDataSources.Should().BeEquivalentTo(new[] { unknown, nested.Id });
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FolderBulkExclusionUsesLiveMembersWithoutClearingUnavailableSettings()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single();
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var item = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var first = item.Items.OfType<DataSource>().Single(source => source.File == _first);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            var unknown = DataSourceId.CreateNew();
+            folder.ExcludedDataSources.Add(unknown);
+            await ClickSourceMenu(tree, folder, "Exclude all");
+            folder.ExcludedDataSources.Should().BeEquivalentTo(item.Items.OfType<DataSource>().Select(source => source.Id).Append(unknown));
+            File.WriteAllText(Path.Combine(_folder, "later.log"), "later");
+            await WaitUntil(() => item.ItemCount == 3);
+            await ClickSourceMenu(tree, folder, "Exclude all");
+            folder.ExcludedDataSources.Should().BeEquivalentTo(item.Items.OfType<DataSource>().Select(source => source.Id).Append(unknown));
+            await ClickSourceMenu(tree, folder, "Include all");
+            folder.ExcludedDataSources.Should().Equal(unknown);
+            tree.SelectedItem.Should().BeSameAs(first);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await CopySelected(window, "first");
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task ClickSourceMenu(TreeView tree, DataSource source, string header)
+    {
+        await WaitUntil(() => tree.GetVisualDescendants().OfType<SourcesView>().Any(view => view.Source.Id == source.Id));
+        var item = tree.GetVisualDescendants().OfType<SourcesView>().First(view => view.Source.Id == source.Id)
+            .FindAncestorOfType<TreeViewItem>()!;
+        var menu = item.ContextMenu!;
+        item.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+        try
+        {
+            await WaitUntil(() => menu.IsOpen);
+            var command = menu.Items.OfType<MenuItem>().SingleOrDefault(candidate => Equals(candidate.Header, header));
+            command.Should().NotBeNull("because source menus must expose " + header);
+            command!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
+        finally { menu.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task GroupMemberCanBeExcludedAndIncludedWithoutClosingItsLog()
     {
         var window = new MainWindow();
