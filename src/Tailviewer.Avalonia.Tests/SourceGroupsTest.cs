@@ -159,5 +159,40 @@ public sealed class SourceGroupsTest
         workspace.Remove(group.Id);
         Assert.Throws<ArgumentException>(() => workspace.RenameGroup(group.Id, "closed"));
     }
+    [TestCase(0, false)]
+    [TestCase(1, true)]
+    [TestCase(2, false)]
+    public void UngroupDissolvesOnlyASingleRemainingMemberAndPreservesItsRootPosition(int remaining, bool dissolve)
+    {
+        var workspace = new SourcesViewModel();
+        var before = File("before.log");
+        var after = File("after.log");
+        workspace.Roots.Add(before);
+        var group = workspace.AddGroup();
+        workspace.Roots.Add(after);
+        var members = Enumerable.Range(0, remaining + 1).Select(index => File($"missing-{index}.log")).ToArray();
+        foreach (var member in members)
+        {
+            workspace.Roots.Add(member);
+            workspace.AddToGroup(member.Id, group.Id);
+            workspace.SetExcluded(member.Id, true);
+        }
+        workspace.Ungroup(members[0].Id);
+        workspace.Contains(group.Id).Should().Be(!dissolve);
+        workspace.Roots.Should().Equal(before, dissolve ? members[1] : group, after, members[0]);
+        members[0].ParentId.Should().Be(DataSourceId.Empty);
+        group.ExcludedDataSources.Should().NotContain(members[0].Id);
+        if (dissolve)
+        {
+            members[1].ParentId.Should().Be(DataSourceId.Empty);
+            workspace.GetChildren(group.Id).Should().BeEmpty();
+        }
+        else workspace.GetChildren(group.Id).Should().Equal(members.Skip(1));
+        var settings = new DataSourceSettings();
+        settings.AddRange(workspace.All);
+        new SourceConfiguration(settings).Snapshot().Select(source => source.Id)
+            .Should().BeEquivalentTo(workspace.All.Select(source => source.Id));
+    }
+
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }

@@ -121,6 +121,7 @@ public sealed class SourcesViewModel
         parent.ExcludedDataSources.Remove(member.Id);
         member.ParentId = DataSourceId.Empty;
         Roots.Add(member);
+        if (children.Count == 1) Remove(parent.Id);
     }
 
     public void Remove(DataSourceId id)

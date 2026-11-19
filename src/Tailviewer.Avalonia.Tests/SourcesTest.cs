@@ -977,6 +977,50 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task RemovingAGroupMemberPromotesTheRemainingFileWithoutClosingEitherLog()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            await window.OpenFileAsync(_second);
+            var second = (DataSource)tree.SelectedItem!;
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var group = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, first, group);
+            await AddThroughMenu(tree, second, group);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var parent = (TreeViewItem)tree.ContainerFromItem(group)!;
+            await WaitUntil(() => parent.ContainerFromItem(second) is TreeViewItem item && item.ContextMenu != null);
+            var container = (TreeViewItem)parent.ContainerFromItem(second)!;
+            var menu = container.ContextMenu!;
+            container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+            try
+            {
+                await WaitUntil(() => menu.IsOpen);
+                menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Remove from group"))
+                    .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            }
+            finally { menu.Close(); }
+            await WaitUntil(() => tree.ItemCount == 2 && Rows(window).ItemCount == 1 && Command(window, "Open folder").IsEnabled);
+            tree.Items.OfType<DataSource>().Select(source => source.Id).Should().Equal(first.Id, second.Id);
+            first.ParentId.Should().Be(DataSourceId.Empty);
+            second.ParentId.Should().Be(DataSourceId.Empty);
+            ((SourcesViewModel)window.DataContext!).Contains(group.Id).Should().BeFalse();
+            await Copy(window, 0, "second");
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 1, "  original spaces  ");
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
     private static string? SourceStatus(TreeView tree, DataSource source) =>
         (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;

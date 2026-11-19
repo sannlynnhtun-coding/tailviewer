@@ -321,3 +321,28 @@ after successful construction. The transient loading marker is wired to actual
 Core processing progress but was not timing-asserted in this slice. Native
 screen-reader/layout and representative many-folder performance acceptance were
 not executed. No full Core rerun was needed for these UI-only changes.
+
+## Single-member group dissolution slice (T023)
+
+Legacy DataSourcesViewModel.DragFromGroup / DissolveGroupIfNecessary removes a
+group only when moving a member out leaves exactly one child, promoting that
+child at the group's original root position. Empty groups are retained. The
+modern Remove from group command previously left that single-child container.
+
+Three model cases pin zero/one/two remaining members, surrounding root order,
+stable IDs/parents, exclusion cleanup and SourceConfiguration validation. The
+one-remaining-member case failed before the fix; the other two were passing
+controls. Ungroup now reuses the existing Remove promotion logic when exactly
+one member remains. This is one production line; closing/removing a source does
+not gain an unrelated automatic-dissolution rule.
+
+A headless menu case groups two real owned logs, removes the selected member,
+verifies ordered promotion of both original identities, then selects and copies
+both original contents without deleting/changing either file. Focused cases:
+4 pass. Complete modern solution: 81 Archiver + 134 Avalonia pass, no failures
+or skips. Evidence under ignored artifacts/migration: t023-dissolve-red.log,
+t023-dissolve-focused.log and t023-dissolve-modern.log.
+
+T023 remains partial for its implementation dependencies, tree drag/reordering
+and aggregate behavior. Native menu/keyboard/accessibility, full Core and the
+native entry-point matrix were not repeated for this model/menu-only change.
