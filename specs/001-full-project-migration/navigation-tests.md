@@ -179,3 +179,41 @@ t019-keyrange/t019-keyrange.trx.
 T019/T029/T030 remain open for drag edge autoscroll and their broader
 large-file/rotation/provenance/dependency acceptance. Native keyboard/clipboard
 and bidirectional-text visual caret behavior have not been accepted yet.
+## Slice 7: captured-drag viewport scrolling and T019 completion
+
+The existing 100 ms window refresh now advances a captured text drag at viewport
+edges; no second timer is introduced. Vertical movement brings the next/previous
+visible source row into view. Long lines use the existing scroll viewer's native
+horizontal line scrolling. Hit testing is clipped to the content presenter and
+uses the nearest realized visible row, so an endpoint outside the window extends
+the selection instead of silently stopping at the original viewport. New visible
+rows receive native highlighting on refresh. Release/capture loss stops scrolling;
+Escape/source binding/close clears the range and releases capture.
+
+Two new headless scenarios hold the pointer still beyond the original viewport,
+assert movement past all initially visible rows, copy through a known new endpoint,
+verify upward scrolling and Escape cancellation, and exercise horizontal long-line
+scrolling/release/close-all during an active captured drag. Waiting 300 ms after
+release/cancellation explicitly checks stability over three refresh intervals.
+No assertion timeout was extended or case skipped.
+
+The initial fixture used a terminal newline, creating an extra indexed row; it
+was corrected to exactly 200 lines. The corrected test was then run against the
+committed pre-autoscroll controller and failed at the missing-scroll assertion,
+recorded in artifacts/migration/t019-edge-red.log. Two intermediate focused
+viewport runs also stalled; their cause was not established. Later focused tests
+and the full solution passed. Retain this headless timing observation rather than
+claiming the earlier failures never occurred. Temporary diagnostics were removed.
+
+Final modern solution: 81 Archiver + 82 Avalonia = 163 pass, zero failures/skips.
+Evidence: ignored artifacts/migration/t019-edge-final-focused.log and
+t019-edge-solution.log. t019-edge/t019-edge.trx contains only the final Avalonia
+result because the solution logger reused the same filename; the combined log
+retains both executed project summaries.
+
+T019 is now complete as a test-contract task: go-to-line/quick navigation,
+character-and-line selection, original-order/text copy and the relevant validation
+cases exist and pass. T029/T030 implementation/integration gates remain open,
+including their earlier task dependencies. Native desktop input/clipboard,
+large-file performance, bidirectional caret visuals and complete rotation/
+provenance acceptance remain separate unproven gates; this is not US1 completion.

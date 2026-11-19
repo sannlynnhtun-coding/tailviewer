@@ -570,6 +570,99 @@ public sealed class NavigationTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task HeldDragScrollsBeyondTheViewportAndStopsOnRelease()
+    {
+        var lines = Enumerable.Range(0, 200).Select(index => $"line-{index:000}").ToArray();
+        File.WriteAllText(_path, string.Join("\n", lines));
+        var window = new MainWindow { Height = 400 };
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == lines.Length);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = false;
+            Rows(window).ScrollIntoView(0);
+            await Until(() => Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Any(block => block.DataContext is LogLine { Index: 0, Text: not null }));
+            window.UpdateLayout();
+            IEnumerable<TextBlock> VisibleRows() => Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Where(block => block.DataContext is LogLine { Text: not null } &&
+                    block.TranslatePoint(new Point(), Rows(window)) is { Y: > 0 } point &&
+                    point.Y + block.Bounds.Height < Rows(window).Bounds.Height);
+            var initialLast = VisibleRows().Max(block => ((LogLine)block.DataContext!).Index);
+            var start = TextPoint(window, 0, 2);
+            var outside = Rows(window).TranslatePoint(new Point(100, Rows(window).Bounds.Height + 20), window)!.Value;
+            window.MouseMove(start);
+            window.MouseDown(start, MouseButton.Left, RawInputModifiers.Alt);
+            window.MouseMove(outside, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+            var scroll = Rows(window).GetVisualDescendants().OfType<ScrollViewer>().Single();
+            await Until(() => VisibleRows().Any() && VisibleRows().Min(block => ((LogLine)block.DataContext!).Index) > initialLast);
+            var target = VisibleRows()
+                .Select(block => ((LogLine)block.DataContext!).Index).Order().First();
+            target.Should().BeGreaterThan(0);
+            var end = TextPoint(window, target, 3);
+            window.MouseMove(end, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+            window.MouseUp(end, MouseButton.Left, RawInputModifiers.Alt);
+            await CopyAndCheck(window, string.Join(Environment.NewLine,
+                new[] { lines[0][2..] }.Concat(lines.Skip(1).Take(target - 1)).Append(lines[target][..3])));
+            var stopped = scroll.Offset;
+            await Task.Delay(300);
+            scroll.Offset.Should().Be(stopped, "because releasing the captured pointer must stop edge scrolling");
+            var above = Rows(window).TranslatePoint(new Point(100, -20), window)!.Value;
+            window.MouseDown(end, MouseButton.Left, RawInputModifiers.Alt);
+            window.MouseMove(above, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+            await Until(() => scroll.Offset.Y < stopped.Y);
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            var cancelled = scroll.Offset;
+            await Task.Delay(300);
+            scroll.Offset.Should().Be(cancelled, "because Escape must cancel a captured edge drag");
+            window.MouseUp(above, MouseButton.Left, RawInputModifiers.Alt);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task HeldTextDragScrollsLongLinesHorizontallyAndCloseClearsCapture()
+    {
+        File.WriteAllText(_path, new string('x', 2000));
+        var window = new MainWindow { Width = 640 };
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Any(block => block.DataContext is LogLine { Text.Length: 2000 }));
+            window.UpdateLayout();
+            var start = TextPoint(window, 0, 1);
+            var outside = Rows(window).TranslatePoint(new Point(Rows(window).Bounds.Width + 20, 10), window)!.Value;
+            window.MouseMove(start);
+            window.MouseDown(start, MouseButton.Left, RawInputModifiers.Alt);
+            window.MouseMove(outside, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+            var scroll = Rows(window).GetVisualDescendants().OfType<ScrollViewer>().Single();
+            await Until(() => scroll.Offset.X > 100);
+            window.MouseUp(outside, MouseButton.Left, RawInputModifiers.Alt);
+            var selected = Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>().Single().SelectedText!;
+            selected.Length.Should().BeGreaterThan(30);
+            await CopyAndCheck(window, new string('x', selected.Length));
+            var stopped = scroll.Offset;
+            await Task.Delay(300);
+            scroll.Offset.Should().Be(stopped);
+            var inside = Rows(window).TranslatePoint(new Point(Rows(window).Bounds.Width / 2, 10), window)!.Value;
+            window.MouseMove(inside);
+            window.MouseDown(inside, MouseButton.Left, RawInputModifiers.Alt);
+            window.MouseMove(outside, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+            await Until(() => scroll.Offset.X > stopped.X);
+            window.GetVisualDescendants().OfType<Button>().Single(button => AutomationProperties.GetName(button) == "Close all sources")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Rows(window).ItemCount.Should().Be(0);
+            await Task.Delay(300);
+            Rows(window).ItemCount.Should().Be(0);
+            window.MouseUp(outside, MouseButton.Left, RawInputModifiers.Alt);
+        }
+        finally { window.Close(); }
+    }
+
     private static void CharacterKey(MainWindow window, Key key, KeyModifiers modifiers = KeyModifiers.Shift) =>
         Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
 

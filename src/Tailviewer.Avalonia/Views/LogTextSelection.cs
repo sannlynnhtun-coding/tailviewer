@@ -3,6 +3,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using System.Globalization;
+using Avalonia;
+using Avalonia.Controls.Presenters;
 
 namespace Tailviewer.Avalonia.Views;
 
@@ -14,6 +16,7 @@ public sealed class LogTextSelection
     private LogSelection? _selection;
     private long _revision;
     private IPointer? _pointer;
+    private Point _dragPoint;
     private long _inputEpoch;
     private Task _keyWork = Task.CompletedTask;
     private int? _preferredColumn;
@@ -68,24 +71,67 @@ public sealed class LogTextSelection
     {
         if (_selection == null) return;
         if (_document?.Revision != _revision) Clear();
-        else Highlight();
+        else
+        {
+            if (_pointer != null)
+            {
+                UpdateDrag();
+                ScrollEdges();
+            }
+            Highlight();
+        }
     }
 
     private IEnumerable<SelectableTextBlock> Blocks => _rows.GetVisualDescendants().OfType<SelectableTextBlock>()
         .Where(block => block.DataContext is LogLine { Text: not null });
 
-    private (int Line, int Column)? Position(PointerEventArgs args)
+    private Rect Viewport
     {
-        // shortcut: drag endpoints follow realized rows; add edge autoscroll with the viewport selection phase.
-        var block = Blocks.FirstOrDefault(candidate =>
+        get
         {
-            var point = args.GetPosition(candidate);
-            return point.Y >= 0 && point.Y < candidate.Bounds.Height;
-        });
+            var presenter = _rows.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+            return presenter?.TranslatePoint(default, _rows) is { } origin
+                ? new Rect(origin, presenter.Bounds.Size) : new Rect(_rows.Bounds.Size);
+        }
+    }
+
+    private IEnumerable<SelectableTextBlock> VisibleBlocks
+    {
+        get
+        {
+            var viewport = Viewport;
+            return Blocks.Where(block => block.TranslatePoint(default, _rows) is { } origin &&
+                new Rect(origin, block.Bounds.Size).Intersects(viewport));
+        }
+    }
+
+    private (int Line, int Column)? Position(Point point)
+    {
+        var viewport = Viewport;
+        point = new Point(Math.Clamp(point.X, viewport.Left, viewport.Right), Math.Clamp(point.Y, viewport.Top, viewport.Bottom));
+        var block = VisibleBlocks.OrderBy(candidate =>
+        {
+            var local = _rows.TranslatePoint(point, candidate)!.Value;
+            return local.Y < 0 ? -local.Y : Math.Max(0, local.Y - candidate.Bounds.Height);
+        }).FirstOrDefault();
         if (block?.DataContext is not LogLine { Text: { } text } row) return null;
-        var hit = block.TextLayout.HitTestPoint(args.GetPosition(block));
+        var localPoint = _rows.TranslatePoint(point, block)!.Value;
+        var hit = block.TextLayout.HitTestPoint(new Point(localPoint.X, Math.Clamp(localPoint.Y, 0, block.Bounds.Height)));
         var prefix = row.DisplayText.Length - text.Length;
         return (row.Index, Math.Clamp(hit.TextPosition - prefix, 0, text.Length));
+    }
+
+    private void ScrollEdges()
+    {
+        if (_document == null || _rows.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll) return;
+        var viewport = Viewport;
+        const double edge = 16;
+        var indices = VisibleBlocks.Select(block => ((LogLine)block.DataContext!).Index).Order().ToArray();
+        if (indices.Length == 0) return;
+        if (_dragPoint.Y < viewport.Top + edge && indices[0] > 0) _rows.ScrollIntoView(indices[0] - 1);
+        else if (_dragPoint.Y > viewport.Bottom - edge && indices[^1] + 1 < _document.Lines.Count) _rows.ScrollIntoView(indices[^1] + 1);
+        if (_dragPoint.X < viewport.Left + edge) scroll.LineLeft();
+        else if (_dragPoint.X > viewport.Right - edge) scroll.LineRight();
     }
 
     private void Pressed(object? sender, PointerPressedEventArgs args)
@@ -96,7 +142,8 @@ public sealed class LogTextSelection
             Clear();
             return;
         }
-        if (Position(args) is not { } position) return;
+        _dragPoint = args.GetPosition(_rows);
+        if (Position(_dragPoint) is not { } position) return;
         Clear();
         _rows.Selection.Clear();
         _revision = _document.Revision;
@@ -189,15 +236,21 @@ public sealed class LogTextSelection
 
     private void Moved(object? sender, PointerEventArgs args)
     {
-        if (_pointer != args.Pointer || _selection is not { } range) return;
+        if (_pointer != args.Pointer || _selection == null) return;
         if (_document?.Revision != _revision) { Clear(); return; }
-        if (Position(args) is { } position)
+        _dragPoint = args.GetPosition(_rows);
+        UpdateDrag();
+        args.Handled = true;
+    }
+
+    private void UpdateDrag()
+    {
+        if (_selection is { } range && Position(_dragPoint) is { } position)
         {
             _selection = range with { ActiveLine = position.Line, ActiveColumn = position.Column };
             Highlight();
             _changed();
         }
-        args.Handled = true;
     }
 
     private void Released(object? sender, PointerReleasedEventArgs args)
