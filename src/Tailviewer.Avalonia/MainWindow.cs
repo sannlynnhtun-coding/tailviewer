@@ -299,7 +299,14 @@ public sealed class MainWindow : Window
         };
         _timer.Start();
         if (fileName != null)
-            Opened += async (_, _) => await OpenFileAsync(fileName);
+        {
+            async void OpenInitialFile(object? sender, EventArgs args)
+            {
+                Opened -= OpenInitialFile;
+                await OpenFileAsync(fileName);
+            }
+            Opened += OpenInitialFile;
+        }
     }
 
     private async Task PickSourcesAsync(bool folders)

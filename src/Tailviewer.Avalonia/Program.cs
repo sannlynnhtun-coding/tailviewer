@@ -68,12 +68,14 @@ public sealed class App : Application
             _stopping = new CancellationTokenSource();
             var stopping = _stopping.Token;
             desktop.Exit += (_, _) => _stopping?.Cancel();
-            window.Opened += async (_, _) =>
+            async void OpenInitialSources(object? sender, EventArgs args)
             {
+                window.Opened -= OpenInitialSources;
                 await window.OpenFilesAsync(desktop.Args ?? Array.Empty<string>());
                 if (_channel != null && !stopping.IsCancellationRequested)
                     _listener = ListenAsync(window, _channel, stopping);
-            };
+            }
+            window.Opened += OpenInitialSources;
             desktop.MainWindow = window;
         }
         base.OnFrameworkInitializationCompleted();

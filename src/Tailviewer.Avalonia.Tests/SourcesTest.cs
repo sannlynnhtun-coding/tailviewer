@@ -918,6 +918,30 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task HiddenWindowHandoffDoesNotReplayStartupArguments()
+    {
+        var window = new MainWindow(_first);
+        window.Show();
+        try
+        {
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var selected = (DataSource)tree.SelectedItem!;
+            window.Hide();
+            await window.AcceptHandoff(Array.Empty<string>(), CancellationToken.None);
+            await WaitUntil(() => Command(window, "Open folder").IsEnabled);
+            window.IsVisible.Should().BeTrue();
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(selected.Id);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task CancelledAndClosedHandoffsDoNotModifyTheWorkspace()
     {
         var window = new MainWindow();

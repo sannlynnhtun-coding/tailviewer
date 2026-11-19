@@ -147,3 +147,28 @@ with no failures/skips. Details and evidence paths are in
 contract is complete. T025 remains open for its implementation dependencies and
 remaining window behavior; no cross-user/session isolation or fully completed
 single-instance migration is claimed.
+
+## Slice 6: hidden-window startup replay regression
+
+A headless regression opens an initial file, switches to another source, selects
+and copies its text, hides the window and accepts an empty handoff. Before the
+fix, Show raised Opened again and replayed the constructor startup file, changing
+the selected source ID. The failing assertion is retained as local evidence.
+
+Both startup Opened subscribers now unsubscribe themselves before their first
+await: MainWindow's optional initial-file path and App's initial-arguments/pipe
+startup path. Restoring visibility therefore cannot reopen initial arguments or
+start another listener. No timer, new state flag or helper abstraction was added.
+
+Verification: focused hidden/handoff cases 4 pass; complete modern solution
+81 Archiver + 130 Avalonia pass; real-process native handoff, graceful/crash
+restart and timeout/error-window cases 4 pass, with zero failures/skips. Evidence:
+artifacts/migration/t025-hidden-red.log, t025-hidden-focused.log,
+t025-hidden-modern.log, t025-hidden-native.log and
+t021-native/t025-hidden-native.trx.
+
+The hidden restore itself is a headless visibility/identity/selection/copy check,
+not a native tray or screen-reader result. Native foreground/off-screen handling
+and T024/T025's source implementation dependencies remain open. Shared Core and
+the entire native picker/OLE matrix were not rerun for this event-lifetime fix;
+the previous complete native checkpoint was 14/14.
