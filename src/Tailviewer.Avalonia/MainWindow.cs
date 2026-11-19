@@ -52,6 +52,9 @@ public sealed class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private LogDocument? _document;
     private readonly Dictionary<DataSourceId, (System.Text.Encoding? Encoding, LogDocument Document)> _documents = new();
+    // shortcut: viewport offsets are session-only until profile save/restore in T055.
+    private readonly Dictionary<DataSourceId, (LogDocument Document, long Revision, Vector Offset)> _viewStates = new();
+    private (LogDocument? Document, long Request) _pendingViewRestore;
     private string? _operationError;
     private bool _closed;
     private bool _changingSourceSelection;
@@ -311,6 +314,8 @@ public sealed class MainWindow : Window
             _timer.Stop();
             foreach (var entry in _documents.Values) entry.Document.Dispose();
             _documents.Clear();
+            _viewStates.Clear();
+            _pendingViewRestore = default;
             _navigation.BindDocument(null);
             _textSelection.BindDocument(null);
             _quickNavigation.Dismiss();
@@ -445,7 +450,7 @@ public sealed class MainWindow : Window
         ++_openRequest;
         _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
-        SaveFollowState();
+        SaveViewState();
         ClearDocument();
         SelectSource(source);
         _path.Text = source.DisplayName;
@@ -598,7 +603,7 @@ public sealed class MainWindow : Window
                     folder.Changed += () => Dispatcher.UIThread.Post(() => RefreshFolder(id));
                     RefreshFolder(id);
                 }
-                SaveFollowState();
+                SaveViewState();
                 _rows.ItemsSource = null;
                 _document = null;
                 _navigation.BindDocument(null);
@@ -634,9 +639,22 @@ public sealed class MainWindow : Window
                 await OpenSourceAsync(fileName, source);
                 return;
             }
-            SaveFollowState();
+            SaveViewState();
             _rows.ItemsSource = null;
             if (cached.Document != null && !ReferenceEquals(cached.Document, document)) cached.Document.Dispose();
+            if (!ReferenceEquals(cached.Document, document))
+            {
+                _viewStates.Remove(source.Id);
+                document.Lines.CollectionChanged += (_, args) =>
+                {
+                    if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset or
+                        System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
+                    {
+                        _viewStates.Remove(source.Id);
+                        source.SelectedLogLines.Clear();
+                    }
+                };
+            }
             _documents[source.Id] = (encoding, document);
             _document = document;
             _navigation.BindDocument(document);
@@ -645,11 +663,42 @@ public sealed class MainWindow : Window
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             SelectSource(source);
             _operationError = null;
+            document.Refresh();
             _rows.ItemsSource = document.Lines;
+            var restore = _viewStates.TryGetValue(source.Id, out var view) &&
+                ReferenceEquals(view.Document, document) && view.Revision == document.Revision;
+            if (restore)
+            {
+                _rows.Selection.BeginBatchUpdate();
+                try
+                {
+                    foreach (var index in source.SelectedLogLines.OrderBy(index => (int)index))
+                        if (index >= 0 && index < document.Lines.Count) _rows.Selection.Select((int)index);
+                }
+                finally { _rows.Selection.EndBatchUpdate(); }
+            }
             _follow.IsChecked = source.FollowTail;
             _path.Text = document.FileName;
             Title = $"{Path.GetFileName(document.FileName)} — Tailviewer prototype";
             RefreshDocument();
+            if (restore)
+            {
+                // Run after the control's default-priority selected-item scroll, which would overwrite this offset.
+                _pendingViewRestore = (document, request);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_pendingViewRestore.Request == request) _pendingViewRestore = default;
+                    if (_closed || request != _openRequest || !ReferenceEquals(_document, document) ||
+                        document.Revision != view.Revision) return;
+                    _rows.UpdateLayout();
+                    if (_rows.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll)
+                    {
+                        scroll.Offset = new Vector(view.Offset.X, _follow.IsChecked == true
+                            ? Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) : view.Offset.Y);
+                    }
+                }, DispatcherPriority.Default);
+            }
+            else ScrollToTail();
             PruneDocuments();
         }
         catch (Exception ex)
@@ -691,6 +740,7 @@ public sealed class MainWindow : Window
     {
         _rows.ItemsSource = null;
         _document = null;
+        _pendingViewRestore = default;
         PruneDocuments();
         _navigation.BindDocument(null);
         _textSelection.BindDocument(null);
@@ -708,7 +758,7 @@ public sealed class MainWindow : Window
         ++_openRequest;
         _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
-        SaveFollowState();
+        SaveViewState();
         ClearDocument();
         SelectSource(null);
         if (_folders.Remove(source.Id, out var folder)) folder.Dispose();
@@ -798,12 +848,19 @@ public sealed class MainWindow : Window
         }
     }
 
-    private void SaveFollowState()
+    private void SaveViewState()
     {
         if (_document == null) return;
+        if (ReferenceEquals(_pendingViewRestore.Document, _document)) return;
         var previous = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
             .FirstOrDefault(source => source.Id == _document.SourceId);
-        if (previous != null) previous.FollowTail = _follow.IsChecked == true;
+        if (previous == null) return;
+        _document.Refresh();
+        previous.FollowTail = _follow.IsChecked == true;
+        previous.SelectedLogLines = _rows.Selection.SelectedIndexes.Select(index => new LogLineIndex(index)).ToHashSet();
+        var offset = _rows.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.Offset ?? default;
+        previous.HorizontalOffset = offset.X;
+        _viewStates[previous.Id] = (_document, _document.Revision, offset);
     }
 
     private void PruneDocuments()
@@ -814,6 +871,7 @@ public sealed class MainWindow : Window
             if (id != _document?.SourceId && !retained.Contains(id))
             {
                 _documents.Remove(id);
+                _viewStates.Remove(id);
                 entry.Document.Dispose();
             }
     }

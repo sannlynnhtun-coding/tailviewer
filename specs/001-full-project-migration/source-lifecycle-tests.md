@@ -782,3 +782,66 @@ t022-inactive-document-native.log/TRX. Earlier failed focused/recheck logs are
 retained. Core code did not change, so its full suite was not repeated; the full
 native/performance matrix was not repeated after changing retained-reader
 lifecycle. Existing multi-target legacy NU1902 warnings remain visible.
+
+## Per-source selection and viewport (T030/T031)
+
+The legacy LogViewerControl restores SelectedLogLines, VisibleLogLine and
+HorizontalOffset when its source changes. The port now saves whole-line
+selection through the existing DataSource.SelectedLogLines field, plus an
+in-memory document/revision/scroll-offset snapshot. Returning to an unchanged
+document restores the selected original line indices and paused horizontal and
+vertical viewport. A following source keeps its selected lines and horizontal
+offset while returning to the tail. Selection changes are batched.
+
+Reset/removal notifications invalidate saved state and selected-line settings;
+document identity plus revision fences prevent reuse after decoder/path changes
+or file replacement. A posted viewport restore also checks the current open
+request/document/revision, so a superseded callback cannot move another source's
+viewport. Switching away before a pending restore executes keeps the earlier
+snapshot instead of saving the temporary viewport. Pruning/closing documents
+also clears their snapshots. Shipping restart persistence and character-range
+restoration remain separate work; no file format or profile path changed.
+
+The initial regression failed on missing restored selection. It now uses
+noncontiguous lines 1000/1002, independently scrolls to line 1400, checks both
+offsets within one pixel, exact multi-row copy, and rapid cached source switches.
+A following-source case verifies selected line 0 with the visible tail and
+horizontal offset. The prior inactive same-size/same-mtime rewrite case still
+requires cleared selection and exact replacement text.
+
+Two existing source cases initially failed because their single-line copy helper
+added a new selected index to restored selection. That helper now explicitly
+replaces selection; a separate CopySelected helper verifies the restored
+multi-selection without modifying it. No expected copied text was loosened.
+
+Following/independent-viewport tests exposed queued scroll ordering. Immediate
+layout calls, temporarily disabling auto-scroll and a Loaded-priority callback
+did not resolve it. Temporary synthetic diagnostics showed correct offsets
+inside the callback followed by a return to the selected anchor. Avalonia's
+[SelectingItemsControl](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/12.1.6/src/Avalonia.Controls/Primitives/SelectingItemsControl.cs)
+posts its selected-item scroll at default priority;
+[Loaded priority](https://raw.githubusercontent.com/AvaloniaUI/Avalonia/12.1.6/src/Avalonia.Base/Threading/DispatcherPriority.cs)
+runs ahead of that queue. The final callback uses default priority after the
+selection work, then applies layout and the intended offset. Diagnostic console
+output and temporary property/layout workarounds were removed.
+
+The rapid-switch regression separately failed when an unapplied temporary
+viewport overwrote the saved one. Tracking the pending restore prevents that
+save. The full modern solution subsequently passes 81 Archiver + 184 Avalonia
+tests, zero failures/skips (artifacts/migration/t031-source-view-final.log/TRX).
+Failed red/intermediate probes remain under t031-source-view-* artifacts,
+including rapid-red, callback-diagnostic and the earlier modern run; the final
+passing result does not erase those observations. No timeout was extended.
+
+Core production code did not change. Full Core, native performance and the
+five-minute tail workload were not repeated in this slice. Large restored
+selections and multi-source memory/CPU acceptance remain open, as do the rest
+of T022/T026/T030/T031 and full migration.
+
+Native targeted validation passes 4/4, zero failures/skips
+(artifacts/migration/t031-source-view-native.log/TRX). The picker/argument cases
+now switch to the first file, select/copy its original Unicode line, then return
+to the second and copy its restored selection without reselecting it. Relative
+handoff and Ctrl+G also pass. This is native selection/copy integration evidence;
+precise native viewport restoration and the complete native suite were not
+executed here. Owned processes exit and clipboard/temp ownership guards remain.

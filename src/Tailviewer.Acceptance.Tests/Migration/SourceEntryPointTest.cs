@@ -223,6 +223,17 @@ public sealed partial class SourceEntryPointTest
             "Both requested sources must remain open and the last must become active without duplicating the first.");
         SelectSecondLine(window);
         CopyAndCheck(window, PickerLine);
+        var first = sources.FindFirst(TreeScope.Children, new PropertyCondition(AutomationElement.NameProperty, _path));
+        ((SelectionItemPattern)first.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(_path), StringComparison.Ordinal) ? window : null,
+            "Selecting the first configured source must activate its document.");
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+        var previous = sources.FindFirst(TreeScope.Children, new PropertyCondition(AutomationElement.NameProperty, other));
+        ((SelectionItemPattern)previous.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) ? window : null,
+            "Returning to the previous source must reactivate its document.");
+        CopyAndCheck(window, PickerLine);
     }
 
     [TestCase(false)]

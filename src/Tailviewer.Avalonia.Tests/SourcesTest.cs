@@ -367,6 +367,90 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task SwitchingSourcesRestoresLineSelectionAndThePausedViewport()
+    {
+        File.WriteAllText(_first, string.Join('\n', Enumerable.Range(0, 2000).Select(index => index + " " + new string('x', 400))));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2000);
+            window.UpdateLayout();
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            Rows(window).Selection.Select(1000);
+            Rows(window).Selection.Select(1002);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.Text?.Contains("1000 " + new string('x', 400)) == true));
+            Rows(window).ScrollIntoView(1400);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.Text?.Contains("1400 " + new string('x', 400)) == true));
+            var scroll = Rows(window).GetVisualDescendants().OfType<ScrollViewer>().Single();
+            scroll.Offset = new Vector(140, scroll.Offset.Y);
+            await WaitUntil(() => scroll.Offset.X > 100 && scroll.Offset.Y > 1000);
+            var offset = scroll.Offset;
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2000);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1000, 1002);
+            await WaitUntil(() => Math.Abs(scroll.Offset.X - offset.X) < 1 && Math.Abs(scroll.Offset.Y - offset.Y) < 1);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            var expected = "1000 " + new string('x', 400) + Environment.NewLine + "1002 " + new string('x', 400);
+            await CopySelected(window, expected);
+            await window.OpenFileAsync(_second);
+            await window.OpenFileAsync(_first);
+            await window.OpenFileAsync(_second);
+            Dispatcher.UIThread.RunJobs();
+            Rows(window).ItemCount.Should().Be(1);
+            await Copy(window, 0, "second");
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Math.Abs(scroll.Offset.X - offset.X) < 1 && Math.Abs(scroll.Offset.Y - offset.Y) < 1);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1000, 1002);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ReturningToAFollowingSourceRetainsSelectionWithoutPausingItsTail()
+    {
+        File.WriteAllText(_first, string.Join('\n', Enumerable.Range(0, 2000).Select(index => index + " " + new string('x', 400))));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2000);
+            window.UpdateLayout();
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            Rows(window).Selection.Select(0);
+            Rows(window).ScrollIntoView(0);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.Text?.Contains("      1  0 " + new string('x', 400)) == true));
+            var follow = window.GetVisualDescendants().OfType<CheckBox>().Single();
+            follow.IsChecked = true;
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.Text?.Contains("1999 " + new string('x', 400)) == true));
+            var scroll = Rows(window).GetVisualDescendants().OfType<ScrollViewer>().Single();
+            scroll.Offset = new Vector(140, scroll.Offset.Y);
+            await WaitUntil(() => scroll.Offset.X > 100);
+            var horizontal = scroll.Offset.X;
+            await window.OpenFileAsync(_second);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2000);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            follow.IsChecked.Should().BeTrue();
+            await WaitUntil(() => Math.Abs(scroll.Offset.X - horizontal) < 1);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(text => text.Text?.Contains("1999 " + new string('x', 400)) == true));
+            await CopySelected(window, "0 " + new string('x', 400));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task InactiveSourceKeepsIndexingAndReusesItsDocumentWhenSelectedAgain()
     {
         var window = new MainWindow();
@@ -1677,8 +1761,14 @@ public sealed class SourcesTest
 
     private static async Task Copy(MainWindow window, int index, string expected)
     {
-        await window.Clipboard!.SetTextAsync("pending-" + Guid.NewGuid().ToString("N"));
+        Rows(window).Selection.Clear();
         Rows(window).Selection.Select(index);
+        await CopySelected(window, expected);
+    }
+
+    private static async Task CopySelected(MainWindow window, string expected)
+    {
+        await window.Clipboard!.SetTextAsync("pending-" + Guid.NewGuid().ToString("N"));
         window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
             .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var timeout = Stopwatch.StartNew();
