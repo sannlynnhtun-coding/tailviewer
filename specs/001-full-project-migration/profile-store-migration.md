@@ -83,3 +83,49 @@ t012-source-probe.log. The physical interruption probe is recorded separately.
 Implementation references: [File.Replace](https://learn.microsoft.com/en-us/dotnet/api/system.io.file.replace?view=net-10.0),
 [Flush(Boolean)](https://learn.microsoft.com/en-us/dotnet/api/system.io.filestream.flush?view=net-10.0),
 [NewLineHandling](https://learn.microsoft.com/en-us/dotnet/api/system.xml.newlinehandling?view=net-10.0).
+
+
+## Slice 3: single-rename publication and Windows metadata
+
+The slice-2 File.Replace checkpoint is superseded. Microsoft's ReplaceFileW
+contract documents native errors 1176/1177 where the original filename can be
+removed or moved; a null backup is therefore too weak for the required failure
+invariant. The final helper uses one same-directory File.Move rename, with the
+replace-existing intent captured before staging. A first-save race now fails
+without overwriting a file created by another writer during validation.
+
+Before serialization, an exclusively created owned candidate receives a copy
+of existing metadata/data, an explicit Windows DACL copy and creation time.
+Only that candidate is truncated/serialized, flushed and validated. This retains
+NTFS alternate streams and restrictive ACLs without relying on ReplaceFile's
+multi-step metadata merging. No new package or native P/Invoke is introduced.
+A new metadata test caught permission broadening in a naive rename and verified
+that a reconstructed FileSecurity descriptor is actually persisted (passing an
+unmodified descriptor object to SetAccessControl did not copy the DACL).
+Read-only copied candidates are cleaned by clearing only their own read-only bit.
+The original file's permissions/attributes are never relaxed for publication.
+
+Windows MoveFileEx can deny replacement of an open target even when its reader
+allows deletion. The final held-reader cases therefore assert explicit save
+failure, unchanged bytes/read handle, and successful retry after closing it.
+There is no fallback to truncation or ReplaceFile. This is the intended Windows
+sharing/error contract, not a claim of nonblocking publication to held readers.
+Parallel staged writers still produce a whole validated winner or a safe native
+sharing/access failure; existing-file updates use last-completed-writer semantics.
+
+Additional red evidence: a naive rename broadened the protected DACL, and the
+first-save race overwrote the newly arrived destination. Both are now covered,
+as are actual NTFS alternate-stream and creation-time preservation. Final
+persistence selection: **69 passed / 0 failed / 0 skipped**. No new test is skipped.
+The native acceptance platform is Windows x64; Linux/macOS remain later scope.
+
+Logs: artifacts/migration/t012-rename-metadata-red.log,
+t012-first-save-race-red.log, t012-rename-native.log,
+t012-single-rename-verified.log, t012-rename-core-final.log,
+t012-rename-solution-final.log, t012-rename-interruption-final.log.
+The initial metadata-copy transition also exposed Windows held-reader denial;
+its failure and subsequent explicit retry behavior are retained in these logs.
+
+References: [ReplaceFileW failure states](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew),
+[MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw),
+[CopyFileW metadata behavior](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-copyfilew).

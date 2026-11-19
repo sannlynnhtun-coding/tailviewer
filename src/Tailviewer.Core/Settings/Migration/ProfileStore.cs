@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Security.AccessControl;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -21,11 +22,26 @@ namespace Tailviewer.Settings
             Directory.CreateDirectory(folder);
             var candidate = Path.Combine(folder, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
             var ownsCandidate = false;
+            var replacing = File.Exists(path);
+            if (replacing && new FileInfo(path).Length > MaxFileBytes) throw new XmlException("Existing profile exceeds the file-size limit.");
             try
             {
-                using (var stream = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-                {
+                using (new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     ownsCandidate = true;
+                if (replacing)
+                {
+                    File.Copy(path, candidate, overwrite: true);
+                    if (OperatingSystem.IsWindows())
+                    {
+                        var security = new FileSecurity();
+                        security.SetSecurityDescriptorBinaryForm(new FileInfo(path).GetAccessControl(AccessControlSections.Access)
+                            .GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
+                        new FileInfo(candidate).SetAccessControl(security);
+                    }
+                    File.SetCreationTimeUtc(candidate, File.GetCreationTimeUtc(path));
+                }
+                using (var stream = new FileStream(candidate, FileMode.Truncate, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                {
                     using (var writer = XmlWriter.Create(stream, new XmlWriterSettings
                     {
                         Encoding = new UTF8Encoding(false),
@@ -39,14 +55,20 @@ namespace Tailviewer.Settings
                     stream.Flush(true);
                 }
                 validate(Read(candidate));
-                if (File.Exists(path)) File.Replace(candidate, path, null);
-                else File.Move(candidate, path);
+                // ReplaceFile can remove the destination on native error 1176; publish with one rename instead.
+                File.Move(candidate, path, overwrite: replacing);
                 ownsCandidate = false;
             }
             finally
             {
                 // Never sweep abandoned/foreign candidates or fall back to truncating the destination.
-                if (ownsCandidate) File.Delete(candidate);
+                if (ownsCandidate)
+                {
+                    var attributes = File.GetAttributes(candidate);
+                    if ((attributes & FileAttributes.ReadOnly) != 0)
+                        File.SetAttributes(candidate, attributes & ~FileAttributes.ReadOnly);
+                    File.Delete(candidate);
+                }
             }
         }
 

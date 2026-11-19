@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -139,6 +141,38 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public void PublicationPreservesRestrictedPermissionsAndAlternateStream()
+        {
+            if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Windows x64 is the current migration acceptance platform.");
+            var security = new FileSecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User,
+                FileSystemRights.FullControl, AccessControlType.Allow));
+            new FileInfo(_path).SetAccessControl(security);
+            var before = new FileInfo(_path).GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+            File.WriteAllText(_path + ":migration-metadata", "keep");
+            var created = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            File.SetCreationTimeUtc(_path, created);
+            ProfileStore.Write(_path, writer => WriteValue(writer, "new"), document => { });
+            Assert.That(new FileInfo(_path).GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorSddlForm(AccessControlSections.Access), Is.EqualTo(before));
+            Assert.That(File.ReadAllText(_path + ":migration-metadata"), Is.EqualTo("keep"));
+            Assert.That(File.GetCreationTimeUtc(_path), Is.EqualTo(created));
+            Assert.That((string)ProfileStore.Read(_path).Root.Attribute("value"), Is.EqualTo("new"));
+        }
+
+        [Test]
+        public void FirstSaveDoesNotOverwriteADestinationCreatedDuringValidation()
+        {
+            var path = Path.Combine(_folder, "arrived.xml");
+            Assert.Catch(() => ProfileStore.Write(path, writer => WriteValue(writer, "ours"), document =>
+                File.WriteAllText(path, "<xml value='other-writer'/>")));
+            Assert.That((string)ProfileStore.Read(path).Root.Attribute("value"), Is.EqualTo("other-writer"));
+            Assert.That(Directory.GetFiles(_folder, ".arrived.xml.*.tmp"), Is.Empty);
+        }
+
+        [Test]
         public void ConcurrentWritersPublishWholeValidatedDocuments()
         {
             using (var ready = new CountdownEvent(2))
@@ -156,7 +190,7 @@ namespace Tailviewer.Core.Tests.Migration
                         });
                         return true;
                     }
-                    catch (IOException) { return false; }
+                    catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return false; }
                 })).ToArray();
                 try
                 {

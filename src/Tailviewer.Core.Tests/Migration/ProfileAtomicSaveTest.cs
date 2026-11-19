@@ -28,7 +28,7 @@ namespace Tailviewer.Core.Tests.Migration
 
         [TestCase(false)]
         [TestCase(true)]
-        public void PublishingNewSnapshotKeepsExistingReaderCoherent(bool bookmarks)
+        public void LockedSnapshotReaderKeepsPreviousBytesAndRetryPublishes(bool bookmarks)
         {
             const string before = "<xml><logviewer fontsize='17'/><bookmark datasource='11111111-1111-1111-1111-111111111111' index='17'/></xml>";
             File.WriteAllText(_path, before);
@@ -41,9 +41,11 @@ namespace Tailviewer.Core.Tests.Migration
             Func<bool> save = bookmarks ? (Func<bool>)marks.Save : profile.Save;
             using (var oldReader = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
             {
-                Assert.That(save(), Is.True);
+                Assert.That(save(), Is.False);
+                Assert.That(File.ReadAllText(_path), Is.EqualTo(before));
                 using (var text = new StreamReader(oldReader)) Assert.That(text.ReadToEnd(), Is.EqualTo(before));
             }
+            Assert.That(save(), Is.True);
             var current = XDocument.Load(_path).Root;
             Assert.That((int)current.Element(bookmarks ? "bookmark" : "logviewer").Attribute(bookmarks ? "index" : "fontsize"), Is.EqualTo(19));
             Assert.That(Directory.GetFiles(_folder), Has.Length.EqualTo(1));
