@@ -399,3 +399,43 @@ run: 1 MiB initial 20.16 ms, idle audits 1.41-1.48 ms, recovery 17.04 ms;
 Same local i7-13700H test environment as the preceding sample; uncontrolled
 cache/background load means this is not an apples-to-apples speed comparison or
 a performance acceptance gate. No assertion was weakened or skip added.
+
+## Manifest-sized record workload: failing recovery preflight (T027)
+
+Added tools/Tailviewer.SourcePerformance as a standalone Core-only self-check,
+kept outside routine solution/test discovery. It generates the exact manifest
+PERF-100MB/PERF-1GB 128-byte record shapes, performs three read-through warm-cache
+runs for each, checks the first 32 decoded records and every byte offset, changes
+one middle LF while restoring final size/write time, then checks every new offset
+and the exact 255-character merged record. EOF position is accounted separately
+from complete records. Failed budgets return nonzero after all runs; thresholds
+are not relaxed. Owned temporary data is removed in finally, with a checked path.
+The harness requires reference CPU/memory and 2 GiB of free temporary disk space.
+
+Reference host: Windows x64, Intel Core i7-13700H (14 cores/20 logical processors),
+31.71 GiB available to the runtime, C: on INTEL SSDPEKNU010TZ NVMe SSD. SDK
+10.0.302 / runtime 10.0.15. OS/background load and cache residency are uncontrolled;
+read-through warming is reported as intent, not proof of cache residency.
+
+| Core measurement | 100 MiB (819,200 complete records), three runs | 1 GiB (8,388,608 complete records), three runs |
+|---|---|---|
+| First decoded 32 records | 301.77 / 24.68 / 10.49 ms | 14.74 / 17.51 / 21.07 ms |
+| Complete index | 1,389.89 / 546.38 / 643.00 ms | 5,047.71 / 4,982.70 / 5,089.57 ms |
+| Recovery after middle LF replacement | 567.12 / 599.87 / 568.37 ms | **6,733.42 / 5,624.92 / 5,573.96 ms — FAIL** |
+| Process lifetime peak working set sampled after indexing | 77,082,624 / 82,477,056 / 83,079,168 bytes | 250,871,808 / 442,875,904 / 463,511,552 bytes |
+| Every original/recovered offset and merged content | Verified | Verified |
+
+Evidence: ignored artifacts/migration/t027-large-records.log (exit 1 for all
+three 1 GiB recovery budget failures); new harness build passes with zero errors
+and two visible inherited NU1902 warnings (t027-large-records-build.log). The
+reference hardware/free-space assertions were added after the measured run and
+compiled; their inputs were independently inspected on this host. No temporary
+fixture directories remained after the run.
+
+This is a reproducible **failing** T027 performance baseline, not an acceptance
+pass or a full-migration completion claim. Core readiness is not rendered UI,
+Core process working set is not complete-application memory, and native p95
+interaction, five-minute live tail and the wider source matrix remain unmeasured.
+No production source was changed and functional suites were not repeated for
+this standalone harness. Reproduce with the command in its README; fix the
+recovery bottleneck rather than changing SC-006's three-second threshold.
