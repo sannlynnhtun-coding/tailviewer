@@ -282,3 +282,42 @@ T021 is complete as a native test-contract task with its T017 dependency met.
 This is not completion of T024/T025 or US1: source/group implementation and
 foreground/off-screen/hidden-window behavior remain open. It does not establish
 cross-user/session security, installer/service behavior or whole-app accessibility.
+
+## Slice 8: real pointer source-tree arrange/group/Escape
+
+Three native cases now send physical pointer input within the owned app to move
+the second file before the first, group it onto the first, or cancel the same
+grouping gesture with Escape. They check native root/member order, original
+Unicode clipboard text and unchanged file bytes. Source names are resolved
+through actual TreeItem peers and coordinates through their rendered text peers.
+
+DragWithin reuses the native helper's existing input/PID/cursor functions. It
+rejects held mouse buttons/modifiers, verifies both points belong to the owned
+process, calibrates mouse-down/move/release delivery with 50 ms intervals and
+checks external cursor changes. Escape is posted only to the owned window;
+finally releases only the injected held button and restores cursor position only
+when it remains at the helper's last point. No external application or file
+transfer is used for these internal tree gestures. Window DPI is recorded.
+
+Initial cases stopped before dragging because full-path text-peer lookup was
+incorrect: native text peers exposed basenames and TreeItem peers had empty
+names. That inspection identified a genuine accessibility gap, fixed by naming
+source containers and updating names after group rename. Center grouping and
+cancel then passed, but top-edge arrange still left roots unchanged. The same
+point passed after SourcesView received a transparent hit-testable background.
+No placement band, test timeout or successful ordering assertion was weakened.
+Temporary peer/bounds diagnostics were removed; failed checkpoints are retained.
+
+Final complete modern suite: 81 Archiver + 165 Avalonia pass. Complete native
+suite: 17 pass / 0 failed / 0 skipped. All three new cases record 168 DPI. Audit
+after the run found no remaining app/testhost processes or native fixture dirs.
+Evidence under artifacts/migration: t023-pointer-native.log,
+t023-pointer-peers.log, t023-pointer-native-fixed.log,
+t023-pointer-order-diagnostic.log, t023-pointer-hit-area.log,
+t023-pointer-modern.log, t023-pointer-native-full.log and
+t021-native/t023-pointer-native-full.trx (ignored).
+
+This proves the three gestures at the observed DPI, not a mixed-monitor matrix,
+native edge scrolling/hover expansion, all cross-parent gestures or full screen
+reader/keyboard coverage. T023 and full migration remain open. Shared Core code
+was unchanged, so its complete suite was not repeated.

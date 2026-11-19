@@ -342,6 +342,60 @@ public sealed class SourceEntryPointTest
             "The owned occupancy lease must remain intact after the secondary exits.");
     }
 
+    [TestCase("before")]
+    [TestCase("group")]
+    [TestCase("cancel")]
+    public void NativePointerTreeDragReordersGroupsOrCancelsWithoutMovingFiles(string action)
+    {
+        var other = Path.Combine(_folder, "pointer မြန်မာ.log");
+        var content = "picked-first\n" + PickerLine + "\npicked-last";
+        File.WriteAllText(other, content);
+        var window = StartApplication(_path, other);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The owned tree must be accessible.");
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) &&
+            tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 2
+            ? tree : null, "Both owned sources must finish opening.");
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+        var sourceItem = tree.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, other));
+        var targetItem = tree.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, _path));
+        Assert.That(sourceItem, Is.Not.Null, "Each source tree item must expose its full path to native accessibility.");
+        Assert.That(targetItem, Is.Not.Null);
+        var source = sourceItem.FindFirst(TreeScope.Descendants, new AndCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+            new PropertyCondition(AutomationElement.NameProperty, Path.GetFileName(other))));
+        var target = targetItem.FindFirst(TreeScope.Descendants, new AndCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+            new PropertyCondition(AutomationElement.NameProperty, Path.GetFileName(_path))));
+        Assert.That(source, Is.Not.Null);
+        Assert.That(target, Is.Not.Null);
+        var from = source!.Current.BoundingRectangle;
+        var to = target!.Current.BoundingRectangle;
+        NativeOleDrag.DragWithin(_process!, new Point(from.Left + Math.Min(30, from.Width / 2), from.Top + from.Height / 2),
+            new Point(to.Left + Math.Min(30, to.Width / 2), to.Top + (action == "before" ? 1 : to.Height / 2)), action == "cancel");
+        var grouped = action == "group";
+        var expectedFirst = action == "cancel" ? _path : other;
+        var root = WaitFor(() =>
+        {
+            var items = tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem));
+            if (items.Count != (grouped ? 1 : 2)) return null;
+            var siblings = grouped ? items[0].FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)) : items;
+            return siblings.Count == 2 && siblings[0].Current.Name == expectedFirst ? items[0] : null;
+        }, "Native drag must produce the expected root/member ordering.");
+        if (grouped)
+        {
+            var child = root.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem))[0];
+            ((SelectionItemPattern)child.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+            SelectSecondLine(window);
+        }
+        CopyAndCheck(window, PickerLine);
+        Assert.That(File.ReadAllText(other), Is.EqualTo(content));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
     private void SendSecondary(params string[] paths)
     {
         var start = new ProcessStartInfo(_process!.StartInfo.FileName) { UseShellExecute = false, WorkingDirectory = _folder };

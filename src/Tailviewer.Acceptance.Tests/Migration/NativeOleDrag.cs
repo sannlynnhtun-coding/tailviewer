@@ -112,6 +112,67 @@ internal static class NativeOleDrag
         }
     }
 
+    public static void DragWithin(Process process, Point from, Point to, bool cancel)
+    {
+        if (new[] { 1, 2, 4, 5, 6, 16, 17, 18, 91, 92 }.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
+            throw new InvalidOperationException("Native pointer tests require released mouse buttons and modifiers.");
+        if (!GetPhysicalCursorPos(out var original)) throw new Win32Exception();
+        var start = new ScreenPoint { X = (int)from.X, Y = (int)from.Y };
+        var end = new ScreenPoint { X = (int)to.X, Y = (int)to.Y };
+        var last = original;
+        var moved = false;
+        var pressed = false;
+        try
+        {
+            SetForegroundWindow(process.MainWindowHandle);
+            TestContext.WriteLine("Owned pointer window DPI: {0}", GetDpiForWindow(process.MainWindowHandle));
+            Check(start);
+            Check(end);
+            Move(start);
+            Check(start);
+            Mouse(2);
+            pressed = true;
+            Thread.Sleep(50); // Let the owned window process mouse down before threshold crossing.
+            Check(end);
+            Move(end);
+            Thread.Sleep(50); // Native pointer capture/preview must settle before release.
+            Check(end);
+            if (!GetPhysicalCursorPos(out var current) || current.X != end.X || current.Y != end.Y)
+                throw new InvalidOperationException("The cursor changed externally during the owned drag.");
+            if (cancel)
+            {
+                if (!PostMessage(process.MainWindowHandle, 0x100, (UIntPtr)0x1b, (IntPtr)1) ||
+                    !PostMessage(process.MainWindowHandle, 0x101, (UIntPtr)0x1b, IntPtr.Zero)) throw new Win32Exception();
+                Thread.Sleep(50);
+            }
+            Check(end);
+            if (!GetPhysicalCursorPos(out current) || current.X != end.X || current.Y != end.Y)
+                throw new InvalidOperationException("The cursor changed externally before release.");
+            Mouse(4);
+            pressed = false;
+        }
+        finally
+        {
+            try { if (pressed) Mouse(4); }
+            finally
+            {
+                if (moved && GetPhysicalCursorPos(out var current) && current.X == last.X && current.Y == last.Y)
+                    SetPhysicalCursorPos(original.X, original.Y);
+            }
+        }
+
+        void Check(ScreenPoint point)
+        {
+            if (!OwnsPoint(process.Id, point)) throw new InvalidOperationException("The owned drag point is occluded.");
+        }
+        void Move(ScreenPoint point)
+        {
+            if (!SetPhysicalCursorPos(point.X, point.Y)) throw new Win32Exception();
+            last = point;
+            moved = true;
+        }
+    }
+
     private static bool OwnsPoint(int process, ScreenPoint point)
     {
         GetWindowThreadProcessId(WindowFromPhysicalPoint(point), out var owner);
@@ -135,5 +196,7 @@ internal static class NativeOleDrag
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool PostThreadMessage(uint thread, uint message, UIntPtr w, IntPtr l);
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool PostMessage(IntPtr window, uint message, UIntPtr w, IntPtr l);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
 }
