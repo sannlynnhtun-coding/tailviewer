@@ -12,14 +12,16 @@ namespace Tailviewer.Core
 		private readonly Stream _stream;
 		private readonly byte[] _pattern;
 		private readonly byte[] _buffer;
+		private readonly long _endOffset;
 		private long _bufferOffset;
 		private int _bufferPos;
 		private int _bufferLength;
 		private int _numMatchedInSequence;
 
-		public LineOffsetDetector(Stream stream, Encoding encoding, int bufferSize = 4096)
+		public LineOffsetDetector(Stream stream, Encoding encoding, int bufferSize = 4096, long endOffset = long.MaxValue)
 		{
 			_stream = stream;
+			_endOffset = endOffset;
 			_pattern = encoding.GetBytes("\n");
 			//var pattern = encoding.GetBytes("\n");
 			//if (pattern.Length > 1)
@@ -72,7 +74,8 @@ namespace Tailviewer.Core
 				return;
 
 			_bufferOffset = _stream.Position;
-			_bufferLength = _stream.Read(_buffer, 0, _buffer.Length);
+			_bufferLength = _bufferOffset >= _endOffset ? 0 :
+				_stream.Read(_buffer, 0, (int)System.Math.Min(_buffer.Length, _endOffset - _bufferOffset));
 			_bufferPos = 0;
 		}
 	}

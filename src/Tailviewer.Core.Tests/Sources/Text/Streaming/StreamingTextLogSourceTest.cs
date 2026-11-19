@@ -55,6 +55,89 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RewriteDuringOffsetScanCannotPairOldOffsetsWithANewCheckpoint(bool append)
+        {
+            const string original = "head\nold\nmiddle\ntail";
+            var replacement = append ? original + "\nnew" : "head\nnew-middle\ntail";
+            Write(original);
+            var timestamp = File.GetLastWriteTimeUtc(_path);
+            var rewritten = false;
+            var real = new Filesystem(_scheduler);
+            var filesystem = new Mock<IFilesystem>();
+            filesystem.Setup(value => value.FileExists(_path)).Returns(() => File.Exists(_path));
+            filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
+            filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                .Returns(() => new ChangeAfterOffsetReadStream(_path, () =>
+                {
+                    if (rewritten) return;
+                    rewritten = true;
+                    Write(replacement);
+                    File.SetLastWriteTimeUtc(_path, timestamp);
+                }));
+            using (var source = new StreamingTextLogSource(filesystem.Object, _scheduler, _path,
+                       LogFileFormats.GenericText, new UTF8Encoding(false)))
+            {
+                _scheduler.Run(3);
+                Assert.That(rewritten, Is.True, "the write must occur after the offset scanner read its old bytes");
+                Assert.That(File.ReadAllText(_path), Is.EqualTo(replacement));
+                var expected = replacement.Split('\n');
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(expected.Length));
+                Assert.That(Read(source, expected.Length), Is.EqualTo(expected));
+            }
+        }
+
+        private sealed class ChangeAfterOffsetReadStream : FileStream
+        {
+            private readonly Action _change;
+            private readonly Action<int, int> _beforeRead;
+            public ChangeAfterOffsetReadStream(string path, Action change, Action<int, int> beforeRead = null)
+                : base(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1)
+            { _change = change; _beforeRead = beforeRead; }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                _beforeRead?.Invoke(buffer.Length, count);
+                var read = base.Read(buffer, offset, count);
+                if (buffer.Length == 4096 && read > 0) _change();
+                return read;
+            }
+        }
+
+        [Test]
+        public void PrefixRewriteAfterTheIdleAuditCannotSurviveAnIncrementalAppendScan()
+        {
+            const string original = "head\nold\nmiddle\ntail";
+            const string replacement = "head\nnew-middle\ntail\nnew";
+            Write(original);
+            var rewritten = false;
+            var real = new Filesystem(_scheduler);
+            var filesystem = new Mock<IFilesystem>();
+            filesystem.Setup(value => value.FileExists(_path)).Returns(() => File.Exists(_path));
+            filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
+            filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                .Returns(() => new ChangeAfterOffsetReadStream(_path, () => { }, (size, count) =>
+                {
+                    if (rewritten || size != 16384 || count != replacement.Length) return;
+                    rewritten = true;
+                    var timestamp = File.GetLastWriteTimeUtc(_path);
+                    Write(replacement);
+                    File.SetLastWriteTimeUtc(_path, timestamp);
+                }));
+            using (var source = new StreamingTextLogSource(filesystem.Object, _scheduler, _path,
+                       LogFileFormats.GenericText, new UTF8Encoding(false)))
+            {
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 4), Is.EqualTo(original.Split('\n')));
+                File.AppendAllText(_path, "\nnew");
+                _scheduler.Run(3);
+                Assert.That(rewritten, Is.True);
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(4));
+                Assert.That(Read(source, 4), Is.EqualTo(replacement.Split('\n')));
+            }
+        }
+
         private sealed class AppendAfterEmptyLengthStream : FileStream
         {
             private readonly string _path;

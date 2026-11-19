@@ -307,9 +307,11 @@ namespace Tailviewer.Core
 			                                     FileShare.ReadWrite | FileShare.Delete))
 			{
 				var length = stream.Length;
-				var contentChanged = !ArrayExtensions.Equals(_checkpoint, ReadCheckpoint(stream, _lastStreamPosition, cancellationToken));
+				var indexedCheckpoint = ReadCheckpoint(stream, _lastStreamPosition, cancellationToken);
+				var contentChanged = !ArrayExtensions.Equals(_checkpoint, indexedCheckpoint);
 				if (!metadataChanged && !contentChanged && length == _lastStreamPosition)
 					return false;
+				var beforeScan = length == _lastStreamPosition ? indexedCheckpoint : ReadCheckpoint(stream, length, cancellationToken);
 
 				if (contentChanged || (previousFingerprint != null &&
 				    (previousFingerprint.Size >= currentFingerprint.Size || previousFingerprint.Created != currentFingerprint.Created)))
@@ -328,6 +330,7 @@ namespace Tailviewer.Core
 					return true;
 				}
 
+				var retainedLength = _lastStreamPosition;
 				var encoding = _encoding;
 				if (_encoding.GetPreamble().Length > 0)
 				{
@@ -345,7 +348,8 @@ namespace Tailviewer.Core
 					AddFirstLineIfNecessary(stream, encoding);
 				}
 
-				var detector = new LineOffsetDetector(stream, encoding);
+				// Bound the pass so continuous appends do not invalidate its already observed prefix.
+				var detector = new LineOffsetDetector(stream, encoding, endOffset: length);
 				var buffer = new FixedSizeList<long>(1000);
 
 				long lineOffset;
@@ -361,10 +365,20 @@ namespace Tailviewer.Core
 					}
 				}
 
+				var scanEnd = stream.Position;
+				// shortcut: digest bracketing cannot detect an ABA rewrite during the scan; observed-byte validation remains T027.
+				var afterScan = ReadCheckpoint(stream, length, cancellationToken);
+				var retainedPrefixChanged = retainedLength > 0 && !ArrayExtensions.Equals(indexedCheckpoint,
+					retainedLength == length ? afterScan : ReadCheckpoint(stream, retainedLength, cancellationToken));
+				if (scanEnd != length || stream.Length < length || retainedPrefixChanged || !ArrayExtensions.Equals(beforeScan, afterScan))
+				{
+					Clear();
+					_checkpoint = new byte[0];
+					return true;
+				}
 				AddLines(buffer, Percentage.HundredPercent, startOffset);
-				_lastStreamPosition = stream.Position;
-				// shortcut: index and digest use separate reads; concurrent-rewrite snapshot consistency remains T027.
-				_checkpoint = ReadCheckpoint(stream, _lastStreamPosition, cancellationToken);
+				_lastStreamPosition = scanEnd;
+				_checkpoint = afterScan;
 			}
 
 			if (Log.IsDebugEnabled)

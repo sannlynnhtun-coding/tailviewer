@@ -297,3 +297,58 @@ test-project build passes with zero errors and five existing warnings. Logs:
 t026-original-position-core-full.log, t026-original-position-modern.log and
 t026-original-position-legacy-build.log under ignored artifacts/migration.
 Native/performance and legacy runtime suites were not executed for this helper.
+
+## Concurrent write between offset scan and digest (T027)
+
+A deterministic owned-stream fixture rewrites a small file immediately after the
+offset detector reads its old bytes, preserving length and write timestamp. The
+old scanner retained four offsets against the final three-line file even after
+three polling passes: it paired old offsets with a digest of the new contents.
+The companion append-during-scan case pins eventual append convergence.
+
+A changed scan is now bounded to the length observed at its start. It compares
+full-prefix digests before and after indexing and discards/reset-invalidates the
+generation on a changed digest, a short scan or truncation. Bytes appended beyond
+the bound are processed next time; they do not require discarding a stable prefix
+under a continuously appending writer. Idle checks retain their existing full
+indexed-prefix audit. Changed scans need extra read work; this is not a free
+performance improvement or proof of representative large-file latency.
+
+The rewrite case failed with expected three / actual four lines before the fix;
+the initial combined streaming/offset-detector fixtures then passed 99 cases.
+Logs under ignored artifacts/migration: t027-concurrent-scan-red.log and
+t027-concurrent-scan-focused.log.
+
+T027 remains incomplete. Digest bracketing is not an atomic snapshot and cannot
+prove consistency against an ABA write that restores bytes between probes;
+observed-byte validation is still required. Representative 1 GiB/multi-source and
+five-minute append latency gates remain pending. This section supersedes only
+the single overlapping rewrite/index-digest pairing limitation, not those gates.
+
+An additional retained-prefix fixture rewrites the already indexed prefix after
+the idle audit but before the full pre-scan hash during an append pass. It first
+failed with expected four / actual five rows. Incremental scans now revalidate
+that retained prefix after indexing too. The fixture disables FileStream's extra
+read cache so its gates distinguish fresh byte reads from cached data. This
+narrows a second ordinary single-rewrite race; it does not solve the ABA limit.
+Final combined streaming/offset fixtures: 100 pass. Additional evidence:
+t027-retained-prefix-red.log and t027-concurrent-scan-focused-final.log.
+
+Measured in the final full Core run on Intel Core i7-13700H (14 cores/20 threads),
+SDK 10.0.302, owned local temporary files; cache/background load was uncontrolled:
+1 MiB initial 20.71 ms, idle audits 1.34-1.42 ms, recovery 14.58 ms;
+100 MiB initial 608.52 ms, idle audits 149.41-178.08 ms, recovery 623.23 ms.
+These are synthetic samples from the existing fixture, not a representative
+hardware matrix or a 1 GiB/continuous-append gate. Full per-test stdout is in
+ignored t027-concurrent-final/t027-concurrent-final.trx.
+
+Final verification after both race fixes: Core 7,138 pass / zero failures / five
+existing skips; modern solution 81 Archiver + 169 Avalonia pass / zero failures
+or skips; targeted native Unicode CLI/picker 3 pass / zero failures or skips.
+Legacy net471 test-project build passes with zero errors and five existing
+warnings; legacy runtime tests were not executed. Final logs under ignored
+artifacts/migration: t027-concurrent-final-core.log,
+t027-concurrent-final-modern.log, t027-concurrent-final-legacy-build.log and
+t027-concurrent-final-native.log. Earlier green full-run counts predate the
+retained-prefix regression; final figures above supersede them. No assertion
+was weakened and no skip or warning suppression was added.
