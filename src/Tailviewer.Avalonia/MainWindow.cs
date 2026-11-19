@@ -26,6 +26,9 @@ namespace Tailviewer.Avalonia;
 
 public sealed class MainWindow : Window
 {
+    private readonly ObservabilityView _observability;
+    private readonly Grid _sourceLayout;
+
     private readonly Button _open = new() { Content = "_Open file…" };
     private readonly Button _openFolder = new() { Content = "Open _folder…" };
     private readonly Button _copy = new() { Content = "_Copy selected", IsEnabled = false };
@@ -72,7 +75,7 @@ public sealed class MainWindow : Window
     private bool _handlingHandoffs;
     private Task _handoffProcessing = Task.CompletedTask;
 
-    public MainWindow(string? fileName = null, ILogFileSettings? logFileSettings = null)
+    public MainWindow(string? fileName = null, ILogFileSettings? logFileSettings = null, bool showObservability = false)
     {
         // shortcut: default settings stay in memory until profile startup/save wiring in T055.
         _encoding = new EncodingView(logFileSettings ?? new LogFileSettings());
@@ -250,7 +253,19 @@ public sealed class MainWindow : Window
         layout.Children.Add(sourcePanel);
         layout.Children.Add(_rows);
         layout.Children.Add(_status);
-        Content = layout;
+        _sourceLayout = layout;
+        _observability = new ObservabilityView(this, SearchFiles, () => _encoding.Settings.DefaultEncoding,
+            AddSearchFoldersAsync, () => PickSourcesAsync(folders: false), () =>
+            {
+                _observability?.Deactivate();
+                RequestedThemeVariant = global::Avalonia.Styling.ThemeVariant.Default;
+                Content = _sourceLayout;
+            }, SearchFolderErrors);
+        var dashboard = new Button { Content = "PulseLog" };
+        dashboard.Click += (_, _) => ShowObservability();
+        toolbar.Children.Add(dashboard);
+        if (showObservability) ShowObservability();
+        else Content = layout;
 
         _open.Click += async (_, _) => await PickSourcesAsync(folders: false);
         _openFolder.Click += async (_, _) => await PickSourcesAsync(folders: true);
@@ -318,6 +333,7 @@ public sealed class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            _observability.Dispose();
             _sourceDrag.Clear();
             _handoffs.Clear();
             ++_openRequest;
@@ -357,6 +373,100 @@ public sealed class MainWindow : Window
     internal MainWindow(string? fileName, ILogFileSettings? settings, Tailviewer.BusinessLogic.FileExplorer.IFileExplorer fileExplorer)
         : this(fileName, settings) => _fileExplorer = fileExplorer ?? throw new ArgumentNullException(nameof(fileExplorer));
 
+    private void ShowObservability()
+    {
+        RequestedThemeVariant = global::Avalonia.Styling.ThemeVariant.Dark;
+        Content = _observability;
+        _observability.Activate();
+    }
+
+    private IReadOnlyList<(string Path, string? Root)> SearchFiles()
+    {
+        var sources = _workspace.All.ToArray();
+        var files = sources.Where(source => source.File != null)
+            .Select(source => (source.File!, (string?)null)).ToList();
+        foreach (var source in sources)
+        {
+            if (source.LogFileFolderPath == null || !_folderChildren.TryGetValue(source.Id, out var children)) continue;
+            files.AddRange(children.Where(child => child.File != null)
+                .Select(child => (child.File!, (string?)source.LogFileFolderPath)));
+        }
+        return files;
+    }
+    private IReadOnlyList<string> SearchFolderErrors() => _workspace.All
+        .Where(source => _folders.TryGetValue(source.Id, out var folder) && folder.Error != null)
+        .Select(source => $"{source.LogFileFolderPath}: {_folders[source.Id].Error}").ToArray();
+    private static string ParseFolderFileTypes(string? text)
+    {
+        var value = text ?? "";
+        return value != "*" && value.Contains('*') ? value : new FolderFileTypes(value).Pattern;
+    }
+
+    private async Task AddSearchFoldersAsync()
+    {
+        var paths = new TextBox { AcceptsReturn = true, MinHeight = 145, PlaceholderText = "One local folder path per line" };
+        var types = new TextBox { Text = ".log; .txt", PlaceholderText = ".log; .txt or *" };
+        var browse = new Button { Content = "Browse…" };
+        var add = new Button { Content = "Add Folders", IsDefault = true };
+        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var dialog = new Window
+        {
+            Title = "Add Folders", Width = 560, SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16), Spacing = 9,
+                Children = { new TextBlock { Text = "Folder paths" }, paths, browse,
+                    new TextBlock { Text = "File Types (extensions separated by semicolons, or * for All Files)" },
+                    types, error, add, cancel }
+            }
+        };
+        browse.Click += async (_, _) =>
+        {
+            try
+            {
+                var folders = await dialog.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                    { AllowMultiple = true, Title = "Select log folders" });
+                paths.Text = string.Join(Environment.NewLine, new[] { paths.Text }
+                    .Concat(folders.Select(folder => folder.TryGetLocalPath())).Where(path => !string.IsNullOrWhiteSpace(path)));
+            }
+            catch (Exception failure) { error.Text = failure.Message; }
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        add.Click += async (_, _) =>
+        {
+            add.IsEnabled = false;
+            try
+            {
+                var pattern = new FolderFileTypes(types.Text ?? "").Pattern;
+                var entered = (paths.Text ?? "").Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (entered.Length == 0) { error.Text = "Enter at least one folder path."; return; }
+                var failures = new List<string>();
+                foreach (var input in entered.Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))
+                {
+                    if (_closed || !dialog.IsVisible) return;
+                    try
+                    {
+                        var path = Path.GetFullPath(input.Trim('"'));
+                        if (!await Task.Run(() => Directory.Exists(path))) { failures.Add(input); continue; }
+                        await OpenSourceAsync(path, null, pattern, activateFolder: false);
+                        if (_operationError != null) failures.Add($"{input}: {_operationError}");
+                    }
+                    catch (Exception failure) when (failure is IOException or ArgumentException or UnauthorizedAccessException)
+                    { failures.Add($"{input}: {failure.Message}"); }
+                }
+
+                _observability.Refresh();
+                if (failures.Count == 0) dialog.Close();
+                else error.Text = "Could not add: " + string.Join(Environment.NewLine, failures);
+            }
+            catch (ArgumentException failure) { error.Text = failure.Message; }
+            finally { add.IsEnabled = true; }
+        };
+        await dialog.ShowDialog(this);
+    }
+
     private async Task PickSourcesAsync(bool folders)
     {
         try
@@ -373,6 +483,7 @@ public sealed class MainWindow : Window
             var paths = items.Select(item => item.TryGetLocalPath() ??
                 throw new NotSupportedException("Only local files and folders can be opened.")).ToArray();
             await OpenFilesAsync(paths);
+            _observability.Refresh();
         }
         catch (Exception ex)
         {
@@ -748,7 +859,7 @@ public sealed class MainWindow : Window
         var path = new TextBox { Text = source.LogFileFolderPath };
         var browse = new Button { Content = "Browse…", Margin = new Thickness(8, 0, 0, 0) };
         DockPanel.SetDock(browse, Dock.Right);
-        var pattern = new TextBox { Text = source.LogFileSearchPattern };
+        var pattern = new TextBox { Text = source.LogFileSearchPattern?.Replace("ext:", ""), PlaceholderText = ".log; .txt or *" };
         var recursive = new CheckBox { Content = "Include subfolders", IsChecked = source.Recursive };
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var apply = new Button { Content = "Apply", IsDefault = true };
@@ -808,7 +919,9 @@ public sealed class MainWindow : Window
             {
                 var candidate = source.Clone();
                 candidate.LogFileFolderPath = Path.GetFullPath(path.Text ?? "");
-                candidate.LogFileSearchPattern = pattern.Text ?? "";
+                candidate.LogFileSearchPattern = string.Equals(pattern.Text, source.LogFileSearchPattern?.Replace("ext:", ""), StringComparison.Ordinal)
+                    ? source.LogFileSearchPattern
+                    : ParseFolderFileTypes(pattern.Text);
                 candidate.Recursive = recursive.IsChecked == true;
                 staged = await Task.Run(() => new FolderSources(_folderFilesystem.Value, _folderScheduler, candidate));
                 if (_closed || !dialog.IsVisible || !_workspace.Contains(source.Id) ||
@@ -878,7 +991,7 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task OpenSourceAsync(string fileName, DataSource? selected)
+    private async Task OpenSourceAsync(string fileName, DataSource? selected, string? fileTypes = null, bool activateFolder = true)
     {
         var request = ++_openRequest;
         SourceDocuments.Lease? pendingLease = null;
@@ -902,7 +1015,7 @@ public sealed class MainWindow : Window
                     source = new DataSource
                     {
                         Id = DataSourceId.CreateNew(), LogFileFolderPath = path,
-                        LogFileSearchPattern = defaults.FolderDataSourcePattern, Recursive = defaults.FolderDataSourceRecursive,
+                        LogFileSearchPattern = fileTypes ?? defaults.FolderDataSourcePattern, Recursive = defaults.FolderDataSourceRecursive,
                         FollowTail = true
                     };
                 }
@@ -921,7 +1034,8 @@ public sealed class MainWindow : Window
                     RefreshFolder(id);
                 }
                 if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
-                await OpenGroupAsync(source, request);
+                if (activateFolder) await OpenGroupAsync(source, request);
+                else _operationError = _folders[source.Id].Error;
                 return;
             }
             source ??= new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
@@ -1372,6 +1486,11 @@ public sealed class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (ReferenceEquals(Content, _observability) && _observability.HandleKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && _sourceDrag.IsDragging)
         {
             _sourceDrag.Clear();

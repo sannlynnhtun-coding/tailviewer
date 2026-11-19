@@ -64,7 +64,7 @@ public sealed class App : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
-            var window = new MainWindow();
+            var window = new MainWindow(showObservability: true);
             _stopping = new CancellationTokenSource();
             var stopping = _stopping.Token;
             desktop.Exit += (_, _) => _stopping?.Cancel();

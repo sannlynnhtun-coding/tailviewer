@@ -43,6 +43,66 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task DashboardSearchesAcrossFolderRootsAndDeduplicatesOverlaps()
+    {
+        var first = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var second = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var day = Path.Combine(first, "2026", "11", "20");
+        Directory.CreateDirectory(day);
+        Directory.CreateDirectory(second);
+        var window = new MainWindow(showObservability: true);
+        try
+        {
+            for (var hour = 0; hour < 31; hour++)
+                File.WriteAllText(Path.Combine(day, $"hour-{hour:D2}.log"), hour == 30 ? "needle" : "other");
+            File.WriteAllText(Path.Combine(second, "another.TXT"), "needle");
+            File.WriteAllText(Path.Combine(second, "excluded.log.bak"), "needle");
+            window.Show();
+            await WaitUntil(() => window.GetVisualDescendants().OfType<Button>().Any(button => Equals(button.Content, "Add Folders")));
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Add Folders"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => window.OwnedWindows.Any(dialog => dialog.IsVisible));
+            var addFolders = window.OwnedWindows.Single(dialog => dialog.IsVisible);
+            await WaitUntil(() => addFolders.GetVisualDescendants().OfType<TextBox>().Any(box => box.AcceptsReturn));
+            addFolders.GetVisualDescendants().OfType<TextBox>().Single(box => box.AcceptsReturn).Text =
+                string.Join(Environment.NewLine, first, second, day);
+            addFolders.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Add Folders"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !addFolders.IsVisible);
+            var search = window.GetVisualDescendants().OfType<TextBox>().Single(input => input.PlaceholderText == "Search logs…");
+            search.Text = "needle";
+            var result = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => result.ItemCount == 2);
+            var logs = result.Items.Cast<ObservedLog>().ToArray();
+            logs.Select(log => log.File).Should().BeEquivalentTo(Path.Combine(day, "hour-30.log"), Path.Combine(second, "another.TXT"));
+            logs.Should().OnlyContain(log => log.Line == 1);
+            result.SelectedIndex = 0;
+            using var frame = window.CaptureRenderedFrame();
+            frame.Should().NotBeNull();
+            result.SelectedIndex = -1;
+            File.AppendAllText(Path.Combine(second, "another.TXT"), "\nneedle");
+            await WaitUntil(() => result.ItemCount == 3);
+            result.Items.Cast<ObservedLog>().Should().Contain(log => log.Line == 2 && log.File == Path.Combine(second, "another.TXT"));
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(first, true);
+            Directory.Delete(second, true);
+        }
+    }
+
+    [Test]
+    public void DashboardParsesStructuredFieldsAndKeepsMalformedJsonSearchable()
+    {
+        var structured = ObservedLog.Parse("app.log", 1,
+            """{"@t":"2026-11-20T01:02:03Z","@l":"Error","@mt":"Request failed","service":"orders","http":{"status":503},"latency_ms":750}""");
+        Assert.That(ObservabilityView.CreateQuery("level:ERROR status:503 service:orders latency>500", false)(structured), Is.True);
+        var malformed = ObservedLog.Parse("app.log", 2, "{broken timeout");
+        Assert.That(ObservabilityView.CreateQuery("timeout|deadlock", true)(malformed), Is.True);
+        Assert.That(malformed.Payload, Is.Null);
+    }
+    [AvaloniaTest]
     public async Task EncodingSelectionReopensTheFileWithoutChangingItsIdentityOrPausedState()
     {
         var bytes = new UnicodeEncoding(false, false).GetBytes("မြန်မာ\nsecond");

@@ -15,6 +15,8 @@
     <Compile Include="../Tailviewer/Ui/LogView/ElapsedTime/ElapsedTimeFormatter.Formatting.cs" Link="Views/ElapsedTimeFormatter.Formatting.cs" />
     <InternalsVisibleTo Include="Tailviewer.Avalonia.Tests" />
     <AvaloniaResource Include="Assets/Tailviewer.png" />
+    <AvaloniaResource Include="Assets/*.ttf" />
+    <None Update="Assets/*-OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../Tailviewer.Core/Tailviewer.Core.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
