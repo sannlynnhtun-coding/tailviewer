@@ -493,3 +493,14 @@ t027-peer-identity-full.log/TRX (22 cases, about three minutes). This is a faili
 overall checkpoint, not a full native acceptance pass. The remaining tree-order
 observation is being diagnosed separately from log-row identity. Core/modern
 suites were not repeated for this fixture-only change.
+
+Pointer-order diagnosis is separate: the instrumented before/group/cancel run
+passes 3/3 (t023-tree-peer-diagnostic.log/TRX). In that run root peer order agrees
+with physical top positions, including the unchanged initial/dragged order after
+cancel. This does not explain or erase the earlier full-run cancel failure.
+The fixture now records the last root peer roles and screen top coordinates
+around the ordering observation, without changing gesture timing, input guards,
+expected order or timeout. Committed diagnostics use only initial/dragged/group-
+or-other roles, not source names or clipboard contents. No speculative production
+or tree-sorting fix is claimed. The full functional suite still has the recorded
+21/22 checkpoint until a subsequent complete run supplies stronger evidence.

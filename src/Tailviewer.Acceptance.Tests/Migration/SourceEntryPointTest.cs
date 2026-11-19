@@ -433,14 +433,23 @@ public sealed partial class SourceEntryPointTest
             new Point(to.Left + Math.Min(30, to.Width / 2), to.Top + (action == "before" ? 1 : to.Height / 2)), action == "cancel");
         var grouped = action == "group";
         var expectedFirst = action == "cancel" ? _path : other;
-        var root = WaitFor(() =>
+        var treeSnapshot = "";
+        AutomationElement root;
+        try
         {
-            var items = tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem));
-            if (items.Count != (grouped ? 1 : 2)) return null;
-            var siblings = grouped ? items[0].FindAll(TreeScope.Children,
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)) : items;
-            return siblings.Count == 2 && siblings[0].Current.Name == expectedFirst ? items[0] : null;
-        }, "Native drag must produce the expected root/member ordering.");
+            root = WaitFor(() =>
+            {
+                var items = tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem));
+                treeSnapshot = System.Text.Json.JsonSerializer.Serialize(items.Cast<AutomationElement>().Select(item =>
+                    new { role = item.Current.Name == _path ? "initial" : item.Current.Name == other ? "dragged" : "group-or-other",
+                        top = item.Current.BoundingRectangle.Top }));
+                if (items.Count != (grouped ? 1 : 2)) return null;
+                var siblings = grouped ? items[0].FindAll(TreeScope.Children,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)) : items;
+                return siblings.Count == 2 && siblings[0].Current.Name == expectedFirst ? items[0] : null;
+            }, "Native drag must produce the expected root/member ordering.");
+        }
+        finally { TestContext.Progress.WriteLine("owned_tree_peers=" + treeSnapshot); }
         if (grouped)
         {
             var child = root.FindAll(TreeScope.Children,
