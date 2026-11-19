@@ -1333,6 +1333,60 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task CapturedTreeDragExpandsACollapsedGroupButCancelledHoverDoesNot()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var source = workspace.Roots[0];
+            var member = workspace.Roots[1];
+            var group = workspace.AddGroup();
+            workspace.AddToGroup(member.Id, group.Id);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            await WaitUntil(() => tree.ContainerFromItem(group) is TreeViewItem);
+            var item = (TreeViewItem)tree.ContainerFromItem(group)!;
+            IPointer? pointer = null;
+            tree.AddHandler(InputElement.PointerMovedEvent, (_, args) => pointer = args.Pointer, RoutingStrategies.Tunnel, handledEventsToo: true);
+            foreach (var cancel in new[] { "escape", "capture", "none" })
+            {
+                item.IsExpanded = false;
+                window.UpdateLayout();
+                var start = TreePoint(window, tree, source, .5);
+                var end = TreePoint(window, tree, group, .5);
+                window.MouseDown(start, MouseButton.Left);
+                window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+                if (cancel != "none")
+                {
+                    if (cancel == "escape") tree.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                    else
+                    {
+                        pointer.Should().NotBeNull();
+                        pointer!.Captured.Should().BeSameAs(tree);
+                        pointer.Capture(null);
+                    }
+                    window.MouseUp(end, MouseButton.Left);
+                    await Task.Delay(700);
+                    Dispatcher.UIThread.RunJobs();
+                    item.IsExpanded.Should().BeFalse();
+                    workspace.GetChildren(group.Id).Should().Equal(member);
+                }
+                else
+                {
+                    await WaitUntil(() => item.IsExpanded);
+                    window.MouseUp(end, MouseButton.Left);
+                    await WaitUntil(() => source.ParentId == group.Id);
+                    workspace.GetChildren(group.Id).Should().Equal(member, source);
+                    tree.Items.OfType<DataSource>().Should().Equal(group);
+                }
+            }
+        }
+        finally { window.Close(); }
+    }
+
     private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
     {
         var item = (TreeViewItem)tree.ContainerFromItem(source)!;

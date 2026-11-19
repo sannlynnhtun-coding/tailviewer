@@ -512,3 +512,25 @@ t023-tree-scroll-focused.log, t023-tree-scroll-modern.log and
 t023-tree-scroll-page.log. T023 remains open for hover expansion, native pointer/
 DPI/accessibility and the full gesture matrix. Shared Core/native suites were
 not repeated for this UI-only timer integration.
+
+## Collapsed-group hover expansion (T023)
+
+The existing captured-drag refresh now expands a nonempty collapsed group after
+500 ms over its valid central grouping region. Dwell time uses Stopwatch's
+monotonic clock, not wall time. Target/region changes and invalid destinations
+reset dwell tracking; Clear resets it on Escape, capture loss, close and shutdown.
+This reuses the existing window timer and removes the manual-expansion shortcut.
+
+The initial headless case failed because the group never expanded. It now
+cancels a hover, waits beyond the dwell interval to prove no delayed expansion,
+then performs another drag, waits for expansion and drops into the same stable
+group ID with ordered members. Complete modern solution: 81 Archiver + 165
+Avalonia pass, no failures/skips. Afterward the same case was strengthened to
+release the real captured IPointer as another cancellation path; its focused
+rerun passes with production unchanged. No test timeout was increased.
+
+Ignored evidence: artifacts/migration/t023-tree-hover-red.log,
+t023-tree-hover-focused.log, t023-tree-hover-modern.log and
+t023-tree-hover-capture.log. Native pointer/DPI/accessibility and the full tree
+gesture matrix remain open; T023 is still partial. Shared Core and native
+entry-point suites were not repeated for this UI-only hover state.

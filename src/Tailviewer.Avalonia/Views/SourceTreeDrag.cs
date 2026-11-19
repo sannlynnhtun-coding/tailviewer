@@ -4,6 +4,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using System.Diagnostics;
 using Tailviewer.Api;
 using Tailviewer.Avalonia.ViewModels;
 using Tailviewer.Settings;
@@ -24,6 +25,8 @@ internal sealed class SourceTreeDrag
     private Point _point;
     private bool _dragging;
     private bool? _after;
+    private DataSourceId _hoverGroup;
+    private long _hoverStarted;
 
     public SourceTreeDrag(TreeView tree, SourcesViewModel workspace, Func<DataSource, DataSource, bool?, Task> apply)
     {
@@ -48,6 +51,7 @@ internal sealed class SourceTreeDrag
         _dragging = false;
         _target?.ShowDropPosition(false, null);
         _target = null;
+        _hoverGroup = DataSourceId.Empty;
         _tree.Cursor = null;
         if (pointer?.Captured == _tree) pointer.Capture(null);
     }
@@ -75,6 +79,9 @@ internal sealed class SourceTreeDrag
         }
         _tree.UpdateLayout();
         UpdateTarget(_point);
+        if (_hoverGroup != DataSourceId.Empty && Stopwatch.GetElapsedTime(_hoverStarted) >= TimeSpan.FromMilliseconds(500) &&
+            _workspace.GetChildren(_hoverGroup).Any() && _target?.FindAncestorOfType<TreeViewItem>() is { IsExpanded: false } item)
+            item.IsExpanded = true;
     }
 
     private void Pressed(object? sender, PointerPressedEventArgs args)
@@ -108,10 +115,12 @@ internal sealed class SourceTreeDrag
 
     private void UpdateTarget(Point point)
     {
+        var previousHover = _hoverGroup;
+        var previousStart = _hoverStarted;
+        _hoverGroup = DataSourceId.Empty;
         _target?.ShowDropPosition(false, null);
         _target = null;
         _tree.Cursor = NoDropCursor;
-        // shortcut: collapsed groups require manual expansion until hover expansion/native acceptance.
         if (_source == null || !_workspace.Contains(_source.Id) || !new Rect(_tree.Bounds.Size).Contains(point)) return;
         var view = (_tree.GetVisualAt(point) as Visual)?.GetSelfAndVisualAncestors().OfType<SourcesView>().FirstOrDefault();
         if (view == null || !_workspace.Contains(view.Source.Id) || view.Source.Id == _source.Id || view.Source.LogFileFolderPath != null) return;
@@ -121,6 +130,11 @@ internal sealed class SourceTreeDrag
         var parent = _after == null && SourcesViewModel.IsGroup(view.Source) ? view.Source.Id : view.Source.ParentId;
         if (parent != DataSourceId.Empty && parent != _source.ParentId && _workspace.GetChildren(parent).Count() >= LogEntrySourceId.MaxSources) return;
         _target = view;
+        if (_after == null && SourcesViewModel.IsGroup(view.Source))
+        {
+            _hoverGroup = view.Source.Id;
+            _hoverStarted = previousHover == _hoverGroup ? previousStart : Stopwatch.GetTimestamp();
+        }
         view.ShowDropPosition(true, _after);
         _tree.Cursor = MoveCursor;
     }
