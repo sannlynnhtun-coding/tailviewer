@@ -102,7 +102,7 @@ public sealed class MainWindow : Window
         _fileSourceStates = new FileSourceStates(_folderFilesystem.Value, _folderScheduler);
         _quickNavigation = new QuickNavigationView(_workspace);
         DataContext = _workspace;
-        Title = "Tailviewer — Avalonia prototype";
+        Title = "Tailviewer";
         using var logoStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
         var logo = new Bitmap(logoStream);
         using var iconStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
@@ -156,7 +156,7 @@ public sealed class MainWindow : Window
                             if ((_sourceTree.SelectedItem as DataSource)?.Id == source.Id)
                             {
                                 _path.Text = source.DisplayName;
-                                Title = $"{source.DisplayName} — Tailviewer prototype";
+                                Title = $"{source.DisplayName} — Tailviewer";
                             }
                         }
                         catch (ArgumentException error) { _status.Text = _operationError = "Cannot rename group: " + error.Message; }
@@ -261,7 +261,7 @@ public sealed class MainWindow : Window
                 RequestedThemeVariant = global::Avalonia.Styling.ThemeVariant.Default;
                 Content = _sourceLayout;
             }, SearchFolderErrors);
-        var dashboard = new Button { Content = "PulseLog" };
+        var dashboard = new Button { Content = "Dashboard" };
         dashboard.Click += (_, _) => ShowObservability();
         toolbar.Children.Add(dashboard);
         if (showObservability) ShowObservability();
@@ -938,7 +938,7 @@ public sealed class MainWindow : Window
                 if (_sourceTree.SelectedItem is DataSource selected && selected.Id == source.Id)
                 {
                     _path.Text = source.LogFileFolderPath;
-                    Title = $"{Path.GetFileName(Path.TrimEndingDirectorySeparator(source.LogFileFolderPath))} — Tailviewer prototype";
+                    Title = $"{Path.GetFileName(Path.TrimEndingDirectorySeparator(source.LogFileFolderPath))} — Tailviewer";
                 }
                 RefreshSourceStates();
                 RefreshDocument();
@@ -1119,7 +1119,7 @@ public sealed class MainWindow : Window
         }
         _follow.IsChecked = source.FollowTail;
         _path.Text = path;
-        Title = $"{name} — Tailviewer prototype";
+        Title = $"{name} — Tailviewer";
         RefreshDocument();
         if (restore)
         {
@@ -1171,7 +1171,7 @@ public sealed class MainWindow : Window
         _operationError = null;
         _path.Text = "Open a log file to begin.";
         _status.Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy";
-        Title = "Tailviewer — Avalonia prototype";
+        Title = "Tailviewer";
     }
 
     private async Task CloseCurrentSourceAsync()

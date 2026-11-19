@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>2.0.0-alpha.2</Version>
+    <Version>1.0.0</Version>
     <ApplicationIcon>../Tailviewer/Resources/Tailviewer.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

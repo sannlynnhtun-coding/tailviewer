@@ -1,4 +1,4 @@
-# Avalonia log viewer — migration in progress
+# Tailviewer desktop app
 
 .NET 10 / Avalonia 12.1.6 နှင့် migrated Core ကိုသုံးသော Windows x64 desktop app ဖြစ်သည်။ Legacy Tailviewer feature အားလုံး ပြည့်စုံသေးခြင်းမရှိပါ။ အကောင်အထည်ဖော်ပြီးသောအပိုင်းနှင့် ကျန်ရှိသည့်အလုပ်များကို [feature inventory](../../specs/001-full-project-migration/feature-inventory.md) နှင့် [tasks](../../specs/001-full-project-migration/tasks.md) တွင် ကြည့်နိုင်သည်။
 
@@ -39,6 +39,6 @@ Core က metadata နှင့် ဖတ်ပြီးသား content hash �
 
 - [Source lifecycle tests](../../specs/001-full-project-migration/source-lifecycle-tests.md): file/folder/group၊ background readers၊ selection/copy၊ missing/locked-file recovery နှင့် native clipboard checks။ Native desktop focus/clipboard interference ကြောင့် picker/copy failure စစ်ဆေးမှု ကျန်နေသည်။
 - [Recovery tests](../../specs/001-full-project-migration/recovery-tests.md): replacement၊ encoding နှင့် streaming recovery။ Performance အထောက်အထားများတွင် သတ်မှတ်ထားသော hardware/workload/cache အခြေအနေများအတွက်သာ အကျုံးဝင်သည်။ Full acceptance matrix မပြီးသေးပါ။
-- လက်ရှိ app ၏ source/view settings သည် session အတွင်းသာ ထိန်းထားသည်။ Shipping profile save/restore/import UI၊ search/filter/highlight၊ complete parsed columns၊ plugin lifecycle နှင့် updates migration တို့ ကျန်နေသည်။ Linux/macOS သည် နောက် milestone ဖြစ်သည်။
+- လက်ရှိ app ၏ source/view settings သည် session အတွင်းသာ ထိန်းထားသည်။ Shipping profile save/restore/import UI၊ plugin lifecycle နှင့် updates migration တို့ ကျန်နေသည်။ Linux/macOS သည် နောက် milestone ဖြစ်သည်။
 
 Multi-target restore တွင် legacy log4net 2.0.12 ၏ NU1902 advisory ပြနိုင်သည်။ Modern runtime သည် log4net 3.6.0 ကို resolve လုပ်သည်။

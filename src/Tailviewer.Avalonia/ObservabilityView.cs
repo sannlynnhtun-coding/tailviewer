@@ -98,7 +98,7 @@ internal sealed class ObservabilityView : UserControl, IDisposable
             Background = new SolidColorBrush(Color.Parse("#12302b")),
             Child = Icon("M4 17L10 11 4 5 M12 19H20", new SolidColorBrush(Color.Parse("#34d399")))
         };
-        var brand = Label("PulseLog", 14);
+        var brand = Label("Tailviewer", 14);
         brand.FontWeight = FontWeight.SemiBold;
         var header = Row(
             IconAction("Toggle facets sidebar", "M3 3H21V21H3Z M9 3V21", () => _facets.IsVisible = !_facets.IsVisible),
