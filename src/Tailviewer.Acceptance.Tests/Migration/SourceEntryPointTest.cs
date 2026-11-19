@@ -88,9 +88,11 @@ public sealed class SourceEntryPointTest
         }
     }
 
-    [Test]
-    public void CommandLineOpenCopiesOriginalUnicodeThroughNativeClipboard()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void CommandLineOpenCopiesOriginalUnicodeThroughNativeClipboard(bool leadingEmptyLine)
     {
+        if (leadingEmptyLine) File.WriteAllText(_path, "\n" + SelectedLine + "\nlast");
         var window = StartApplication();
         SelectSecondLine(window);
         CopyAndCheck(window);

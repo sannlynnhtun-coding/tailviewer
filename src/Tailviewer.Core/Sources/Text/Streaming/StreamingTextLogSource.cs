@@ -407,6 +407,7 @@ namespace Tailviewer.Core
 				}
 			}
 
+			stream.Position = firstLineOffset;
 			lock (_index)
 			{
 				if (_index.Count > 0)

@@ -256,6 +256,26 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase("a\nb", 2)]
+        [TestCase("\na", 2)]
+        [TestCase("\n\nz", 3)]
+        [TestCase("\r\nx", 2)]
+        [TestCase("a", 1)]
+        public void BomFallbackRetainsLeadingNewlinesWhenThePreambleIsAbsent(string text, int count)
+        {
+            Write(text);
+            using (var source = Open(Encoding.UTF8))
+            {
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(count));
+                Assert.That(string.Join("\n", Read(source, count)), Is.EqualTo(text.Replace("\r\n", "\n")));
+                File.AppendAllText(_path, "\nnext", new UTF8Encoding(false));
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(count + 1));
+                Assert.That(string.Join("\n", Read(source, count + 1)), Is.EqualTo(text.Replace("\r\n", "\n") + "\nnext"));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;

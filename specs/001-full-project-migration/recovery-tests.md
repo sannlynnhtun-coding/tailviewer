@@ -183,3 +183,27 @@ t020-empty-race-ui-focused.log, t020-empty-race-core-full.log,
 t020-empty-race/t020-empty-race.trx, t020-empty-race-legacy-build.log and
 t024-folder-modern-final.log. General concurrent rewrite/index/digest snapshot
 consistency remains the separate T027 issue described above.
+## Slice 5: BOM-less short and empty leading lines
+
+Five deterministic cases exposed skipped leading newlines when a BOM-enabled
+UTF-8 fallback read BOM-less files. All five failed before the fix, including a
+one-character file whose later append lost a line. Preamble probing consumed
+bytes without restoring the scanner position when no preamble matched.
+
+Resetting the stream to the actual first-line offset before the existing index
+check fixes both initial scans and rescans after append. Tests assert exact raw
+text and line counts for short lines, empty leading lines, LF and CRLF, before
+and after append. The native command-line/clipboard case now also opens a file
+with an empty first line and verifies the original Unicode second line.
+
+Results: streaming fixture 20 pass; full net10.0 Core 7,112 pass / 0 failed /
+5 unchanged existing skips; net471 test-project build 0 errors; modern solution
+81 Archiver + 90 Avalonia pass; targeted native command-line/clipboard 2 pass /
+0 failed / 0 skipped. No new dependencies, skips or timeout changes.
+
+Evidence under ignored artifacts/migration: t020-preamble-red.log,
+t020-preamble-focused.log, t020-preamble-core-full.log,
+t020-preamble-legacy-build.log, t020-preamble-modern.log,
+t020-preamble-native.log and the corresponding preamble/native TRX files.
+General concurrent rewrite/index/digest consistency and representative large-file
+performance remain T027 work. The legacy test project was built, not executed.
