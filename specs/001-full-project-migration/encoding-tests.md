@@ -45,7 +45,34 @@ Remaining: shipping startup/profile lifecycle and automatic save are owned by
 T053-T055; the default window currently uses an in-memory model and never reads
 or writes the user's profile. Disk persistence above is an explicitly injected
 owned profile test, not proof of restart persistence in the shipping app.
-Conflicting BOM/manual override semantics, unavailable-name/invalid-byte UI
-journeys, all historical system code pages and complete native keyboard/screen
+Unavailable-name/invalid-byte UI journeys, all historical system code pages and complete native keyboard/screen
 reader acceptance still need their full parity coverage. No public release or
 performance gate is closed by these functional results.
+
+## Manual decoder versus conflicting BOM
+
+The ILogFileSettings contract explicitly says a non-null manual encoding applies
+regardless of file detection. A new behavior case failed: a manual UTF-8 choice
+silently became UTF-16 after seeing the file BOM. Core now accepts an explicit
+BOM-detection flag; existing raw-factory/constructor callers keep their previous
+preamble-based behavior, automatic documents detect BOMs, and manually configured
+documents keep the selected decoder. Matching selected preambles are still
+removed consistently by the index and reader.
+
+The regression exercises UTF-16 LE to UTF-8, UTF-8 to UTF-16 LE, UTF-16 BE to
+UTF-16 LE, and matching UTF-8 BOM choices, with single/multiple lines. Expected
+manual contents come from the selected BCL decoder (including replacement
+characters for invalid sequences); automatic reads must return the original
+text. Exact copied content, line counts and unchanged file bytes are checked.
+
+Initial manual-BOM behavior case: 1 failure. Focused encoding/automatic-BOM cases:
+6 pass before the multiline expansion. Full Core: 7,158 pass / zero failures /
+five existing skips. Evidence: t028-manual-bom-red.log, t028-manual-bom-focused.log,
+t028-manual-bom-core.log and matching TRX under artifacts/migration/t028.
+
+The final expanded modern suite passes 81 Archiver + 174 Avalonia tests, zero
+failures/skips (t028-manual-bom-modern.log, separate TRX files in
+t028/manual-bom-modern/). The solution also compiles the legacy net45/net452
+targets. No native suite or five-minute gate was repeated for this decoder-mode
+change; the earlier native 3/3 checkpoint remains separate. Shipping profile
+lifecycle, full code-page/native acceptance and T027 remain pending.

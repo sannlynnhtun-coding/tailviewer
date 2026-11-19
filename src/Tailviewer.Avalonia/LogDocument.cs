@@ -44,7 +44,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             SourceId = configuration.Id;
             FileName = Path.GetFullPath(configuration.File);
             var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
-            _source = factory.OpenRead(FileName, encoding ?? Encoding.UTF8);
+            _source = factory.OpenRead(FileName, encoding ?? Encoding.UTF8, detectByteOrderMarks: encoding == null);
             _source.AddListener(this, TimeSpan.Zero, 10000);
         }
         catch

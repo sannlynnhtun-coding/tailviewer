@@ -40,13 +40,14 @@ namespace Tailviewer.Core
 			return OpenRead(fileName, Encoding.UTF8);
 		}
 
-		/// <summary>Opens an existing text log with the selected fallback encoding and BOM semantics.</summary>
-		public ILogSource OpenRead(string fileName, Encoding encoding)
+		/// <summary>Opens an existing text log, optionally overriding BOM detection for a manual encoding.</summary>
+		public ILogSource OpenRead(string fileName, Encoding encoding, bool? detectByteOrderMarks = null)
 		{
 			if (encoding == null) throw new ArgumentNullException(nameof(encoding));
 			fileName = Path.GetFullPath(fileName);
 			using (_filesystem.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-				return OpenRead(fileName, LogFileFormats.GenericText, encoding);
+				return new StreamingTextLogSource(_filesystem, _taskScheduler, fileName, LogFileFormats.GenericText,
+				                                  encoding, detectByteOrderMarks);
 		}
 
 		/// <inheritdoc />

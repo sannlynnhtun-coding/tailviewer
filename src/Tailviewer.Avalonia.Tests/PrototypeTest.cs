@@ -140,6 +140,35 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task ManualEncodingOverridesAConflictingBomWhileAutomaticStillDetectsIt()
+    {
+        foreach (var pair in new[] { (File: Encoding.Unicode, Selected: Encoding.UTF8),
+                     (File: Encoding.UTF8, Selected: Encoding.Unicode),
+                     (File: Encoding.BigEndianUnicode, Selected: Encoding.Unicode),
+                     (File: Encoding.UTF8, Selected: Encoding.UTF8) })
+        foreach (var content in new[] { "abc", "first\nsecond" })
+        {
+            File.WriteAllText(_path, content, pair.File);
+            var bytes = File.ReadAllBytes(_path);
+            var preamble = pair.Selected.GetPreamble();
+            var skip = bytes.Take(preamble.Length).SequenceEqual(preamble) ? preamble.Length : 0;
+            var expected = pair.Selected.GetString(bytes, skip, bytes.Length - skip).Split('\n');
+            var source = new Tailviewer.Settings.DataSource(_path) { Id = Tailviewer.Api.DataSourceId.CreateNew() };
+            using (var manual = new LogDocument(source, pair.Selected))
+            {
+                await WaitUntil(() => { manual.Refresh(); return manual.Lines.Count == expected.Length; });
+                (await manual.CopyTextAsync(Enumerable.Range(0, expected.Length))).Should().Be(string.Join(Environment.NewLine, expected),
+                    "because an explicit setting must override a conflicting BOM");
+            }
+            using var automatic = new LogDocument(source);
+            var originalLines = content.Split('\n');
+            await WaitUntil(() => { automatic.Refresh(); return automatic.Lines.Count == originalLines.Length; });
+            (await automatic.CopyTextAsync(Enumerable.Range(0, originalLines.Length))).Should().Be(string.Join(Environment.NewLine, originalLines));
+            File.ReadAllBytes(_path).Should().Equal(bytes);
+        }
+    }
+
+    [AvaloniaTest]
     public async Task CompleteTerminalNewlineHasAnEmptyCopyableRowThatReceivesAppends()
     {
         File.WriteAllText(_path, "first\nမြန်မာ 😀\n");

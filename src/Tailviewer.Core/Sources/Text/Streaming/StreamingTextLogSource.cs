@@ -43,6 +43,7 @@ namespace Tailviewer.Core
 		private readonly IEmptyReason _sourceDoesNotExist;
 		private readonly IEmptyReason _sourceCannotBeAccessed;
 		private readonly Encoding _encoding;
+		private readonly bool _detectByteOrderMarks;
 		private readonly LogSourceListenerCollection _listeners;
 		private readonly LogBufferList _index;
 		private readonly PropertiesBufferList _propertiesBuffer;
@@ -75,15 +76,18 @@ namespace Tailviewer.Core
 		/// <param name="fileName"></param>
 		/// <param name="format"></param>
 		/// <param name="encoding"></param>
+		/// <param name="detectByteOrderMarks">Null retains the existing encoding-preamble detection rule.</param>
 		internal StreamingTextLogSource(IFilesystem filesystem,
 		                                ITaskScheduler taskScheduler,
 		                                string fileName,
 		                                ILogFileFormat format,
-		                                Encoding encoding)
+		                                Encoding encoding,
+		                                bool? detectByteOrderMarks = null)
 		{
 			_filesystem = filesystem;
 			_taskScheduler = taskScheduler;
 			_encoding = encoding;
+			_detectByteOrderMarks = detectByteOrderMarks ?? encoding.GetPreamble().Length > 0;
 
 			_listeners = new LogSourceListenerCollection(this);
 
@@ -332,7 +336,7 @@ namespace Tailviewer.Core
 				var retainedLength = _lastStreamPosition;
 				var encodingPrefix = ReadEncodingPrefix(stream, length);
 				var encoding = _encoding;
-				if (_encoding.GetPreamble().Length > 0)
+				if (_detectByteOrderMarks)
 				{
 					using (var reader = CreateReader(new MemoryStream(encodingPrefix), leaveOpen: false))
 					{
@@ -716,7 +720,7 @@ namespace Tailviewer.Core
 
 		private StreamReader CreateReader(Stream stream, bool leaveOpen)
 		{
-			return new StreamReader(stream, _encoding, _encoding.GetPreamble().Length > 0, 1024, leaveOpen);
+			return new StreamReader(stream, _encoding, _detectByteOrderMarks, 1024, leaveOpen);
 		}
 
 		private void ServeReadRequests(StreamReader streamReader,
