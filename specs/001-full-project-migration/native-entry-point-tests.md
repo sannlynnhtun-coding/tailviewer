@@ -168,3 +168,48 @@ T021/T024 remain open: a real cross-process/native OLE file/folder drop and
 single-instance handoff are still required, as are their preceding source-view/
 group integration dependencies. No managed RaiseEvent test is counted as native
 OLE acceptance. Multiple-folder picker acceptance remains separately unproven.
+## Slice 5: real cross-process Windows OLE drop
+
+Two additional native cases now drive an owned WPF source window with native
+mouse input and System.Windows.DragDrop.DoDragDrop into the separately launched
+Avalonia process. They never call its managed RaiseEvent API. The source carries
+native file-drop data containing an owned folder and Unicode file path; repeating
+the gesture leaves exactly three configured roots and the source files unchanged.
+The last file becomes active and its original Unicode row reaches the system
+clipboard. A text-only native drag returns None and preserves source/selection.
+The source logs actual feedback/query callbacks: final focused observations were
+2/2 with Link on each file/folder gesture and 2/2 with None for text rejection.
+This follows the [Windows OLE source/target lifecycle](https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-dodragdrop).
+
+The helper checks released mouse/modifier state and owned-process hit targets,
+jumps directly between owned source/target windows, releases its own button state,
+closes its source window and restores the cursor if it still occupies the last
+position set by the helper. Startup/feedback waits and input-worker completion are
+bounded. Failure posts Escape specifically to the owned STA queue, so cleanup can
+run even before native mouse capture starts. Tests still require a controlled
+interactive desktop; this does not promise isolation from concurrent user input.
+The existing fixture retains its clipboard snapshot/restore and owned app cleanup.
+
+The first experimental direct-OLE helper did not start normal source feedback and
+was not adequately bounded. Its stuck run was cancelled through the verified
+owned STA queue (one owned app process was also terminated); fixture cleanup then
+ran. It is not shipped or passing evidence. A stack-only diagnostic tool was
+installed under ignored artifacts/migration/diagnostics; no heap/clipboard dump
+was collected. The replacement uses the normal WPF source gesture. One text case
+then exposed waiting for feedback before moving the pointer; moving directly to
+the owned target before waiting resolves that ordering. No test was skipped or
+assertion timeout increased to hide these failures.
+
+Final full native suite: 9 passed, 0 failed, 0 skipped. A post-run ownership audit
+found zero remaining native harness app/testhost processes and zero fixture dirs.
+Evidence: artifacts/migration/t021-ole-first.log (initial focus-query failure),
+t021-ole-focused.log (cancelled experimental helper), t021-ole-stack.log,
+t021-ole-gesture.log (one pass / one startup-order failure),
+t021-ole-gesture-focused.log (two passes), t021-ole-native-final.log and
+t021-native/t021-ole-final.trx (nine passes). Production code was unchanged, so
+Core/headless suites were not repeated in this test-only slice.
+
+T021 remains open for real-process single-instance handoff. T024 also retains its
+source-view/group integration dependencies. Native multi-folder picker acceptance,
+Explorer-driven gestures, mixed DPI/monitor layouts and the full accessibility/
+keyboard matrix remain unproven; the tested source is the owned WPF window.

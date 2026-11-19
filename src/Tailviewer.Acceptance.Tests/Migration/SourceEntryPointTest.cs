@@ -177,6 +177,44 @@ public sealed class SourceEntryPointTest
         CopyAndCheck(window);
     }
 
+    [Test]
+    public void NativeOleDropOpensFilesAndFoldersWithoutMovingOrDuplicatingLogs()
+    {
+        var other = Path.Combine(_folder, "picked မြန်မာ.log");
+        var content = "picked-first\n" + PickerLine + "\npicked-last";
+        File.WriteAllText(other, content);
+        var window = StartApplication();
+        SelectSecondLine(window);
+        var data = new DataObject();
+        data.SetFileDropList(new System.Collections.Specialized.StringCollection { _folder, other });
+        for (var attempt = 0; attempt < 2; ++attempt)
+        {
+            Assert.That(NativeOleDrag.Drop(data, window, _process!), Is.EqualTo(DragDropEffects.Link));
+            WaitFor(() => window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) ? window : null,
+                "The last OLE-dropped file must become active.");
+            SelectSecondLine(window);
+            CopyAndCheck(window, PickerLine);
+        }
+        var sources = window.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, "Sources"));
+        Assert.That(sources.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count, Is.EqualTo(3));
+        Assert.That(File.ReadAllText(other), Is.EqualTo(content));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
+    [Test]
+    public void NativeOleTextDropIsRejectedWithoutChangingTheSourceOrSelection()
+    {
+        var window = StartApplication();
+        SelectSecondLine(window);
+        var title = window.Current.Name;
+        var data = new DataObject();
+        data.SetText(_path);
+        Assert.That(NativeOleDrag.Drop(data, window, _process!), Is.EqualTo(DragDropEffects.None));
+        Assert.That(window.Current.Name, Is.EqualTo(title));
+        CopyAndCheck(window);
+    }
+
     private static void SubmitPicker(AutomationElement dialog, string paths)
     {
         var fileName = WaitFor(() => dialog.FindFirst(TreeScope.Descendants,
