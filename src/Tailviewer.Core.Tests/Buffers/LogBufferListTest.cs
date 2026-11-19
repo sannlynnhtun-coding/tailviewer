@@ -21,6 +21,34 @@ namespace Tailviewer.Core.Tests.Buffers
 			              "because the order columns should have been preserved");
 		}
 
+		[TestCase(0)]
+		[TestCase(2)]
+		public void PartialColumnAppendDoesNotLeakUnusedValuesIntoLaterRows(int count)
+		{
+			var entries = new LogBufferList(Core.Columns.RawContent, Core.Columns.Index);
+			entries.AddRange(Core.Columns.RawContent, new[] { "first", "second", "unused" }, count);
+			entries.Add(new LogEntry { RawContent = "tail" });
+			entries.Count.Should().Be(count + 1);
+			entries[count].GetValue(Core.Columns.RawContent).Should().Be("tail");
+			for (var index = 0; index < count; ++index)
+				entries[index].GetValue(Core.Columns.Index).Should().Be(Core.Columns.Index.DefaultValue);
+		}
+
+		[TestCase(-1)]
+		[TestCase(4)]
+		public void RejectedColumnAppendLeavesAllExistingColumnsUnchanged(int count)
+		{
+			var entries = new LogBufferList(Core.Columns.Index, Core.Columns.RawContent);
+			entries.Add(new LogEntry { RawContent = "keep", Index = 7 });
+			Assert.Throws<ArgumentOutOfRangeException>(() => entries.AddRange(Core.Columns.RawContent, new[] { "one", "two", "unused" }, count));
+			entries.Count.Should().Be(1);
+			entries[0].GetValue(Core.Columns.RawContent).Should().Be("keep");
+			entries[0].GetValue(Core.Columns.Index).Should().Be(new LogLineIndex(7));
+			entries.Add(new LogEntry { RawContent = "tail", Index = 8 });
+			entries[1].GetValue(Core.Columns.RawContent).Should().Be("tail");
+			entries[1].GetValue(Core.Columns.Index).Should().Be(new LogLineIndex(8));
+		}
+
 		[Test]
 		public void TestContains()
 		{

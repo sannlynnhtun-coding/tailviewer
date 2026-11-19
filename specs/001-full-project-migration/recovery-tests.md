@@ -439,3 +439,28 @@ interaction, five-minute live tail and the wider source matrix remain unmeasured
 No production source was changed and functional suites were not repeated for
 this standalone harness. Reproduce with the command in its README; fix the
 recovery bottleneck rather than changing SC-006's three-second threshold.
+
+## Safe bounded bulk append prerequisite (T027)
+
+Reviewing the allocation-heavy offset insertion path found an existing typed
+LogBufferList.AddRange overload ignoring count and appending the entire backing
+array. Four regressions first fail: zero/partial appends leak unused values into
+a later row, and negative/oversized counts are accepted instead of preserving
+existing columns. The public boundary now validates count before mutating any
+column, and the column implementation appends only the requested ArraySegment.
+No new helper or dependency was added. Caller audit found the forwarding method
+and existing fixtures; the scanner will reuse this path in a separate change.
+
+Focused LogBufferList suite: 132 pass / zero failures or skips. Legacy net471
+test-project build: zero errors / five existing warnings. Evidence under ignored
+artifacts/migration: t027-bulk-count-red.log, t027-bulk-count-focused.log and
+t027-bulk-count-legacy.log. Full source suites/performance will be rerun after
+the scanner adopts the corrected bulk operation.
+
+Critical-only performance scan scope: StreamingTextLogSource, LogEntry and
+LogBufferList. Execution checklist: literal IndexOf 0, Substring 0, literal
+StartsWith/EndsWith 0, literal Contains 0; exact counts are in
+artifacts/migration/t027-perf-scan.json. The relevant allocation finding is the
+per-offset LogEntry construction in AddLines (list/dictionary/boxed value),
+not those absent string patterns. Benchmark evidence remains necessary; static
+inspection alone is not evidence that the three-second recovery gate passes.

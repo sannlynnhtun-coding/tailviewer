@@ -266,6 +266,10 @@ namespace Tailviewer.Core
 		{
 			if (!_dataByColumn.ContainsKey(columnDescriptor))
 				throw new NoSuchColumnException(columnDescriptor);
+			if (buffer == null)
+				throw new ArgumentNullException(nameof(buffer));
+			if (count < 0 || count > buffer.Length)
+				throw new ArgumentOutOfRangeException(nameof(count));
 
 			foreach (var pair in _dataByColumn)
 			{
@@ -815,7 +819,7 @@ namespace Tailviewer.Core
 			public void AddRange(object buffer, int count)
 			{
 				var tmp = (T[])buffer;
-				_data.AddRange(tmp);
+				_data.AddRange(new ArraySegment<T>(tmp, 0, count));
 			}
 
 			public void CopyTo(int sourceIndex, T[] destination, int destinationIndex, int length)
