@@ -67,7 +67,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Tests / contract checks
 
-- [ ] T015 Add source/group/revision tests in `src/Tailviewer.Core.Tests/Migration/SourceIdentityTest.cs`; enforce "Groups reference IDs, not display names", "No cycles or duplicate member identities" and "stale async reads must not publish into newer generation." **Depends**: T014.
+- [X] T015 Add source/group/revision tests in `src/Tailviewer.Core.Tests/Migration/SourceIdentityTest.cs`; enforce "Groups reference IDs, not display names", "No cycles or duplicate member identities" and "stale async reads must not publish into newer generation." **Depends**: T014.
 
 ### Implementation / verification
 
