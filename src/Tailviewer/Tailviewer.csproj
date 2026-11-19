@@ -284,6 +284,7 @@
     <Compile Include="Ui\LogView\DeltaTimes\DeltaTimeColumnPresenter.cs" />
     <Compile Include="Ui\LogView\ElapsedTime\ElapsedTimeColumnPresenter.cs" />
     <Compile Include="Ui\LogView\ElapsedTime\ElapsedTimeFormatter.cs" />
+    <Compile Include="Ui\LogView\ElapsedTime\ElapsedTimeFormatter.Formatting.cs" />
     <Compile Include="Ui\LogView\ILogEntryValueFormatter.cs" />
     <Compile Include="Ui\LogView\PresentationLogSource.cs" />
     <Compile Include="Ui\AutoPopup.cs" />

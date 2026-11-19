@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -7,7 +6,7 @@ using Tailviewer.Settings;
 
 namespace Tailviewer.Ui.LogView.ElapsedTime
 {
-	public sealed class ElapsedTimeFormatter
+	public sealed partial class ElapsedTimeFormatter
 		: AbstractLogEntryValueFormatter
 	{
 		public const int CharacterWidth = 11;
@@ -17,27 +16,6 @@ namespace Tailviewer.Ui.LogView.ElapsedTime
 			: base(textSettings)
 		{
 			_value = value;
-		}
-
-		[Pure]
-		public static string ToString(TimeSpan? value, IFormatProvider provider)
-		{
-			if (value != null)
-			{
-				return ToString(value.Value, provider);
-			}
-
-			return string.Empty;
-		}
-
-		public static string ToString(TimeSpan value, IFormatProvider provider)
-		{
-			if (value >= TimeSpan.FromDays(1))
-			{
-				return string.Format("{0:%d}d {0:hh\\:mm\\:ss\\.fff}", value);
-			}
-
-			return value.ToString(@"hh\:mm\:ss\.fff", provider);
 		}
 
 		public override string ToString(IFormatProvider provider)
