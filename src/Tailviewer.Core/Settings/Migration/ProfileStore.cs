@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -20,12 +21,27 @@ namespace Tailviewer.Settings
             path = Path.GetFullPath(path);
             var folder = Path.GetDirectoryName(path);
             Directory.CreateDirectory(folder);
-            var candidate = Path.Combine(folder, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+            var stage = Path.Combine(folder, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".stage");
+            var candidate = Path.Combine(stage, "." + Path.GetFileName(path) + ".candidate.tmp");
+            var ownsStage = false;
             var ownsCandidate = false;
             var replacing = File.Exists(path);
             if (replacing && new FileInfo(path).Length > MaxFileBytes) throw new XmlException("Existing profile exceeds the file-size limit.");
             try
             {
+                if (Directory.Exists(stage) || File.Exists(stage)) throw new IOException("Staging path already exists.");
+                // CopyFile may reset file ACLs; keep copied bytes inside an owner-only directory first.
+                if (OperatingSystem.IsWindows())
+                {
+                    var directorySecurity = new DirectorySecurity();
+                    directorySecurity.SetAccessRuleProtection(true, false);
+                    using (var identity = WindowsIdentity.GetCurrent())
+                        directorySecurity.AddAccessRule(new FileSystemAccessRule(identity.User, FileSystemRights.FullControl,
+                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+                    new DirectoryInfo(stage).Create(directorySecurity);
+                }
+                else Directory.CreateDirectory(stage);
+                ownsStage = true;
                 using (new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     ownsCandidate = true;
                 if (replacing)
@@ -61,14 +77,20 @@ namespace Tailviewer.Settings
             }
             finally
             {
-                // Never sweep abandoned/foreign candidates or fall back to truncating the destination.
-                if (ownsCandidate)
+                // Cleanup is best effort: never sweep foreign entries or report a committed rename as failed.
+                try
                 {
-                    var attributes = File.GetAttributes(candidate);
-                    if ((attributes & FileAttributes.ReadOnly) != 0)
-                        File.SetAttributes(candidate, attributes & ~FileAttributes.ReadOnly);
-                    File.Delete(candidate);
+                    if (ownsCandidate && File.Exists(candidate))
+                    {
+                        var attributes = File.GetAttributes(candidate);
+                        if ((attributes & FileAttributes.ReadOnly) != 0)
+                            File.SetAttributes(candidate, attributes & ~FileAttributes.ReadOnly);
+                        File.Delete(candidate);
+                    }
+                    if (ownsStage) Directory.Delete(stage);
                 }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
         }
 

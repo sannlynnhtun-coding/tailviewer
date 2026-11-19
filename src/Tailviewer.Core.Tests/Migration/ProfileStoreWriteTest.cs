@@ -68,14 +68,15 @@ namespace Tailviewer.Core.Tests.Migration
             }, document =>
             {
                 validated = true;
-                var candidate = Directory.GetFiles(_folder, ".profile.xml.*.tmp").Single(path => path != _foreign);
-                Assert.That(Path.GetDirectoryName(candidate), Is.EqualTo(_folder));
+                var candidate = Directory.GetFiles(_folder, ".profile.xml.*.tmp", SearchOption.AllDirectories).Single(path => path != _foreign);
+                Assert.That(Directory.GetParent(Path.GetDirectoryName(candidate)).FullName, Is.EqualTo(_folder));
                 Assert.That((string)ProfileStore.Read(candidate).Root.Attribute("value"), Is.EqualTo("new"));
                 Assert.That(File.ReadAllBytes(_path), Is.EqualTo(before));
                 if (failure == "validate") throw new InvalidDataException("Simulated semantic validation failure");
             }));
             Assert.That(validated, Is.EqualTo(failure == "validate"));
             Assert.That(File.ReadAllBytes(_path), Is.EqualTo(before));
+            Assert.That(Directory.GetDirectories(_folder), Is.Empty);
             Assert.That(File.ReadAllText(_foreign), Is.EqualTo("<xml><unfinished>"));
             Assert.That(Directory.GetFiles(_folder).OrderBy(path => path), Is.EqualTo(new[] { _path, _foreign }.OrderBy(path => path)));
         }
@@ -154,7 +155,19 @@ namespace Tailviewer.Core.Tests.Migration
             File.WriteAllText(_path + ":migration-metadata", "keep");
             var created = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
             File.SetCreationTimeUtc(_path, created);
-            ProfileStore.Write(_path, writer => WriteValue(writer, "new"), document => { });
+            ProfileStore.Write(_path, writer =>
+            {
+                if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Windows ACL acceptance only.");
+                var candidate = Directory.GetFiles(_folder, ".profile.xml.*.tmp", SearchOption.AllDirectories).Single(path => path != _foreign);
+                Assert.That(new FileInfo(candidate).GetAccessControl(AccessControlSections.Access)
+                    .GetSecurityDescriptorSddlForm(AccessControlSections.Access), Is.EqualTo(before));
+                var stagingSecurity = new DirectoryInfo(Path.GetDirectoryName(candidate)).GetAccessControl(AccessControlSections.Access);
+                Assert.That(stagingSecurity.AreAccessRulesProtected, Is.True);
+                var rules = stagingSecurity.GetAccessRules(true, false, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>().ToArray();
+                Assert.That(rules, Has.Length.EqualTo(1));
+                Assert.That(rules[0].IdentityReference, Is.EqualTo(WindowsIdentity.GetCurrent().User));
+                WriteValue(writer, "new");
+            }, document => { });
             Assert.That(new FileInfo(_path).GetAccessControl(AccessControlSections.Access)
                 .GetSecurityDescriptorSddlForm(AccessControlSections.Access), Is.EqualTo(before));
             Assert.That(File.ReadAllText(_path + ":migration-metadata"), Is.EqualTo("keep"));
@@ -169,7 +182,7 @@ namespace Tailviewer.Core.Tests.Migration
             Assert.Catch(() => ProfileStore.Write(path, writer => WriteValue(writer, "ours"), document =>
                 File.WriteAllText(path, "<xml value='other-writer'/>")));
             Assert.That((string)ProfileStore.Read(path).Root.Attribute("value"), Is.EqualTo("other-writer"));
-            Assert.That(Directory.GetFiles(_folder, ".arrived.xml.*.tmp"), Is.Empty);
+            Assert.That(Directory.GetFiles(_folder, ".arrived.xml.*.tmp", SearchOption.AllDirectories), Is.Empty);
         }
 
         [Test]
