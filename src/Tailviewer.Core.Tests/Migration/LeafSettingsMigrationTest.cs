@@ -49,6 +49,7 @@ namespace Tailviewer.Core.Tests.Migration
             var restored = new LogFileSettings();
             Restore(element, restored.Restore);
             Assert.That(restored.DefaultEncoding.WebName, Is.EqualTo(name));
+            Assert.That(restored.IsEncodingAvailable, Is.True);
             var clone = restored.Clone();
             clone.DefaultEncoding = Encoding.ASCII;
             Assert.That(restored.DefaultEncoding.WebName, Is.EqualTo(name));
@@ -71,6 +72,10 @@ namespace Tailviewer.Core.Tests.Migration
             var settings = new LogFileSettings { DefaultEncoding = Encoding.Unicode };
             Restore(XElement.Parse("<logfile defaultencoding='not-a-real-encoding'/>") , settings.Restore);
             Assert.That(settings.DefaultEncoding, Is.EqualTo(Encoding.Unicode));
+            Assert.That(settings.IsEncodingAvailable, Is.False);
+            Restore(XElement.Parse("<logfile defaultencoding='utf-8'/>"), settings.Restore);
+            Assert.That(settings.IsEncodingAvailable, Is.True);
+            Assert.That(settings.DefaultEncoding, Is.EqualTo(Encoding.UTF8));
         }
 
         [Test]
@@ -80,7 +85,9 @@ namespace Tailviewer.Core.Tests.Migration
             Restore(XElement.Parse("<logfile defaultencoding='future-encoding'/>") , settings.Restore);
             Assert.That(settings.DefaultEncoding, Is.EqualTo(Encoding.Unicode));
             Assert.That((string)Save("logfile", settings.Clone().Save).Attribute("defaultencoding"), Is.EqualTo("future-encoding"));
+            Assert.That(settings.Clone().IsEncodingAvailable, Is.False);
             settings.DefaultEncoding = null;
+            Assert.That(settings.IsEncodingAvailable, Is.True);
             Assert.That((string)Save("logfile", settings.Save).Attribute("defaultencoding"), Is.EqualTo(string.Empty));
         }
 

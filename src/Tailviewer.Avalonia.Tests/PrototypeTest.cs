@@ -169,6 +169,34 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public void UnavailableEncodingIsRetainedUntilAnExplicitUserSelection()
+    {
+        foreach (var fallback in new Encoding?[] { null, Encoding.ASCII })
+        {
+            var settings = new Tailviewer.Settings.LogFileSettings { DefaultEncoding = fallback };
+            using var reader = System.Xml.XmlReader.Create(new StringReader("<logfile defaultencoding='future-encoding-x'/>"));
+            reader.MoveToContent();
+            settings.Restore(reader);
+            var copy = settings.Clone();
+            var window = new MainWindow(logFileSettings: copy);
+            window.Show();
+            try
+            {
+                var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                    .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+                ((ComboBoxItem)selector.SelectedItem!).Content.Should().Be("Unavailable: future-encoding-x");
+                copy.EncodingName.Should().Be("future-encoding-x");
+                copy.DefaultEncoding.Should().Be(fallback);
+                selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "Auto detect"));
+                copy.EncodingName.Should().BeEmpty();
+                copy.DefaultEncoding.Should().BeNull();
+                settings.EncodingName.Should().Be("future-encoding-x", "because editing a clone must retain the original setting");
+            }
+            finally { window.Close(); }
+        }
+    }
+
+    [AvaloniaTest]
     public async Task CompleteTerminalNewlineHasAnEmptyCopyableRowThatReceivesAppends()
     {
         File.WriteAllText(_path, "first\nမြန်မာ 😀\n");

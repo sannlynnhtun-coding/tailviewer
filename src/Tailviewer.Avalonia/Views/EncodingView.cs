@@ -29,7 +29,7 @@ public sealed class EncodingView : UserControl
             selected = new ComboBoxItem { Content = custom.WebName, Tag = custom };
             choices.Add(selected);
         }
-        if (settings is LogFileSettings { DefaultEncoding: null, EncodingName.Length: > 0 } unavailable)
+        if (settings is LogFileSettings { IsEncodingAvailable: false } unavailable)
         {
             selected = new ComboBoxItem { Content = "Unavailable: " + unavailable.EncodingName, IsEnabled = false };
             choices.Add(selected);

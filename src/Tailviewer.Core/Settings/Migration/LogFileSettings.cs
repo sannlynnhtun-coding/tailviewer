@@ -20,14 +20,18 @@ namespace Tailviewer.Settings
 		public Encoding DefaultEncoding
 		{
 			get { return _defaultEncoding; }
-			set { _defaultEncoding = value; _encodingName = null; }
+			set { _defaultEncoding = value; _encodingName = null; _encodingUnavailable = false; }
 		}
 
 		private Encoding _defaultEncoding;
 		private string _encodingName;
+		private bool _encodingUnavailable;
 
 		/// <summary>The persisted encoding name, including an unavailable selection.</summary>
 		public string EncodingName => _encodingName ?? DefaultEncoding?.WebName ?? string.Empty;
+
+		/// <summary>Whether the saved selection resolved, independently of a retained live fallback.</summary>
+		public bool IsEncodingAvailable => !_encodingUnavailable;
 
 		#endregion
 
@@ -38,7 +42,8 @@ namespace Tailviewer.Settings
 			return new LogFileSettings
 			{
 				_defaultEncoding = _defaultEncoding,
-				_encodingName = _encodingName
+				_encodingName = _encodingName,
+				_encodingUnavailable = _encodingUnavailable
 			};
 		}
 
@@ -59,6 +64,7 @@ namespace Tailviewer.Settings
 					case "defaultencoding":
 						var encodingName = reader.ReadContentAsString();
 						_encodingName = encodingName;
+						_encodingUnavailable = false;
 						if (string.IsNullOrEmpty(encodingName)) _defaultEncoding = null;
 						if (!string.IsNullOrEmpty(encodingName))
 						{
@@ -72,6 +78,7 @@ namespace Tailviewer.Settings
 							}
 							catch (Exception e)
 							{
+								_encodingUnavailable = true;
 								Log.WarnFormat("Caught exception while trying to get encoding '{0}':\r\n{1}",
 								               encodingName,
 								               e);

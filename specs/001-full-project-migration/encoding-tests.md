@@ -76,3 +76,36 @@ t028/manual-bom-modern/). The solution also compiles the legacy net45/net452
 targets. No native suite or five-minute gate was repeated for this decoder-mode
 change; the earlier native 3/3 checkpoint remains separate. Shipping profile
 lifecycle, full code-page/native acceptance and T027 remain pending.
+
+## Unavailable saved selection versus retained live fallback
+
+A new headless case initially failed when an unavailable persisted encoding
+retained a valid prior ASCII fallback: the combo box incorrectly displayed ASCII
+as the saved selection. LogFileSettings now records whether its last restored
+selection resolved, independently of the fallback decoder. Clone preserves that
+state; explicit selection/automatic or a subsequent successful restore clears
+it. The XML attribute and unknown original name remain unchanged until the user
+chooses a replacement. EncodingView displays the unavailable name for both null
+and non-null fallback cases, without overwriting the model during construction.
+
+The fixture checks both fallback states, clone independence and explicit return
+to automatic. Core model checks cover availability, clone/save preservation and
+recovery to a known selection. No provider, serialized field or disk profile
+startup behavior was added. Evidence: t028-unavailable-red.log (1 failure),
+t028-unavailable-focused.log (1 pass), t028-unavailable-core.log (28 pass),
+with separate TRX directories under artifacts/migration/t028.
+
+Final affected Core settings/profile cases: 28 pass, zero failures/skips
+(t028-unavailable-core-final.log/TRX). Final modern solution: 81 Archiver +
+175 Avalonia pass, zero failures/skips (t028-unavailable-modern.log and separate
+TRX files). The earlier 7,158-case full Core checkpoint belongs to the preceding
+manual-BOM change; only affected settings/profile cases were repeated afterward.
+
+The original legacy WPF Tailviewer.Tests build was attempted, not passed:
+without a developer pack it reports MSB3644; supplying the already installed
+net471 reference-assembly package gets past that check but reports missing
+packages/NUnit.3.12.0/build/NUnit.props. Logs:
+t028-unavailable-legacy.log and t028-unavailable-legacy-reference-pack.log.
+This is distinct from the passing retained Core/Archiver target builds in the
+modern solution. No legacy test runtime or new native suite was run in this
+settings-only slice. Shipping profile lifecycle and native performance remain open.
