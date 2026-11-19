@@ -213,3 +213,37 @@ T021 remains open for real-process single-instance handoff. T024 also retains it
 source-view/group integration dependencies. Native multi-folder picker acceptance,
 Explorer-driven gestures, mixed DPI/monitor layouts and the full accessibility/
 keyboard matrix remain unproven; the tested source is the owned WPF window.
+
+## Slice 6: native secondary-instance file and restore handoff
+
+The new native case starts the real shipping app as an owned primary, launches
+an owned secondary with a relative Burmese filename, and verifies secondary exit
+code zero, both source roots, the correct active file and original native
+clipboard text. A further no-argument secondary restores the same minimized
+primary PID/window and preserves selection/copy. Each secondary has bounded exit
+checks and finally cleanup restricted to its own Process object.
+
+Fixture preconditions now reject existing apphost processes and an occupied
+user/session ownership channel before clipboard or workspace mutation. The native
+runner links the production ownership helper for that probe, rather than
+duplicating its channel algorithm. Both probes release/dispose their own handles.
+
+Focused new case: 1 pass. Complete native suite: 10 pass / 1 fail / 0 skipped.
+The failure was the second gesture in the existing file/folder OLE drop case:
+its source/target ownership guard detected an occluded point before sending any
+mouse down (completed false, feedback/query zero for that gesture). The first
+gesture had returned Link normally. No safety check, assertion or timeout was
+weakened. A focused recheck of both OLE cases plus the new handoff case passes
+3/3 with no production/test changes. Retain the full-run failure as a desktop
+occlusion/flakiness observation; this is not an uninterrupted full-suite pass.
+
+Evidence: artifacts/migration/t025-startup-native.log,
+t025-startup-native-full.log, t025-startup-native-recheck.log and matching TRX
+files under t021-native. After those runs, no app/testhost processes or
+tailviewer-native fixture directories remained. Full modern suite separately
+passed 81 Archiver + 129 Avalonia cases.
+
+T021/T025 remain open for crash/unresponsive-primary/error-window acceptance,
+foreground/off-screen/hidden-window behavior, broader isolation and preceding
+source implementation dependencies. Native service/install/update behavior and
+cross-user/session security were not exercised here.

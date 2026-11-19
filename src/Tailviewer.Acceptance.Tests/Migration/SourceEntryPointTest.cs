@@ -26,6 +26,11 @@ public sealed class SourceEntryPointTest
         _clipboard = null;
         _folder = null!;
         Assert.That(Environment.UserInteractive, Is.True, "Native tests require an interactive Windows desktop.");
+        var existing = Process.GetProcessesByName("Tailviewer.Avalonia");
+        try { Assert.That(existing, Is.Empty, "Close existing Tailviewer apps before native tests; never hand test paths to a user-owned instance."); }
+        finally { foreach (var process in existing) process.Dispose(); }
+        using (var ownership = Tailviewer.Avalonia.SingleApplicationHelper.TryAcquire(Tailviewer.Avalonia.SingleApplicationHelper.GetChannelName()))
+            Assert.That(ownership, Is.Not.Null, "An existing primary owns this user/session channel; native tests must not modify its workspace.");
         _folder = Path.Combine(Path.GetTempPath(), "tailviewer-native-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
         _path = Path.Combine(_folder, "native မြန်မာ.log");
@@ -261,6 +266,52 @@ public sealed class SourceEntryPointTest
             Assert.That(_process.HasExited, Is.False, "The owned application must stay alive during startup.");
             return _process.MainWindowHandle == IntPtr.Zero ? null : AutomationElement.FromHandle(_process.MainWindowHandle);
         }, "The owned application must expose a native main window.");
+    }
+
+    [Test]
+    public void SecondInstanceHandsOffARelativeUnicodeFileAndRestoresThePrimaryWindow()
+    {
+        var other = Path.Combine(_folder, "handoff မြန်မာ.log");
+        File.WriteAllText(other, "picked-first\n" + PickerLine + "\npicked-last");
+        var window = StartApplication();
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+        SendSecondary(Path.GetFileName(other));
+        var sources = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(other), StringComparison.Ordinal) &&
+            sources.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 2
+            ? window : null, "The primary must retain both sources and activate the handed-off relative path.");
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+        var pattern = (WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern);
+        pattern.SetWindowVisualState(WindowVisualState.Minimized);
+        SendSecondary();
+        WaitFor(() => pattern.Current.WindowVisualState != WindowVisualState.Minimized ? window : null,
+            "An empty handoff must restore the same primary window.");
+        Assert.That(_process!.HasExited, Is.False);
+        Assert.That(window.Current.ProcessId, Is.EqualTo(_process.Id));
+        CopyAndCheck(window, PickerLine);
+    }
+
+    private void SendSecondary(params string[] paths)
+    {
+        var start = new ProcessStartInfo(_process!.StartInfo.FileName) { UseShellExecute = false, WorkingDirectory = _folder };
+        foreach (var path in paths) start.ArgumentList.Add(path);
+        using var secondary = Process.Start(start) ?? throw new InvalidOperationException("The owned secondary process did not start.");
+        try
+        {
+            Assert.That(secondary.WaitForExit(10000), Is.True, "The secondary must acknowledge handoff and exit.");
+            Assert.That(secondary.ExitCode, Is.EqualTo(0));
+        }
+        finally
+        {
+            if (!secondary.HasExited)
+            {
+                secondary.Kill(entireProcessTree: true);
+                Assert.That(secondary.WaitForExit(5000), Is.True, "The owned secondary must exit during cleanup.");
+            }
+        }
     }
 
     private static void SelectSecondLine(AutomationElement window)
