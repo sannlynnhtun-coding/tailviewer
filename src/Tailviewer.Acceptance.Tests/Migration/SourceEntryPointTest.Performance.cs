@@ -12,6 +12,78 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 public sealed partial class SourceEntryPointTest
 {
+    [TestCase("rewrite"), TestCase("replace"), TestCase("rotate"), TestCase("truncate")]
+    [Category("Performance")]
+    public void NativeFileRecoveryConvergesWithinThreeSecondsWithoutStaleSelection(string mutation)
+    {
+        const string original = "first\nold-middle\nlast";
+        const string updated = "first\nnew-middle\nlast";
+        File.WriteAllText(_path, original, new UTF8Encoding(false));
+        var timestamp = File.GetLastWriteTimeUtc(_path);
+        var window = StartApplication();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The log list must be accessible.");
+        WaitForNativeLineCount(window, rows, 3);
+        SelectSecondLine(window);
+        CopyAndCheck(window, "old-middle");
+        if (mutation is "replace" or "rotate")
+        {
+            var incoming = Path.Combine(_folder, "incoming.log");
+            File.WriteAllText(incoming, updated, new UTF8Encoding(false));
+            File.SetLastWriteTimeUtc(incoming, timestamp);
+            if (mutation == "rotate") File.Move(_path, Path.Combine(_folder, "rotated.log"));
+            File.Move(incoming, _path, overwrite: true);
+        }
+        else
+        {
+            using (var output = new FileStream(_path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (mutation == "truncate") output.SetLength(0);
+                output.Write(Encoding.UTF8.GetBytes(updated));
+                output.Flush(flushToDisk: true);
+            }
+            File.SetLastWriteTimeUtc(_path, timestamp);
+        }
+        var clock = Stopwatch.StartNew();
+        var reportPath = Path.Combine(TestContext.CurrentContext.TestDirectory,
+            "native-recovery-" + Guid.NewGuid().ToString("N") + ".json");
+        var resolved = false;
+        try
+        {
+            WaitFor(() =>
+            {
+                Assert.That(NativeKeyboard.IsForeground(_process!), Is.True);
+                var visible = rows.FindAll(TreeScope.Descendants, new AndCondition(
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+                    new PropertyCondition(AutomationElement.IsOffscreenProperty, false)))
+                    .Cast<AutomationElement>().Select(text => text.Current.Name).ToArray();
+                return new[] { $"{1,7}  first", $"{2,7}  new-middle", $"{3,7}  last" }.All(visible.Contains) &&
+                    !visible.Any(name => name.Contains("old-middle", StringComparison.Ordinal)) ? rows : null;
+            }, "All replacement rows must converge within three seconds after the final mutation.", timeoutSeconds: 3, pollMilliseconds: 10);
+            resolved = true;
+        }
+        finally
+        {
+            clock.Stop();
+            File.WriteAllText(reportPath, JsonSerializer.Serialize(new { mutation, elapsed_ms = clock.Elapsed.TotalMilliseconds,
+                resolved, restored_timestamp = timestamp, original_bytes = Encoding.UTF8.GetByteCount(original),
+                updated_bytes = new FileInfo(_path).Length }));
+            TestContext.AddTestAttachment(reportPath, "Owned synthetic log recovery observation.");
+        }
+        Assert.That(clock.Elapsed.TotalMilliseconds, Is.LessThanOrEqualTo(3000));
+        Assert.That(((SelectionPattern)rows.GetCurrentPattern(SelectionPattern.Pattern)).Current.GetSelection(), Is.Empty,
+            "Replacement must clear stale selection rather than copy an old row.");
+        var checkbox = window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox));
+        Assert.That(((TogglePattern)checkbox.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState, Is.EqualTo(ToggleState.Off));
+        NativeKeyboard.SelectAll(_process!, rows);
+        CopyAndCheck(window, updated.Replace("\n", Environment.NewLine));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo(updated));
+        Assert.That(File.GetLastWriteTimeUtc(_path), Is.EqualTo(timestamp));
+        Assert.That(new FileInfo(_path).Length, Is.EqualTo(Encoding.UTF8.GetByteCount(original)));
+        if (mutation == "rotate") Assert.That(File.ReadAllText(Path.Combine(_folder, "rotated.log")), Is.EqualTo(original));
+    }
+
     [TestCase(1), TestCase(2), TestCase(3), Category("Performance")]
     public void NativeInteractionsDuringVisibleIndexingMeetResponseBudget(int run)
     {

@@ -727,3 +727,34 @@ Host: i7-13700H, 20 logical processors, 31.71 GiB RAM, local NVMe, SDK 10.0.302,
 168 DPI. Native input keeps owned PID/focus and held-key guards, including
 partial-injection cleanup. T027/T029 and full migration remain open for broader
 workloads, recovery deadlines and derived-source integration.
+
+## Native three-second recovery preflight (2026-11-19)
+
+Four native cases use owned three-line UTF-8 files. They first display and copy
+the old middle line, then change only its text through an in-place rewrite,
+same-path replacement, rename-away rotation or truncate/regrow. Final file size
+is 21 bytes in every case and the original mtime is restored. The clock starts
+after the final mutation/mtime restoration; all three numbered new rows must be
+visible, no old middle text may remain visible and the unchanged 3,000 ms
+deadline must hold. Observation polls every 10 ms and requires owned foreground.
+
+| Mutation | Convergence ms |
+|---|---|
+| In-place rewrite | 98.7380 |
+| Same-path replacement | 270.0471 |
+| Rename-away rotation | 152.5013 |
+| Truncate/regrow | 126.9521 |
+
+All four cases pass, no failures/skips. Each additionally requires cleared stale
+selection, paused follow, exact full native Ctrl+A/copy output, unchanged final
+bytes/mtime/length, and retained original rotated bytes for the rotation case.
+No production changes were necessary. This verifies the UI/Core integration for
+small local files; it does not establish the deadline for every size/format or
+an atomic-filesystem-snapshot guarantee. It is separate from the existing Core
+large-file recovery measurements and the five-minute tail workload.
+
+Evidence: artifacts/migration/t027-native-recovery-deadline.log/TRX, with all four
+attached native-recovery JSON reports. Native functional regression 23/23 and
+during-index response 3/3 passed immediately before this test-only addition.
+Core/modern suites and the five-minute tail gate were not repeated for these
+new fixtures. Broader US1/derived-source/workload gates remain open.
