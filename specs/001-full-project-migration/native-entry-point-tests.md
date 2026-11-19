@@ -101,3 +101,35 @@ The full Core suite was not repeated for this UI/startup-only change.
 T021/T024 remain open: folder picker, drag/drop and single-instance handoff still
 need integration/acceptance. Startup file/folder path arguments are covered here;
 legacy plugin-loader command modes are not claimed as ported by this change.
+## Slice 3: native folder picker
+
+Open folder is now an accessible toolbar command. It shares the file-open enabled
+state through an Avalonia binding. A common picker method checks the appropriate
+provider capability, allows multiple selections, validates all local paths and
+uses the existing fenced batch opener. Existing folder-watch/member identities,
+file copying and empty-selection cancellation behavior are reused, not duplicated.
+
+Two new native cases first failed because the folder command did not exist.
+After wiring it, cancellation passed; opening initially failed in the test finder
+because Windows exposes the folder-name edit as ID 1152 rather than the file
+picker's 1148 combo. The shared native fixture now supports both controls. It
+opens the owned folder, verifies the original configured file remains alongside
+it, waits for the discovered child log, selects that child and copies its exact
+Unicode/whitespace content. Cancellation preserves the original source/selection.
+Multiple-folder selection is enabled but was not separately exercised here.
+
+Final native fixture: 7 passed / 0 failed / 0 skipped. Modern solution: 81
+Archiver + 85 Avalonia passed / 0 failures/skips. The existing light/dark branding
+render test now additionally verifies the folder command is visible and the full
+toolbar fits the 640-pixel minimum width. An unrelated empty-file Core race found
+in the first broader run was fixed separately; see recovery-tests.md slice 4.
+
+Evidence under artifacts/migration: t021-folder-red.log,
+t021-native/t021-folder-red.trx, t021-folder-focused.log,
+t021-folder-native-final.log, t021-native/t021-folder-final.trx and
+t024-folder-modern-final.log. The original failed broader checkpoint is retained
+as t024-folder-modern.log; it is not passing evidence.
+
+T021/T024 remain open for drag/drop and single-instance handoff integration and
+acceptance. This does not claim the legacy menu system, every folder picker
+platform, or all keyboard/accessibility flows are complete.

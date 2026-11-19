@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.NUnit;
@@ -51,6 +52,12 @@ public sealed class PrototypeTest
                 ((Bitmap)image.Source!).PixelSize.Should().Be(new PixelSize(64, 64));
                 image.Bounds.Width.Should().Be(28, "because branding must remain compact at the minimum window width");
                 window.Icon.Should().NotBeNull("because the title bar and taskbar need the same branding");
+                var folder = window.GetVisualDescendants().OfType<Button>()
+                    .Single(button => AutomationProperties.GetName(button) == "Open folder");
+                folder.IsEffectivelyVisible.Should().BeTrue();
+                var follow = window.GetVisualDescendants().OfType<CheckBox>().Single();
+                follow.TranslatePoint(new Point(follow.Bounds.Width, 0), window)!.Value.X.Should()
+                    .BeLessThanOrEqualTo(window.ClientSize.Width, "because the complete toolbar must fit the minimum window width");
                 using var screenshot = new RenderTargetBitmap(new PixelSize(640, 400));
                 screenshot.Render(window);
                 var screenshotPath = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"branding-{theme}.png");

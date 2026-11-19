@@ -142,10 +142,46 @@ public sealed class SourceEntryPointTest
         CopyAndCheck(window, PickerLine);
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void NativeFolderPickerOpensOrCancelsWithoutRemovingExistingSources(bool cancel)
+    {
+        var window = StartApplication();
+        SelectSecondLine(window);
+        var title = window.Current.Name;
+        var dialog = OpenPicker(window, folder: true);
+        if (cancel)
+        {
+            ((WindowPattern)dialog.GetCurrentPattern(WindowPattern.Pattern)).Close();
+            WaitFor(() => window.Current.IsEnabled ? window : null, "The main window must recover after folder-picker cancellation.");
+            Assert.That(window.Current.Name, Is.EqualTo(title));
+            CopyAndCheck(window);
+            return;
+        }
+        SubmitPicker(dialog, _folder);
+        WaitFor(() => window.Current.IsEnabled && window.Current.Name.Contains(Path.GetFileName(_folder), StringComparison.Ordinal) ? window : null,
+            "The selected folder must become the active source.");
+        var sources = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        var folderItem = WaitFor(() => sources.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem))
+            .Cast<AutomationElement>().FirstOrDefault(item => item.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 1),
+            "The folder watcher must discover the owned log file.");
+        Assert.That(sources.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count, Is.EqualTo(2));
+        var child = folderItem.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem));
+        ((SelectionItemPattern)child.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+    }
+
     private static void SubmitPicker(AutomationElement dialog, string paths)
     {
         var fileName = WaitFor(() => dialog.FindFirst(TreeScope.Descendants,
-            new PropertyCondition(AutomationElement.AutomationIdProperty, "1148")), "The native picker must expose its file-name field.");
+            new OrCondition(new PropertyCondition(AutomationElement.AutomationIdProperty, "1148"),
+                new PropertyCondition(AutomationElement.AutomationIdProperty, "1152"))), "The native picker must expose its file/folder-name field.");
         if (!fileName.TryGetCurrentPattern(ValuePattern.Pattern, out var value))
         {
             fileName = fileName.FindFirst(TreeScope.Descendants,
@@ -159,15 +195,16 @@ public sealed class SourceEntryPointTest
         ((InvokePattern)open.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
     }
 
-    private AutomationElement OpenPicker(AutomationElement window)
+    private AutomationElement OpenPicker(AutomationElement window, bool folder = false)
     {
-        InvokeButton(window, "Open file");
+        InvokeButton(window, folder ? "Open folder" : "Open file");
+        var title = folder ? "Open log folder" : "Open log file";
         return WaitFor(() => window.FindFirst(TreeScope.Descendants,
                 new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
-                    new PropertyCondition(AutomationElement.NameProperty, "Open log file"))) ??
+                    new PropertyCondition(AutomationElement.NameProperty, title))) ??
             AutomationElement.RootElement.FindAll(TreeScope.Children,
                     new PropertyCondition(AutomationElement.ProcessIdProperty, _process!.Id))
-                .Cast<AutomationElement>().FirstOrDefault(element => element.Current.Name == "Open log file"),
+                .Cast<AutomationElement>().FirstOrDefault(element => element.Current.Name == title),
             "The owned process must show its native file picker.");
     }
 

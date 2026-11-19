@@ -27,6 +27,7 @@ namespace Tailviewer.Avalonia;
 public sealed class MainWindow : Window
 {
     private readonly Button _open = new() { Content = "_Open file…" };
+    private readonly Button _openFolder = new() { Content = "Open _folder…" };
     private readonly Button _copy = new() { Content = "_Copy selected", IsEnabled = false };
     private readonly Button _closeSource = new() { Content = "C_lose", IsEnabled = false };
     private readonly Button _closeAll = new() { Content = "Close _all", IsEnabled = false };
@@ -76,6 +77,8 @@ public sealed class MainWindow : Window
         MinWidth = 640;
         MinHeight = 360;
         AutomationProperties.SetName(_rows, "Log lines");
+        AutomationProperties.SetName(_openFolder, "Open folder");
+        _openFolder.Bind(IsEnabledProperty, _open.GetObservable(IsEnabledProperty));
         AutomationProperties.SetName(_sourceTree, "Sources");
         AutomationProperties.SetName(_closeSource, "Close current source");
         AutomationProperties.SetName(_closeAll, "Close all sources");
@@ -125,7 +128,7 @@ public sealed class MainWindow : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing = 12,
-            Children = { brandImage, _open, _copy, _follow }
+            Children = { brandImage, _open, _openFolder, _copy, _follow }
         };
         var layout = new Grid
         {
@@ -161,7 +164,8 @@ public sealed class MainWindow : Window
         layout.Children.Add(_status);
         Content = layout;
 
-        _open.Click += async (_, _) => await PickFileAsync();
+        _open.Click += async (_, _) => await PickSourcesAsync(folders: false);
+        _openFolder.Click += async (_, _) => await PickSourcesAsync(folders: true);
         _copy.Click += async (_, _) => await CopyAsync();
         _navigation.LineChosen += index =>
         {
@@ -241,20 +245,21 @@ public sealed class MainWindow : Window
             Opened += async (_, _) => await OpenFileAsync(fileName);
     }
 
-    private async Task PickFileAsync()
+    private async Task PickSourcesAsync(bool folders)
     {
         try
         {
-            if (!StorageProvider.CanOpen)
-                throw new NotSupportedException("File picking is unavailable. Pass a local file path on the command line.");
-            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Open log file", AllowMultiple = true
-            });
-            if (files.Count == 0)
+            if (!(folders ? StorageProvider.CanPickFolder : StorageProvider.CanOpen))
+                throw new NotSupportedException(folders
+                    ? "Folder picking is unavailable. Pass a local directory path on the command line."
+                    : "File picking is unavailable. Pass a local file path on the command line.");
+            IReadOnlyList<IStorageItem> items = folders
+                ? await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Open log folder", AllowMultiple = true })
+                : await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Open log file", AllowMultiple = true });
+            if (items.Count == 0)
                 return;
-            var paths = files.Select(file => file.TryGetLocalPath() ??
-                throw new NotSupportedException("This prototype opens local files only.")).ToArray();
+            var paths = items.Select(item => item.TryGetLocalPath() ??
+                throw new NotSupportedException("Only local files and folders can be opened.")).ToArray();
             await OpenFilesAsync(paths);
         }
         catch (Exception ex)
@@ -596,7 +601,7 @@ public sealed class MainWindow : Window
         {
             e.Handled = true;
             if (e.Key == Key.O && _open.IsEnabled)
-                await PickFileAsync();
+                await PickSourcesAsync(folders: false);
             else if (e.Key == Key.C)
                 await CopyAsync();
             else if (e.Key == Key.G)
