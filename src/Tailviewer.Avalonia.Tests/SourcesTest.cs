@@ -573,6 +573,161 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task FolderOptionsApplyPatternsAndRecursionWithoutSwitchingTheActiveFile()
+    {
+        var nested = Path.Combine(_folder, "nested");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(nested, "nested.log"), "nested");
+        var binary = Path.Combine(_folder, "included.bin");
+        File.WriteAllText(binary, "included");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _folder });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            var first = tree.Items.OfType<DataSource>().Single(source => source.File == _first);
+            var originalPattern = folder.LogFileSearchPattern;
+            var originalRecursive = folder.Recursive;
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 3);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            var dialog = await OpenFolderOptions(window, tree, folder);
+            var pattern = dialog.GetVisualDescendants().OfType<TextBox>()
+                .Single(box => AutomationProperties.GetName(box) == "Folder file patterns");
+            pattern.Text = "*.bin";
+            dialog.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = false;
+            dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            window.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            await WaitUntil(() => !dialog.IsVisible);
+            folder.LogFileSearchPattern.Should().Be(originalPattern);
+            folder.Recursive.Should().Be(originalRecursive);
+            dialog = await OpenFolderOptions(window, tree, folder);
+            dialog.GetVisualDescendants().OfType<TextBox>().Single(box => AutomationProperties.GetName(box) == "Folder file patterns").Text = "*.bin";
+            dialog.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = false;
+            dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Apply"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !dialog.IsVisible && (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 1);
+            var child = ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single();
+            child.File.Should().Be(binary);
+            folder.LogFileSearchPattern.Should().Be("*.bin");
+            folder.Recursive.Should().BeFalse();
+            tree.SelectedItem.Should().BeSameAs(first);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 0, "first");
+            File.WriteAllText(Path.Combine(_folder, "later.bin"), "later");
+            File.WriteAllText(Path.Combine(nested, "excluded.bin"), "excluded");
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single(source => source.File == binary)
+                .Id.Should().Be(child.Id);
+            dialog = await OpenFolderOptions(window, tree, folder);
+            dialog.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = true;
+            dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Apply"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !dialog.IsVisible && (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 3);
+            ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single(source => source.File == binary)
+                .Id.Should().Be(child.Id);
+            File.ReadAllText(binary).Should().Be("included");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FolderOptionsRejectInvalidPathsThenMoveTheWatcherWithoutChangingIdentity()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single();
+            var id = folder.Id;
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var dialog = await OpenFolderOptions(window, tree, folder);
+            var path = dialog.GetVisualDescendants().OfType<TextBox>()
+                .Single(box => AutomationProperties.GetName(box) == "Folder path");
+            var apply = dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Apply"));
+            path.Text = "";
+            apply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => dialog.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                AutomationProperties.GetName(text) == "Folder options status" && text.Text?.StartsWith("Cannot update folder:") == true));
+            dialog.IsVisible.Should().BeTrue();
+            folder.LogFileFolderPath.Should().Be(_folder);
+            File.WriteAllText(Path.Combine(_folder, "still-watched.log"), "old watcher is usable");
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 3);
+            var moved = Path.Combine(_folder, "new-root");
+            Directory.CreateDirectory(moved);
+            File.WriteAllText(Path.Combine(moved, "moved.log"), "moved");
+            path.Text = moved;
+            dialog.GetVisualDescendants().OfType<TextBox>().Single(box => AutomationProperties.GetName(box) == "Folder file patterns").Text = "*.log";
+            apply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !dialog.IsVisible && (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 1);
+            folder.Id.Should().Be(id);
+            folder.LogFileFolderPath.Should().Be(moved);
+            AutomationProperties.GetName((TreeViewItem)tree.ContainerFromItem(folder)!).Should().Be(moved);
+            window.Title.Should().Contain("new-root");
+            File.WriteAllText(Path.Combine(_folder, "old-root-only.log"), "old");
+            File.WriteAllText(Path.Combine(moved, "new-root-only.log"), "new");
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Select(source => Path.GetDirectoryName(source.File))
+                .Should().OnlyContain(parent => parent == moved);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CancellingAnInFlightFolderUpdateKeepsItsOriginalWatcherAndSettings()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single();
+            var originalPattern = folder.LogFileSearchPattern;
+            var originalRecursive = folder.Recursive;
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var dialog = await OpenFolderOptions(window, tree, folder);
+            dialog.GetVisualDescendants().OfType<TextBox>().Single(box => AutomationProperties.GetName(box) == "Folder file patterns").Text = "*.bin";
+            dialog.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = !originalRecursive;
+            var apply = dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Apply"));
+            apply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            apply.IsEnabled.Should().BeFalse();
+            dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Cancel"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !dialog.IsVisible && apply.IsEnabled);
+            folder.LogFileSearchPattern.Should().Be(originalPattern);
+            folder.Recursive.Should().Be(originalRecursive);
+            File.WriteAllText(Path.Combine(_folder, "after-cancel.log"), "still watched");
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 3);
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task<Window> OpenFolderOptions(MainWindow window, TreeView tree, DataSource folder)
+    {
+        await WaitUntil(() => tree.ContainerFromItem(folder) is TreeViewItem { ContextMenu: not null });
+        var item = (TreeViewItem)tree.ContainerFromItem(folder)!;
+        var menu = item.ContextMenu!;
+        item.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+        try
+        {
+            await WaitUntil(() => menu.IsOpen);
+            var edit = menu.Items.OfType<MenuItem>().SingleOrDefault(command => Equals(command.Header, "Folder options…"));
+            edit.Should().NotBeNull("because folder path, patterns and recursion must be editable");
+            edit!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await WaitUntil(() => window.OwnedWindows.Any(dialog => dialog.IsVisible));
+            return window.OwnedWindows.Single(dialog => dialog.IsVisible);
+        }
+        finally { menu.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs()
     {
         var window = new MainWindow();

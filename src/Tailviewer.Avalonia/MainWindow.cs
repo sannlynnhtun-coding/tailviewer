@@ -119,6 +119,15 @@ public sealed class MainWindow : Window
             var label = new TextBlock { Text = string.IsNullOrEmpty(name) ? path : name, TextTrimming = TextTrimming.CharacterEllipsis };
             ToolTip.SetTip(label, path);
             AutomationProperties.SetName(label, path);
+            void RefreshHeading()
+            {
+                var updated = source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "Merged Data Source";
+                var heading = SourcesViewModel.IsGroup(source) ? updated : Path.GetFileName(Path.TrimEndingDirectorySeparator(updated));
+                label.Text = string.IsNullOrEmpty(heading) ? updated : heading;
+                ToolTip.SetTip(label, updated);
+                AutomationProperties.SetName(label, updated);
+                if (label.FindAncestorOfType<TreeViewItem>() is { } item) AutomationProperties.SetName(item, updated);
+            }
             var content = new Grid { Children = { label } };
             Action? beginRename = null;
             if (SourcesViewModel.IsGroup(source))
@@ -134,11 +143,7 @@ public sealed class MainWindow : Window
                         try
                         {
                             _workspace.RenameGroup(source.Id, editor.Text ?? "");
-                            label.Text = source.DisplayName;
-                            ToolTip.SetTip(label, source.DisplayName);
-                            AutomationProperties.SetName(label, source.DisplayName);
-                            if (label.FindAncestorOfType<TreeViewItem>() is { } renamedItem)
-                                AutomationProperties.SetName(renamedItem, source.DisplayName);
+                            RefreshHeading();
                             if ((_sourceTree.SelectedItem as DataSource)?.Id == source.Id)
                             {
                                 _path.Text = source.DisplayName;
@@ -165,7 +170,7 @@ public sealed class MainWindow : Window
                 };
                 editor.LostFocus += (_, _) => FinishRename(false);
             }
-            label.ContextMenu = CreateSourceMenu(source, beginRename);
+            label.ContextMenu = CreateSourceMenu(source, beginRename, RefreshHeading);
             label.AttachedToVisualTree += (_, _) =>
             {
                 var item = label.FindAncestorOfType<TreeViewItem>();
@@ -458,7 +463,7 @@ public sealed class MainWindow : Window
         RefreshDocument();
     }
 
-    private ContextMenu CreateSourceMenu(DataSource source, Action? beginRename)
+    private ContextMenu CreateSourceMenu(DataSource source, Action? beginRename, Action refreshHeading)
     {
         var menu = new ContextMenu();
         void RefreshMenu()
@@ -480,6 +485,12 @@ public sealed class MainWindow : Window
                 var rename = new MenuItem { Header = "Rename group" };
                 rename.Click += (_, _) => beginRename();
                 menu.Items.Add(rename);
+            }
+            if (source.LogFileFolderPath != null)
+            {
+                var options = new MenuItem { Header = "Folder options…" };
+                options.Click += async (_, _) => await EditFolderAsync(source, refreshHeading);
+                menu.Items.Add(options);
             }
             var add = new MenuItem { Header = "Add to group" };
             foreach (var group in _workspace.All.Where(SourcesViewModel.IsGroup))
@@ -523,6 +534,76 @@ public sealed class MainWindow : Window
         // Refresh before context routing opens menus created before a group existed.
         menu.Tag = (Action)RefreshMenu;
         return menu;
+    }
+
+    private async Task EditFolderAsync(DataSource source, Action refreshHeading)
+    {
+        if (_closed || !_workspace.Contains(source.Id) || !_folders.TryGetValue(source.Id, out var original)) return;
+        var path = new TextBox { Text = source.LogFileFolderPath };
+        var pattern = new TextBox { Text = source.LogFileSearchPattern };
+        var recursive = new CheckBox { Content = "Include subfolders", IsChecked = source.Recursive };
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var apply = new Button { Content = "Apply", IsDefault = true };
+        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        AutomationProperties.SetName(path, "Folder path");
+        AutomationProperties.SetName(pattern, "Folder file patterns");
+        AutomationProperties.SetName(status, "Folder options status");
+        var dialog = new Window
+        {
+            Title = "Folder options", Width = 620, Height = 340, MinWidth = 420, MinHeight = 300,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16), Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = "Folder path" }, path,
+                    new TextBlock { Text = "File patterns (for example *.log;*.txt)" }, pattern, recursive, status,
+                    new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { apply, cancel } }
+                }
+            }
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        apply.Click += async (_, _) =>
+        {
+            if (!apply.IsEnabled) return;
+            apply.IsEnabled = false;
+            FolderSources? staged = null;
+            try
+            {
+                var candidate = source.Clone();
+                candidate.LogFileFolderPath = Path.GetFullPath(path.Text ?? "");
+                candidate.LogFileSearchPattern = pattern.Text ?? "";
+                candidate.Recursive = recursive.IsChecked == true;
+                staged = await Task.Run(() => new FolderSources(_folderFilesystem.Value, _folderScheduler, candidate));
+                if (_closed || !dialog.IsVisible || !_workspace.Contains(source.Id) ||
+                    !_folders.TryGetValue(source.Id, out var current) || !ReferenceEquals(current, original)) return;
+                source.LogFileFolderPath = candidate.LogFileFolderPath;
+                source.LogFileSearchPattern = candidate.LogFileSearchPattern;
+                source.Recursive = candidate.Recursive;
+                _folders[source.Id] = staged;
+                staged.Changed += () => Dispatcher.UIThread.Post(() => RefreshFolder(source.Id));
+                staged = null;
+                original.Dispose();
+                RefreshFolder(source.Id);
+                refreshHeading();
+                if (_sourceTree.SelectedItem is DataSource selected && selected.Id == source.Id)
+                {
+                    _path.Text = source.LogFileFolderPath;
+                    Title = $"{Path.GetFileName(Path.TrimEndingDirectorySeparator(source.LogFileFolderPath))} — Tailviewer prototype";
+                }
+                RefreshSourceStates();
+                RefreshDocument();
+                dialog.Close();
+            }
+            catch (Exception error) { if (dialog.IsVisible) status.Text = "Cannot update folder: " + error.Message; }
+            finally
+            {
+                staged?.Dispose();
+                apply.IsEnabled = true;
+            }
+        };
+        await dialog.ShowDialog(this);
     }
 
     private async Task GroupSourcesAsync(DataSource source, DataSourceId target)

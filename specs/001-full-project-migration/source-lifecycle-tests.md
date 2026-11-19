@@ -845,3 +845,60 @@ to the second and copy its restored selection without reselecting it. Relative
 handoff and Ctrl+G also pass. This is native selection/copy integration evidence;
 precise native viewport restoration and the complete native suite were not
 executed here. Owned processes exit and clipboard/temp ownership guards remain.
+
+## Editable folder configuration (T022)
+
+Legacy FolderDataSourceViewModel edits folder path, search pattern and recursive
+discovery. These fields already existed in the migrated configuration and Core
+watcher but had no Avalonia editor. The initial UI regression failed because
+the folder context menu did not expose Folder options.
+
+Configured folders now expose a modal editor with accessible path/pattern
+fields, Include subfolders, Apply, Cancel and Escape. Semicolon/wildcard matching
+continues to use FolderSources' existing bounded legacy matcher. Apply stages a
+cloned configuration and replacement watcher on a worker before publishing the
+three accepted fields. It keeps the folder ID and unrelated configuration;
+unchanged member paths keep their existing child identities. The old watcher
+is disposed after replacement. Cancellation, closed/removed owners and a
+superseded watcher cannot publish the staged result; uncommitted watchers are
+disposed. Invalid paths leave the dialog and original watcher usable.
+
+Changing path updates the tree heading, tooltip, accessibility name and active
+folder title; group renaming reuses the same heading refresh. Editing another
+folder does not switch the active file, its selection or paused follow. No log
+files are modified by the application. Settings are updated in the existing
+in-memory configuration; shipping profile restart persistence remains T055.
+
+Three headless/Skia cases verify:
+
+- Escape cancel preserves actual original values; applying a pattern filters
+  members, recursive off/on changes nested membership, new matching files stay
+  discoverable, stable members retain IDs and the active file still copies its
+  original text.
+- Invalid empty path reports an error and leaves the old watcher live; a valid
+  path change retains folder identity, updates its heading/title and discovers
+  new-path files without including old-path additions.
+- Cancelling while Apply is pending leaves the original settings and watcher
+  usable after the handler completes.
+
+The first fixture incorrectly expected XML-restored defaults from a newly
+constructed DataSourceSettings instance. It now checks cancellation against
+the actual opening values; no production default was changed. The first full
+run passed 81 Archiver and 186 Avalonia cases but the Escape fixture attempted
+key release on the dialog that Escape had already disposed. Releasing on the
+still-open owner fixes that fixture without weakening cancellation assertions.
+
+Final modern solution: 81 Archiver + 187 Avalonia pass, zero failures/skips.
+Evidence: artifacts/migration/t022-folder-options-red.log/TRX,
+t022-folder-options-focused.log/TRX (default-assumption failure),
+t022-folder-options-patterns.log/TRX, t022-folder-options-contracts.log/TRX,
+t022-folder-options-modern.log/TRX (closed-window fixture failure) and
+t022-folder-options-final.log/TRX. No dependency or Core production code changed.
+Core/full native/performance suites and native dialog interaction were not
+repeated for this editor. T022 and the full migration remain incomplete for
+aggregate output, unopened-reader lifecycle and the other recorded gates.
+
+The final pattern/recursion fixture additionally asserts that the active line
+selection and paused follow remain unchanged before any new copy selection.
+That strengthened case passes 1/1 (t022-folder-options-pause.log/TRX); production
+code is unchanged from the 268-case passing modern solution above.
