@@ -133,3 +133,38 @@ as t024-folder-modern.log; it is not passing evidence.
 T021/T024 remain open for drag/drop and single-instance handoff integration and
 acceptance. This does not claim the legacy menu system, every folder picker
 platform, or all keyboard/accessibility flows are complete.
+## Slice 4: file/folder drop event handling (native OLE still pending)
+
+The window now enables dropping and handles enter/over/drop through Avalonia 12
+IDataTransfer/DataFormat.File, not the obsolete data-object API. Read-only opening
+prefers the legacy Link effect, falls back to allowed Copy, and rejects Move-only
+sources. Plain text paths and unsupported formats are rejected. All storage items
+are resolved to local path strings before the first await, while the transfer is
+still valid; a malformed provider cannot apply a valid prefix before failing.
+The existing fenced batch opener preserves identities, watchers and partial-open
+error handling. Drag-format failures remain rejected without repeated pointer-move
+error messages; drop extraction failures report an actionable status.
+
+Five new headless cases cover two-file repeat drop without mutation/duplicates,
+text rejection, folder/file watcher reuse, Link/Copy negotiation/Move rejection,
+and a deferred throwing provider after a valid item. The first two failed before
+wiring the handlers. One broader run exposed an insufficient test completion
+predicate on the repeated drop: the previous active source already satisfied it
+while the next batch was still opening. The predicate now also waits for the open
+command to be re-enabled; no timeout was increased or assertion removed.
+
+Final modern solution: 90 Avalonia + 81 Archiver pass, zero failures/skips.
+A real-process command-line/native-clipboard smoke also passes after enabling
+the platform drop target. That smoke does not exercise Windows OLE drag delivery.
+The full Core suite was not repeated for this window-only wiring change.
+
+Evidence under artifacts/migration: t024-drop-red.log (two meaningful failures),
+t024-drop-focused.log, t024-drop-validation.log, t024-drop-modern.log (observed
+test-wait failure), t024-drop-modern-final.log, t024-drop-native-smoke.log and
+t021-native/t024-drop-native-smoke.trx. The earlier t024-drop/t024-drop.trx is the
+failed checkpoint, not the final passing result.
+
+T021/T024 remain open: a real cross-process/native OLE file/folder drop and
+single-instance handoff are still required, as are their preceding source-view/
+group integration dependencies. No managed RaiseEvent test is counted as native
+OLE acceptance. Multiple-folder picker acceptance remains separately unproven.

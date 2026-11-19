@@ -226,6 +226,10 @@ public sealed class MainWindow : Window
         _rows.AddHandler(PointerWheelChangedEvent, (_, _) => _follow.IsChecked = false, RoutingStrategies.Tunnel);
         _rows.AddHandler(PointerPressedEvent, (_, _) => _follow.IsChecked = false, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragEnterEvent, OnDragOver);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
         _timer.Tick += (_, _) => RefreshDocument();
         Closed += (_, _) =>
         {
@@ -269,6 +273,41 @@ public sealed class MainWindow : Window
     }
 
     public Task OpenFileAsync(string fileName) => OpenSourceAsync(fileName, null);
+
+    private void OnDragOver(object? sender, DragEventArgs args)
+    {
+        var allowed = args.DragEffects;
+        args.DragEffects = DragDropEffects.None;
+        args.Handled = true;
+        if (_closed) return;
+        try
+        {
+            if (args.DataTransfer.Formats.Contains(DataFormat.File))
+                args.DragEffects = (allowed & DragDropEffects.Link) != 0 ? DragDropEffects.Link : allowed & DragDropEffects.Copy;
+        }
+        catch (Exception)
+        {
+            // Malformed format providers remain rejected without reporting an error on every pointer move.
+        }
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs args)
+    {
+        OnDragOver(sender, args);
+        if (args.DragEffects == DragDropEffects.None) return;
+        try
+        {
+            var paths = args.DataTransfer.TryGetFiles()?.Select(item => item.TryGetLocalPath() ??
+                throw new NotSupportedException("Only local files and folders can be opened.")).ToArray();
+            if (paths == null || paths.Length == 0) { args.DragEffects = DragDropEffects.None; return; }
+            await OpenFilesAsync(paths);
+        }
+        catch (Exception error)
+        {
+            args.DragEffects = DragDropEffects.None;
+            if (!_closed) _status.Text = _operationError = "Cannot open dropped items: " + error.Message;
+        }
+    }
 
     public async Task OpenFilesAsync(IEnumerable<string> fileNames)
     {

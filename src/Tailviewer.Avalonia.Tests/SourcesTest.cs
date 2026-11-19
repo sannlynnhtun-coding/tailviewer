@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
@@ -7,6 +8,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Platform.Storage;
 using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Api;
@@ -595,6 +597,137 @@ public sealed class SourcesTest
             window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(0);
             Rows(window).ItemCount.Should().Be(0);
             File.ReadAllText(third).Should().Be("third");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FileDropOpensBothFilesWithoutMovingOrDuplicatingThem()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            using var data = new DataTransfer();
+            DragDrop.GetAllowDrop(window).Should().BeTrue();
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFileFromPathAsync(_first)));
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFileFromPathAsync(_second)));
+            var over = new DragEventArgs(DragDrop.DragOverEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                { DragEffects = DragDropEffects.Copy | DragDropEffects.Move };
+            window.RaiseEvent(over);
+            over.DragEffects.Should().Be(DragDropEffects.Copy, "because opening logs must never request that the source move files");
+            foreach (var attempt in new[] { 0, 1 })
+            {
+                window.RaiseEvent(new DragEventArgs(DragDrop.DropEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                    { DragEffects = DragDropEffects.Copy });
+                var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+                await WaitUntil(() => tree.ItemCount == 2 && ((DataSource?)tree.SelectedItem)?.File == _second && Rows(window).ItemCount == 1 &&
+                    window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Open file…")).IsEnabled);
+                await Copy(window, 0, "second");
+            }
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task TextDropIsRejectedWithoutChangingTheOpenSource()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            using var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateText(_second));
+            foreach (var routedEvent in new[] { DragDrop.DragOverEvent, DragDrop.DropEvent })
+            {
+                var args = new DragEventArgs(routedEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                    { DragEffects = DragDropEffects.Copy | DragDropEffects.Move };
+                window.RaiseEvent(args);
+                args.DragEffects.Should().Be(DragDropEffects.None);
+            }
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(1);
+            await Copy(window, 0, "first");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FolderAndFileDropUseTheExistingWorkspaceAndWatcher()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            using var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFolderFromPathAsync(_folder)));
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFileFromPathAsync(_second)));
+            window.RaiseEvent(new DragEventArgs(DragDrop.DropEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                { DragEffects = DragDropEffects.Link | DragDropEffects.Copy });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            await WaitUntil(() => tree.ItemCount == 3 && ((DataSource?)tree.SelectedItem)?.File == _second && Rows(window).ItemCount == 1);
+            var folder = ((SourcesViewModel)window.DataContext!).Roots.Single(source => source.LogFileFolderPath != null);
+            await WaitUntil(() => tree.ContainerFromItem(folder) is TreeViewItem item && item.ItemCount == 2);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FileDropNegotiationPrefersLinkAndRejectsMoveOnly()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            using var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFileFromPathAsync(_first)));
+            foreach (var (allowed, expected) in new[]
+                     {
+                         (DragDropEffects.Link | DragDropEffects.Copy | DragDropEffects.Move, DragDropEffects.Link),
+                         (DragDropEffects.Copy | DragDropEffects.Move, DragDropEffects.Copy),
+                         (DragDropEffects.Move, DragDropEffects.None)
+                     })
+            {
+                var args = new DragEventArgs(DragDrop.DragOverEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                    { DragEffects = allowed };
+                window.RaiseEvent(args);
+                args.DragEffects.Should().Be(expected);
+            }
+            var drop = new DragEventArgs(DragDrop.DropEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                { DragEffects = DragDropEffects.Move };
+            window.RaiseEvent(drop);
+            drop.DragEffects.Should().Be(DragDropEffects.None);
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(0);
+            File.Exists(_first).Should().BeTrue();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ThrowingDropProviderDoesNotApplyAValidPrefix()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            using var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateFile(await window.StorageProvider.TryGetFileFromPathAsync(_second)));
+            data.Add(DataTransferItem.Create<IStorageItem>(DataFormat.File, () => throw new IOException("owned transfer failure")));
+            var args = new DragEventArgs(DragDrop.DropEvent, data, window, new Point(300, 200), KeyModifiers.None)
+                { DragEffects = DragDropEffects.Copy };
+            window.RaiseEvent(args);
+            args.DragEffects.Should().Be(DragDropEffects.None);
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(1);
+            window.GetVisualDescendants().OfType<TextBlock>().Should().Contain(block =>
+                block.Text != null && block.Text.Contains("Cannot open dropped items: owned transfer failure"));
+            await Copy(window, 0, "first");
         }
         finally { window.Close(); }
     }
