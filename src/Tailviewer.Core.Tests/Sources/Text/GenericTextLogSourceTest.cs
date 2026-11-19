@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using Moq;
 using Tailviewer.Api;
 
 namespace Tailviewer.Core.Tests.Sources.Text
@@ -7,6 +8,27 @@ namespace Tailviewer.Core.Tests.Sources.Text
     [TestFixture]
     public sealed class GenericTextLogSourceTest
     {
+        [Test]
+        public void OriginalTextRemainsExactWhileParsing()
+        {
+            using var raw = new InMemoryLogSource();
+            raw.AddEntry("A\u0001B", LevelFlags.Info);
+            using var parsed = new GenericTextLogSource(raw, new GenericTextLogEntryParser());
+            Assert.That(parsed.GetColumn(new LogSourceSection(0, 1), Core.Columns.RawContent), Is.EqualTo(new[] { "A\u0001B" }));
+        }
+
+        [Test]
+        public void RemovedListenersCanBeReusedWithoutRetainingTheOldProxy()
+        {
+            using var raw = new InMemoryLogSource();
+            using var parsed = new GenericTextLogSource(raw, new GenericTextLogEntryParser());
+            var listener = new Mock<ILogSourceListener>();
+            parsed.AddListener(listener.Object, TimeSpan.Zero, 100);
+            parsed.RemoveListener(listener.Object);
+            Assert.DoesNotThrow(() => parsed.AddListener(listener.Object, TimeSpan.Zero, 100));
+            parsed.RemoveListener(listener.Object);
+        }
+
         [Test]
         public void ParsingRetainsOriginalPositionAndSourceWhileAddingTimestampAndLevel()
         {

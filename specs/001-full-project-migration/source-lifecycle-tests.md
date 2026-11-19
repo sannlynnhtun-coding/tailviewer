@@ -1226,3 +1226,23 @@ No desktop group output is claimed yet: parser/leased-member wiring and UI
 binding remain next. Avalonia/native and original Framework runtime suites were
 not repeated in this shared-accessor slice. T026/T043 and full migration remain
 incomplete; this change does not establish plugin parser compatibility.
+
+## Parser listener retirement for group reconfiguration
+
+ProxyLogListenerCollection.RemoveListener now removes its dictionary entry as
+well as unsubscribing the underlying source. Previously the dictionary retained
+retired merge listeners, and re-registering a removed listener threw a duplicate
+key exception. The new add/remove/re-add regression failed with that exception
+before the one-line fix. A separate check confirms the existing parser buffer
+already preserves original control characters; no new text-preservation option
+was needed or retained.
+
+The initial parser-contract run also exposed an incorrect fixture assumption
+that the legacy buffer sanitized RawContent; that assertion was corrected to
+the actual original-text contract, not used as evidence of a production bug.
+Affected parser/proxy/group tests pass 989/989. Full net10.0 Core passes 7165
+with zero failures and the same five pre-existing skips. Evidence:
+artifacts/migration/t023-group-parser-contracts-red.log/TRX,
+t023-group-parser-contracts.log/TRX and t023-group-parser-core.log/TRX.
+Desktop binding changes are committed separately. No native or Framework runtime
+execution was performed for this listener fix.

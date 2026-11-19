@@ -47,6 +47,7 @@ namespace Tailviewer.Core
 			{
 				if (!_listeners.TryGetValue(listener, out proxy))
 					return;
+				_listeners.Remove(listener);
 			}
 
 			_actualSource.RemoveListener(proxy);
