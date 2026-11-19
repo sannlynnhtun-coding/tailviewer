@@ -24,6 +24,8 @@ public sealed class MainWindow : Window
 {
     private readonly Button _open = new() { Content = "_Open file…" };
     private readonly Button _copy = new() { Content = "_Copy selected", IsEnabled = false };
+    private readonly Button _closeSource = new() { Content = "C_lose", IsEnabled = false };
+    private readonly Button _closeAll = new() { Content = "Close _all", IsEnabled = false };
     private readonly CheckBox _follow = new() { Content = "Follow _tail", IsChecked = true };
     private readonly TextBlock _path = new() { Text = "Open a log file to begin.", TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new() { Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy" };
@@ -38,6 +40,8 @@ public sealed class MainWindow : Window
     private LogDocument? _document;
     private string? _operationError;
     private bool _closed;
+    private bool _changingSourceSelection;
+    private long _openRequest;
 
     public MainWindow(string? fileName = null)
     {
@@ -55,6 +59,8 @@ public sealed class MainWindow : Window
         MinHeight = 360;
         AutomationProperties.SetName(_rows, "Log lines");
         AutomationProperties.SetName(_sourceTree, "Sources");
+        AutomationProperties.SetName(_closeSource, "Close current source");
+        AutomationProperties.SetName(_closeAll, "Close all sources");
         _sourceTree.ItemsSource = _sources;
         // shortcut: folder nodes expose files; aggregate/group views remain T023/US2.
         _sourceTree.ItemTemplate = new FuncTreeDataTemplate<DataSource>((source, _) =>
@@ -98,22 +104,32 @@ public sealed class MainWindow : Window
         layout.Children.Add(toolbar);
         Grid.SetRow(_path, 1);
         Grid.SetColumnSpan(_path, 2);
-        Grid.SetRow(_sourceTree, 2);
+        var sourcePanel = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8 };
+        sourcePanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8, Children = { _closeSource, _closeAll }
+        });
+        Grid.SetRow(_sourceTree, 1);
+        sourcePanel.Children.Add(_sourceTree);
+        Grid.SetRow(sourcePanel, 2);
         Grid.SetRow(_rows, 2);
         Grid.SetColumn(_rows, 1);
         Grid.SetRow(_status, 3);
         Grid.SetColumnSpan(_status, 2);
         layout.Children.Add(_path);
-        layout.Children.Add(_sourceTree);
+        layout.Children.Add(sourcePanel);
         layout.Children.Add(_rows);
         layout.Children.Add(_status);
         Content = layout;
 
         _open.Click += async (_, _) => await PickFileAsync();
         _copy.Click += async (_, _) => await CopyAsync();
+        _closeSource.Click += async (_, _) => await CloseCurrentSourceAsync();
+        _closeAll.Click += (_, _) => CloseAllSources();
         _sourceTree.SelectionChanged += async (_, _) =>
         {
-            if (_sourceTree.SelectedItem is DataSource source && source.Id != _document?.SourceId)
+            UpdateCloseCommands();
+            if (!_changingSourceSelection && _sourceTree.SelectedItem is DataSource source && source.Id != _document?.SourceId)
                 await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
         };
         _follow.IsCheckedChanged += (_, _) => ScrollToTail();
@@ -130,6 +146,7 @@ public sealed class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            ++_openRequest;
             _timer.Stop();
             _document?.Dispose();
             foreach (var folder in _folders.Values) folder.Dispose();
@@ -168,7 +185,9 @@ public sealed class MainWindow : Window
 
     private async Task OpenSourceAsync(string fileName, DataSource? selected)
     {
+        var request = ++_openRequest;
         _open.IsEnabled = false;
+        UpdateCloseCommands();
         try
         {
             if (_closed) return;
@@ -177,7 +196,7 @@ public sealed class MainWindow : Window
             var source = selected ?? _sources.FirstOrDefault(item => string.Equals(item.File ?? item.LogFileFolderPath, path, comparison));
             var isFolder = source?.LogFileFolderPath != null ||
                 (source == null && await Task.Run(() => Directory.Exists(path)));
-            if (_closed) return;
+            if (_closed || request != _openRequest) return;
             if (isFolder)
             {
                 if (source == null)
@@ -193,7 +212,7 @@ public sealed class MainWindow : Window
                 if (!_folders.ContainsKey(source.Id))
                 {
                     var folder = await Task.Run(() => new FolderSources(_folderFilesystem.Value, source));
-                    if (_closed)
+                    if (_closed || request != _openRequest)
                     {
                         folder.Dispose();
                         return;
@@ -209,7 +228,7 @@ public sealed class MainWindow : Window
                 _document?.Dispose();
                 _document = null;
                 if (!_sources.Contains(source)) _sources.Add(source);
-                if (!ReferenceEquals(_sourceTree.SelectedItem, source)) _sourceTree.SelectedItem = source;
+                SelectSource(source);
                 _operationError = null;
                 _path.Text = path;
                 Title = $"{Path.GetFileName(path)} — Tailviewer prototype";
@@ -218,7 +237,7 @@ public sealed class MainWindow : Window
             }
             source ??= new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
             var document = await Task.Run(() => new LogDocument(source));
-            if (_closed)
+            if (_closed || request != _openRequest)
             {
                 document.Dispose();
                 return;
@@ -228,7 +247,7 @@ public sealed class MainWindow : Window
             _document?.Dispose();
             _document = document;
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
-            _sourceTree.SelectedItem = source;
+            SelectSource(source);
             _operationError = null;
             _rows.ItemsSource = document.Lines;
             _follow.IsChecked = source.FollowTail;
@@ -238,12 +257,79 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _status.Text = _operationError = $"Cannot open file: {ex.Message}";
+            if (!_closed && request == _openRequest)
+                _status.Text = _operationError = $"Cannot open file: {ex.Message}";
         }
         finally
         {
-            _open.IsEnabled = !_closed;
+            if (request == _openRequest)
+            {
+                _open.IsEnabled = !_closed;
+                UpdateCloseCommands();
+            }
         }
+    }
+
+    private void SelectSource(DataSource? source)
+    {
+        _changingSourceSelection = true;
+        try { _sourceTree.SelectedItem = source; }
+        finally { _changingSourceSelection = false; }
+        UpdateCloseCommands();
+    }
+
+    private void UpdateCloseCommands()
+    {
+        _closeSource.IsEnabled = !_closed && _sourceTree.SelectedItem is DataSource selected && _sources.Contains(selected);
+        _closeAll.IsEnabled = !_closed && (_sources.Count > 0 || !_open.IsEnabled);
+        ToolTip.SetTip(_closeSource, _sourceTree.SelectedItem is DataSource child && child.ParentId != DataSourceId.Empty
+            ? "Close the parent folder to stop watching this file." : "Remove this source from the workspace.");
+    }
+
+    private void ClearDocument()
+    {
+        _rows.ItemsSource = null;
+        _document?.Dispose();
+        _document = null;
+        _copy.IsEnabled = false;
+        _operationError = null;
+        _path.Text = "Open a log file to begin.";
+        _status.Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy";
+        Title = "Tailviewer — Avalonia prototype";
+    }
+
+    private async Task CloseCurrentSourceAsync()
+    {
+        if (_closed || _sourceTree.SelectedItem is not DataSource source || !_sources.Contains(source)) return;
+        ++_openRequest;
+        _open.IsEnabled = true;
+        SaveFollowState();
+        ClearDocument();
+        SelectSource(null);
+        if (_folders.Remove(source.Id, out var folder)) folder.Dispose();
+        _folderChildren.Remove(source.Id);
+        _sources.Remove(source);
+        UpdateCloseCommands();
+        if (_sources.Count > 0)
+        {
+            var next = _sources[0];
+            SelectSource(next);
+            await OpenSourceAsync(next.File ?? next.LogFileFolderPath, next);
+        }
+    }
+
+    private void CloseAllSources()
+    {
+        if (_closed) return;
+        ++_openRequest;
+        _open.IsEnabled = true;
+        ClearDocument();
+        SelectSource(null);
+        foreach (var folder in _folders.Values) folder.Dispose();
+        _folders.Clear();
+        _folderChildren.Clear();
+        _sources.Clear();
+        UpdateCloseCommands();
     }
 
     private void RefreshDocument()
@@ -269,9 +355,8 @@ public sealed class MainWindow : Window
 
     private void RefreshFolder(DataSourceId id)
     {
-        if (_closed) return;
-        var desired = _folders[id].Sources;
-        var children = _folderChildren[id];
+        if (_closed || !_folders.TryGetValue(id, out var folder) || !_folderChildren.TryGetValue(id, out var children)) return;
+        var desired = folder.Sources;
         var ids = desired.Select(source => source.Id).ToHashSet();
         foreach (var removed in children.Where(source => !ids.Contains(source.Id)).ToArray()) children.Remove(removed);
         var existing = children.ToDictionary(source => source.Id);

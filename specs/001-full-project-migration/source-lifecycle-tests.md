@@ -153,3 +153,45 @@ view/loading/error bindings, saved workspace integration and group/aggregate UI
 remain pending. Full Core, native desktop/clipboard, large-folder cost, junctions
 and SMB were not validated by this slice. Discovery child snapshots are still
 rebuilt per watcher change; broader bounds/performance remain acceptance work.
+## Slice 5: close-current/all and pending-open invalidation
+
+Added sidebar commands with distinct accessibility names/mnemonics. Closing a
+root disposes the active document, removes only workspace configuration and the
+owned folder watch/children, then activates the remaining first root. Closing all
+clears rows/selection and disposes every folder watch while leaving the shared
+scheduler available for a new workspace. Physical files are never deleted by
+these commands. Folder-managed children cannot be closed individually, matching
+legacy FolderDataSource's ownership rule; their parent folder must be closed.
+
+A monotonically increasing open-request generation now rejects late success and
+error completions after close, window shutdown or a newer open. Detached documents
+and directory watches are disposed rather than attached to the cleared workspace.
+Programmatic tree selection no longer starts a redundant open. Queued folder
+updates check membership before accessing removed dictionary entries. This is
+result invalidation, not forcible cancellation of already-running filesystem IO.
+
+Four initial new command contracts failed meaningfully before implementation;
+they now pass. Two further cases cover last-root cleanup/exclusive file-handle
+reacquisition and closing a folder while retaining its standalone root file.
+The temporary-directory cleanup assertion also verifies the resolved parent
+before recursively deleting only the test-owned directory.
+
+Executed evidence:
+
+- Initial source contracts: 10 passed / four expected missing-command failures.
+- Modern solution checkpoint: 81 Archiver + 38 Avalonia passed.
+- Final complete Avalonia suite with the folder-close case: 39 passed, zero
+  failures/skips; final source-fixture rerun after cleanup guarding: 16 passed.
+- Tests retain original file bytes, disable empty-workspace commands, reopen
+  after close-all, keep discovered children under their folder, and verify an
+  overlapping open cannot undo close-all. The overlap test allows actual task
+  scheduling orders; it does not claim a forced stalled IO/process scenario.
+
+Ignored evidence: artifacts/migration/t018-close-contracts-red.log,
+t018-close-contracts.log, t018-close-solution.log, t018-close-ui-final.log,
+t018-close-sources-final.log and t018-close/*.trx.
+
+T018/T022/T023 remain incomplete: group activation/cycle/duplicate UI feedback,
+include/exclude/rename, complete loading/error source adapters and saved workspace
+binding remain pending. Native desktop/clipboard acceptance, full Core rerun and
+slow/network IO cancellation were not performed for this UI slice.

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
 using Avalonia.Input.Platform;
@@ -31,7 +32,149 @@ public sealed class SourcesTest
     }
 
     [TearDown]
-    public void TearDown() => Directory.Delete(_folder, recursive: true);
+    public void TearDown()
+    {
+        var owned = Path.GetFullPath(_folder);
+        Path.GetDirectoryName(owned).Should().Be(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())));
+        Directory.Delete(owned, recursive: true);
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingTheCurrentRootActivatesTheRemainingFileWithoutDeletingLogs()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => tree.ItemCount == 1 && Rows(window).ItemCount == 2);
+            ((DataSource)tree.SelectedItem!).File.Should().Be(_first);
+            await Copy(window, 0, "first");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingTheLastSourceClearsRowsAndReleasesTheFile()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount == 0 && Rows(window).ItemCount == 0);
+            Command(window, "Close current source").IsEnabled.Should().BeFalse();
+            Command(window, "Close all sources").IsEnabled.Should().BeFalse();
+            await WaitUntil(() =>
+            {
+                try
+                {
+                    using var exclusive = new FileStream(_first, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                    return true;
+                }
+                catch (IOException) { return false; }
+            });
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingAllReleasesFoldersAndAllowsANewWorkspace()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            tree.ItemCount.Should().Be(0);
+            Rows(window).ItemCount.Should().Be(0);
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+            File.ReadAllText(_second).Should().Be("second");
+            File.WriteAllText(Path.Combine(_folder, "later.log"), "later");
+            Dispatcher.UIThread.RunJobs();
+            tree.ItemCount.Should().Be(0);
+            await window.OpenFileAsync(_folder);
+            var reopened = tree.Items.OfType<DataSource>().Single();
+            await WaitUntil(() => (tree.ContainerFromItem(reopened) as TreeViewItem)?.ItemCount == 3);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingAFolderKeepsItsStandaloneFileAndDoesNotDeleteChildren()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => tree.ItemCount == 1 && Rows(window).ItemCount == 2);
+            ((DataSource)tree.SelectedItem!).File.Should().Be(_first);
+            tree.Items.OfType<DataSource>().Should().NotContain(source => source.LogFileFolderPath != null);
+            await Copy(window, 0, "first");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task FolderManagedChildrenCannotBeClosedIndividually()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var root = tree.Items.OfType<DataSource>().Single();
+            await WaitUntil(() => (tree.ContainerFromItem(root) as TreeViewItem)?.ItemCount == 2);
+            var container = (TreeViewItem)tree.ContainerFromItem(root)!;
+            tree.SelectedItem = container.Items.OfType<DataSource>().Single(source => source.File == _second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var close = Command(window, "Close current source");
+            close.IsEnabled.Should().BeFalse("because the legacy folder owns its discovered children");
+            close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            tree.ItemCount.Should().Be(1);
+            container.ItemCount.Should().Be(2);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ClosingAllCannotBeUndoneByAnOutstandingOpen()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            var close = Command(window, "Close all sources");
+            var opening = window.OpenFileAsync(_second);
+            close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await opening;
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(0);
+            Rows(window).ItemCount.Should().Be(0);
+        }
+        finally { window.Close(); }
+    }
 
     [AvaloniaTest]
     public async Task ReopeningTheSameFileRetainsOneSourceTreeEntry()
@@ -251,6 +394,14 @@ public sealed class SourcesTest
         secondDocument.SourceId.Should().Be(second.Id);
         (await firstDocument.CopyTextAsync(new[] { 0 })).Should().Be("first");
         (await secondDocument.CopyTextAsync(new[] { 0 })).Should().Be("second");
+    }
+
+    private static Button Command(MainWindow window, string name)
+    {
+        var button = window.GetVisualDescendants().OfType<Button>()
+            .SingleOrDefault(control => AutomationProperties.GetName(control) == name);
+        button.Should().NotBeNull("because the workspace must expose " + name);
+        return button!;
     }
 
     private static ListBox Rows(MainWindow window) => window.GetVisualDescendants().OfType<ListBox>().Single();
