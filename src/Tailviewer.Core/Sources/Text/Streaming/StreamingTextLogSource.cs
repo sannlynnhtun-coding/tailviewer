@@ -308,14 +308,24 @@ namespace Tailviewer.Core
 				}
 				_propertiesBuffer.SetValue(Core.Properties.EmptyReason, null);
 
+				var encoding = _encoding;
+				if (_encoding.GetPreamble().Length > 0)
+				{
+					stream.Position = 0;
+					using (var reader = CreateReader(stream, leaveOpen: true))
+					{
+						reader.Peek();
+						encoding = reader.CurrentEncoding;
+					}
+				}
 				var startOffset = _lastLineOffsetStreamPosition;
 				stream.Position = startOffset;
 				if (startOffset == 0)
 				{
-					AddFirstLineIfNecessary(stream);
+					AddFirstLineIfNecessary(stream, encoding);
 				}
 
-				var detector = new LineOffsetDetector(stream, _encoding);
+				var detector = new LineOffsetDetector(stream, encoding);
 				var buffer = new FixedSizeList<long>(1000);
 
 				long lineOffset;
@@ -358,14 +368,14 @@ namespace Tailviewer.Core
 			}
 		}
 
-		private void AddFirstLineIfNecessary(Stream stream)
+		private void AddFirstLineIfNecessary(Stream stream, Encoding encoding)
 		{
 			if (stream.Length <= 0)
 				return;
 
 			// As far as we're concerned, the first line starts right after the preamble, which
 			// might be an offset of anything in between 0 and 4 bytes.
-			var preamble = _encoding.GetPreamble();
+			var preamble = encoding.GetPreamble();
 			var firstLineOffset = 0;
 			if (preamble.Length > 0)
 			{
@@ -632,8 +642,7 @@ namespace Tailviewer.Core
 				                            FileAccess.Read,
 				                            FileShare.ReadWrite | FileShare.Delete,
 				                            BufferSize);
-				var reader = new StreamReader(stream, _encoding, _encoding.GetPreamble().Length > 0);
-				return reader;
+				return CreateReader(stream, leaveOpen: false);
 			}
 			catch (Exception e)
 			{
@@ -641,6 +650,11 @@ namespace Tailviewer.Core
 			}
 
 			return null;
+		}
+
+		private StreamReader CreateReader(Stream stream, bool leaveOpen)
+		{
+			return new StreamReader(stream, _encoding, _encoding.GetPreamble().Length > 0, 1024, leaveOpen);
 		}
 
 		private void ServeReadRequests(StreamReader streamReader,
@@ -771,6 +785,8 @@ namespace Tailviewer.Core
 				try
 				{
 					_startTime = DateTime.Now;
+					// Resolve the BOM before random-access seeks skip it, only when a request needs data.
+					reader.Peek();
 					var linesRead = ReadLines(index, reader);
 					Complete(linesRead);
 				}

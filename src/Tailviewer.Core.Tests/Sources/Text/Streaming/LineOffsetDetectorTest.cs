@@ -56,6 +56,26 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
 			detector.FindNextLineOffset().Should().Be(-1, "because we're at the end and there's no newlines");
 		}
 
+		[TestCase(1200, 4096)]
+		[TestCase(1201, 4096)]
+		[TestCase(12000, 4096)]
+		[TestCase(12001, 4096)]
+		[TestCase(1200, 3)]
+		[TestCase(1201, 3)]
+		[TestCase(12000, 3)]
+		[TestCase(12001, 3)]
+		public void NewlinePatternsMustStartAtACodeUnitBoundary(int codePage, int bufferSize)
+		{
+			var encoding = Encoding.GetEncoding(codePage);
+			const string prefix = "\u0A00\u0100\u0100\u0A00";
+			using (var writer = new StreamWriter(_stream, encoding, 128, leaveOpen: true))
+				writer.Write(prefix + "\nlast");
+			_stream.Position = 0;
+			var detector = new LineOffsetDetector(_stream, encoding, bufferSize);
+			Assert.That(detector.FindNextLineOffset(), Is.EqualTo(encoding.GetPreamble().Length + encoding.GetByteCount(prefix + "\n")));
+			Assert.That(detector.FindNextLineOffset(), Is.EqualTo(-1));
+		}
+
 		[Test]
 		public void TestOneNewline([ValueSource(nameof(Encodings))] Encoding encoding)
 		{

@@ -42,6 +42,9 @@ namespace Tailviewer.Core
 
 				for (; _bufferPos < _bufferLength; ++_bufferPos)
 				{
+					// UTF-16/32 newline bytes inside adjacent code units are not line separators.
+					if (_pattern.Length > 1 && _numMatchedInSequence == 0 && (_bufferOffset + _bufferPos) % _pattern.Length != 0)
+						continue;
 					if (_buffer[_bufferPos] == _pattern[_numMatchedInSequence])
 					{
 						++_numMatchedInSequence;

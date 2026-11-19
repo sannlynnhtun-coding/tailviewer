@@ -100,6 +100,50 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase(1200)]
+        [TestCase(1201)]
+        [TestCase(12000)]
+        [TestCase(12001)]
+        public void BomEncodingChangesRebuildOffsetsAndDecodeEveryRequestedLine(int codePage)
+        {
+            File.WriteAllText(_path, "old\nsecond", Encoding.UTF8);
+            using (var source = Open(Encoding.UTF8))
+            {
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 2), Is.EqualTo(new[] { "old", "second" }));
+                var encoding = Encoding.GetEncoding(codePage);
+                File.WriteAllText(_path, "မြန်မာ\n😀 second\n  last  ", encoding);
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(3));
+                Assert.That(Read(source, 3), Is.EqualTo(new[] { "မြန်မာ", "😀 second", "  last  " }));
+                var expected = new[] { "မြန်မာ", "😀 second", "  last  " };
+                foreach (var index in new[] { 2, 1, 0 })
+                {
+                    var random = QueueRead(source, 1, index % 2 == 0, index);
+                    _scheduler.RunOnce();
+                    Assert.That(random.GetAwaiter().GetResult(), Is.EqualTo(new[] { expected[index] }),
+                        "random access must use the replacement encoding and its byte offsets");
+                }
+                File.AppendAllText(_path, "\nappended", encoding);
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 4), Is.EqualTo(new[] { "မြန်မာ", "😀 second", "  last  ", "appended" }));
+                Write("restored\nplain");
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 2), Is.EqualTo(new[] { "restored", "plain" }));
+            }
+        }
+
+        [Test]
+        public void PreamblelessExplicitEncodingKeepsBomBytesAsContent()
+        {
+            File.WriteAllText(_path, "text\nsecond", Encoding.UTF8);
+            using (var source = Open(new UTF8Encoding(false)))
+            {
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 2), Is.EqualTo(new[] { "\uFEFFtext", "second" }));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;
@@ -121,8 +165,8 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
-        private StreamingTextLogSource Open() => new StreamingTextLogSource(new Filesystem(_scheduler),
-            _scheduler, _path, LogFileFormats.GenericText, new UTF8Encoding(false));
+        private StreamingTextLogSource Open(Encoding encoding = null) => new StreamingTextLogSource(new Filesystem(_scheduler),
+            _scheduler, _path, LogFileFormats.GenericText, encoding ?? new UTF8Encoding(false));
 
         private void Write(string text) => File.WriteAllText(_path, text, new UTF8Encoding(false));
 
@@ -133,14 +177,14 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             return read.GetAwaiter().GetResult();
         }
 
-        private Task<string[]> QueueRead(StreamingTextLogSource source, int count, bool contiguous)
+        private Task<string[]> QueueRead(StreamingTextLogSource source, int count, bool contiguous, int start = 0)
         {
             var destination = Enumerable.Repeat("sentinel", count).ToArray();
             var read = Task.Run(() =>
             {
                 source.GetColumn(contiguous
-                    ? (System.Collections.Generic.IReadOnlyList<LogLineIndex>)new LogSourceSection(0, count)
-                    : Enumerable.Range(0, count).Select(index => new LogLineIndex(index)).ToArray(),
+                    ? (System.Collections.Generic.IReadOnlyList<LogLineIndex>)new LogSourceSection(start, count)
+                    : Enumerable.Range(start, count).Select(index => new LogLineIndex(index)).ToArray(),
                     Core.Columns.RawContent, destination, 0,
                     new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(3)));
                 return destination;

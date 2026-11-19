@@ -61,3 +61,49 @@ I/O limits must be recorded as issues rather than weakening the test silently.
 Changed-decoder/index invalidation also remains part of T020/T028. Legacy tests
 were built but not executed; native entry-point and performance acceptance were
 not performed here.
+
+## Slice 2: BOM replacement and aligned Unicode offsets
+
+Four replacement fixtures cover UTF-16 LE/BE and UTF-32 LE/BE, Burmese, emoji,
+spaces, append after replacement and a later return to BOM-less UTF-8. They read
+individual later rows first, through both contiguous and fragmented query paths.
+An initial whole-file-only test passed despite wrong random-access offsets;
+adding isolated later-row reads produced four meaningful wrong-text failures.
+The scanner now resolves the current BOM before indexing and uses that encoding
+for both the initial preamble offset and newline detection. Each actual read
+request resolves the BOM before seeking past the header, inside existing request
+error handling. No idle read prefetch is introduced. The shared reader retains
+the platform's original 1 KiB buffer size and existing BOM detection policy.
+
+A separate explicit preambleless-encoding fixture preserves the previous policy:
+BOM bytes remain content when detection was disabled by the supplied encoding.
+This is not a new settings option, BOM-less encoding inference, or a completed
+encoding-selector UI (T028).
+
+Eight additional LineOffsetDetector cases reject false newline patterns spanning
+adjacent UTF-16/32 code units. Four failed before correction; four small 3-byte
+buffer variants additionally exercise split patterns/code units. Matching now
+begins only on the correct code-unit boundary. Single-byte newline encodings keep
+the fast path without the alignment modulo operation.
+
+Verification:
+
+- Full Core checkpoint: 7,102 passed, 0 failed, 5 unchanged existing skips.
+- Legacy net471 Core test project: build passed, 0 errors, 5 existing warnings.
+- After lazy request BOM initialization, modern solution: 81 Archiver + 82
+  Avalonia passed, 0 failures/skips.
+- After the final reader buffer-size preservation, all 72 affected streaming/
+  offset-detector tests passed again. The entire Core suite was not repeated for
+  that buffer-size-only refinement.
+
+Ignored evidence: artifacts/migration/t020-encoding-red.log,
+t020-alignment-red.log, t020-encoding-focused.log,
+t020-encoding-final-focused.log, t020-encoding-core-full.log,
+t020-encoding/t020-encoding.trx, t020-encoding-legacy-build.log and
+t020-encoding-modern-final.log. The broader initial solution checkpoint is also
+retained as t020-encoding-modern-solution.log.
+
+T020 remains open for middle-only same-size rewrites with indistinguishable
+metadata. Its detection/performance issue above is unchanged. Automatic detection
+of arbitrary BOM-less encoding changes, manual persisted encoding selection,
+full recovery performance and native desktop acceptance are not proven here.
