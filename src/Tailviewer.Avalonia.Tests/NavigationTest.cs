@@ -314,6 +314,62 @@ public sealed class NavigationTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task SourceShortcutsWrapInBothDirectionsWithoutChangingPlainTab()
+    {
+        var other = Path.Combine(_folder, "other.log");
+        File.WriteAllText(other, "other");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await window.OpenFileAsync(other);
+            await Until(() => Rows(window).ItemCount == 1);
+            var unchanged = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab };
+            window.RaiseEvent(unchanged);
+            window.Title.Should().Contain("other.log");
+            foreach (var shift in new[] { false, true, true, false })
+            {
+                var expected = window.Title!.Contains("other.log") ? "navigation.log" : "other.log";
+                var key = new KeyEventArgs
+                {
+                    RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab,
+                    KeyModifiers = KeyModifiers.Control | (shift ? KeyModifiers.Shift : KeyModifiers.None)
+                };
+                window.RaiseEvent(key);
+                key.Handled.Should().BeTrue("because Ctrl+Tab and Ctrl+Shift+Tab navigate sources");
+                await Until(() => window.Title!.Contains(expected));
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task SourceShortcutsWithZeroOrOneSourceDoNotResetTheDocument()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab, KeyModifiers = KeyModifiers.Control });
+            Rows(window).ItemCount.Should().Be(0);
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            Rows(window).Selection.Select(1);
+            foreach (var shift in new[] { false, true })
+                window.RaiseEvent(new KeyEventArgs
+                {
+                    RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab,
+                    KeyModifiers = KeyModifiers.Control | (shift ? KeyModifiers.Shift : KeyModifiers.None)
+                });
+            Dispatcher.UIThread.RunJobs();
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
     private static TextBox OpenNavigation(MainWindow window)
     {
         window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.G, KeyModifiers = KeyModifiers.Control });

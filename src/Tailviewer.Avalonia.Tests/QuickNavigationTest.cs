@@ -33,6 +33,10 @@ public sealed class QuickNavigationTest
         workspace.AddToGroup(second.Id, group.Id);
         workspace.AddToGroup(first.Id, group.Id);
         workspace.FindNavigationMatches("TAIL").Select(match => match.DataSource.Id).Should().Equal(first.Id, second.Id, group.Id);
+        workspace.GetAdjacentSource(first.Id, false)!.Id.Should().Be(second.Id);
+        workspace.GetAdjacentSource(second.Id, false)!.Id.Should().Be(group.Id);
+        workspace.GetAdjacentSource(group.Id, false)!.Id.Should().Be(first.Id);
+        workspace.GetAdjacentSource(first.Id, true)!.Id.Should().Be(group.Id);
     }
 
     [Test]
@@ -43,6 +47,7 @@ public sealed class QuickNavigationTest
         workspace.FindNavigationMatches(null).Should().BeEmpty();
         workspace.FindNavigationMatches("").Should().BeEmpty();
         workspace.FindNavigationMatches("unmatched").Should().BeEmpty();
+        workspace.GetAdjacentSource(DataSourceId.CreateNew(), false).Should().BeNull();
     }
 
     [Test]

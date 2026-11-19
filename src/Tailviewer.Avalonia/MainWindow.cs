@@ -546,6 +546,21 @@ public sealed class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.Control or (KeyModifiers.Control | KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            if (_sourceTree.SelectedItem is DataSource current &&
+                _workspace.GetAdjacentSource(current.Id, (e.KeyModifiers & KeyModifiers.Shift) != 0) is DataSource next && next.Id != current.Id)
+            {
+                await ActivateSourceAsync(next);
+                if (!_closed && _sourceTree.SelectedItem is DataSource active && active.Id == next.Id)
+                {
+                    if (_document != null) _rows.Focus();
+                    else _sourceTree.Focus();
+                }
+            }
+            return;
+        }
         if (e.Key == Key.C && e.Source is Visual origin && origin.GetSelfAndVisualAncestors().Any(control => control is TextBox))
             return;
         if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0 && e.Key is Key.O or Key.C or Key.G or Key.T)

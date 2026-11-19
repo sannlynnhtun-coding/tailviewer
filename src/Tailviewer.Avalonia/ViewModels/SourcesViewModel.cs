@@ -26,7 +26,7 @@ public sealed class SourcesViewModel
     {
         if (string.IsNullOrEmpty(term)) return Array.Empty<DataSourceSuggestionViewModel>();
         var result = new List<DataSourceSuggestionViewModel>();
-        foreach (var source in All.OrderBy(source => _sourceOrder.GetValueOrDefault(source.Id, long.MaxValue)))
+        foreach (var source in InInsertionOrder)
         {
             var name = source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "";
             var index = name.IndexOf(term, StringComparison.CurrentCultureIgnoreCase);
@@ -36,6 +36,16 @@ public sealed class SourcesViewModel
             result.Add(new DataSourceSuggestionViewModel(source, name[..index], name.Substring(index, length), name[(index + length)..]));
         }
         return result;
+    }
+
+    private IEnumerable<DataSource> InInsertionOrder => All.OrderBy(source => _sourceOrder.GetValueOrDefault(source.Id, long.MaxValue));
+
+    public DataSource? GetAdjacentSource(DataSourceId current, bool previous)
+    {
+        var sources = InInsertionOrder.ToArray();
+        var index = Array.FindIndex(sources, source => source.Id == current);
+        if (index < 0) return null;
+        return sources[(index + sources.Length + (previous ? -1 : 1)) % sources.Length];
     }
 
     public IReadOnlyList<DataSource> All

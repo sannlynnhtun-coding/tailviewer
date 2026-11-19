@@ -73,3 +73,25 @@ No packages, test timeouts, ignored cases or Core production code changed.
 T019/T029 remain unchecked: character/multiline selection, previous/next-source
 shortcuts, broader large-file/rotation/provenance integration and their remaining
 dependencies still need work. Native keyboard/clipboard acceptance was not run.
+## Slice 3: previous/next-source keyboard navigation
+
+Legacy LogViewMainPanelViewModel navigates its all-source insertion-order list,
+wraps in both directions and does nothing when the current source is absent.
+Ctrl+Tab / Ctrl+Shift+Tab now apply those rules to existing configured source
+identities, using the same insertion ordering as the quick chooser. Grouping
+changes tree placement without changing this order. Plain Tab retains normal
+focus navigation. Zero/one-source cases do not reopen the current document or
+reset its selection/follow state. Successful switches restore log/tree focus.
+
+Two new headless cases cover bidirectional wrapping, plain Tab and zero/one
+source. Existing model checks now also assert grouped-source cycle order and
+unknown-current rejection. A meaningful pre-implementation source-switch timeout
+is recorded in artifacts/migration/t019-cycle-red.log; the initial assertion
+that plain Tab must remain unhandled was corrected because Avalonia handles it
+for normal focus navigation. No production change was made for that assertion.
+
+Complete affected suite: 72 Avalonia tests passed, zero failures/skips.
+Evidence: artifacts/migration/t019-cycle-tests.log and
+t019-cycle/t019-cycle.trx. Native keyboard input was not exercised.
+T019/T029 remain open for character/multiline selection and the remaining
+large-file/rotation/provenance integration/dependencies described above.
