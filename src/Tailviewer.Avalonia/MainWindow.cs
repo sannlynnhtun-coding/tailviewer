@@ -581,6 +581,17 @@ public sealed class MainWindow : Window
                 _textSelection.Refresh();
             };
             menu.Items.Add(deltaTimes);
+            var elapsedTime = new MenuItem { Header = "Show Elapsed Times", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.ShowElapsedTime };
+            ToolTip.SetTip(elapsedTime, "Show the amount of time elapsed since the first entry");
+            elapsedTime.Click += (_, _) =>
+            {
+                if (_closed || !_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Any(item => ReferenceEquals(item, source))) return;
+                source.ShowElapsedTime = !source.ShowElapsedTime;
+                elapsedTime.IsChecked = source.ShowElapsedTime;
+                if (_document?.SourceId == source.Id) _document.SetShowElapsedTime(source.ShowElapsedTime);
+                _textSelection.Refresh();
+            };
+            menu.Items.Add(elapsedTime);
             var singleLine = new MenuItem { Header = "Single Line", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.IsSingleLine };
             ToolTip.SetTip(singleLine, "Treat every single line as a separate log entry");
             singleLine.Click += async (_, _) =>
@@ -970,6 +981,7 @@ public sealed class MainWindow : Window
     {
         document.SetShowLineNumbers(source.ShowLineNumbers);
         document.SetShowDeltaTimes(source.ShowDeltaTimes);
+        document.SetShowElapsedTime(source.ShowElapsedTime);
         _document = document;
         _navigation.BindDocument(document);
         _textSelection.BindDocument(document);

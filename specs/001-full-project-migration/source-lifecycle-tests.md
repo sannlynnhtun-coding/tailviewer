@@ -1720,3 +1720,48 @@ focused pointer/merge/elapsed checks pass. Evidence: ignored
 artifacts/migration/t045-elapsed-modern-final.log/TRX (row-edge failure) and
 t045-elapsed-pointer-focused.log/TRX. This headless calibration does not replace
 the still-pending complete native source-drag acceptance matrix.
+
+## Per-source elapsed-time display (T043/T045, partial)
+
+Show Elapsed Times now uses DataSource.ShowElapsedTime and its existing XML
+field for files, discovered children, folders and groups. The legacy elapsed
+formatter is split into a shared pure partial class; its original four formatter
+tests are linked into the modern suite. The display uses Core's minimum parsed
+timestamp, including unsorted physical input, rather than inventing a different
+UI timestamp baseline.
+
+Metadata analysis starts only when elapsed values are requested. Default raw
+preview creates no new metadata worker. Once requested, the borrowed view stays
+warm until source reset/close, even while hidden. A changed minimum timestamp
+refreshes cached pages; a follow-up read handles a baseline change during an
+in-flight read. Reset disposes the old metadata view before reloading the current
+revision; close releases it before the parsed/raw input. Pages remain bounded
+and copy excludes every display prefix. Metadata factory null inputs are rejected
+before constructing/subscribing adapters (the regression first found a null
+source producing NullReferenceException).
+
+Three UI journeys first failed on the absent menu. An explicit heterogeneous
+column-descriptor array corrected the first implementation's compile error.
+The journeys then verify exact original copy and pause, minimum timestamp
+rebasing after earlier appends, same-size/restored-mtime replacement, independent
+source flags, toggles and XML round-trip. Shipping profile restart persistence
+is still pending.
+
+Final modern solution: 81 Archiver + 245 Avalonia = 326 passed, no failures/skips.
+Final full Core: 7,178 passed, zero failures, five existing skips. Native elapsed,
+delta and line-number toggles, Ctrl+G and folder-options apply/cancel passed in
+the initial 6/6 run. The expanded final native run passed 7/8: elapsed toggle and
+original clipboard copy passed, but NativeFolderPickerOpensOrCancelsWithoutRemovingExistingSources(true)
+failed its exact clipboard-copy assertion after cancellation. This failure is
+retained and unresolved, not attributed to the feature or dismissed as baseline.
+Clipboard contents were not logged. Next investigation must inspect owned-app
+selection/revision and clipboard-match state around picker cancellation.
+
+Evidence under ignored artifacts/migration/: t045-elapsed-formatter.log/TRX,
+-ui-red.log/TRX, -ui-green.log (compile), -ui-fixed.log/TRX,
+-metadata-validation-red.log/TRX, -core-final.log/TRX, -modern-verified.log/TRX,
+-native.log/TRX and -native-final.log/TRX. Checks used the combined working tree.
+Metadata-enabled large-file/many-source costs, the remaining native cancel/copy
+failure, cold-cache/tailing acceptance, complete columns/plugin UI and the full
+migration remain open. Legacy WPF host runtime/build was not rerun. No task
+checklist was marked complete by this slice.

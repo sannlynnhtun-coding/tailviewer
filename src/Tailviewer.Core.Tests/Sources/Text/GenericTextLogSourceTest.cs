@@ -11,6 +11,14 @@ namespace Tailviewer.Core.Tests.Sources.Text
     public sealed class GenericTextLogSourceTest
     {
         [Test]
+        public void MetadataViewRejectsNullInputs()
+        {
+            using var source = new InMemoryLogSource();
+            Assert.Throws<ArgumentNullException>(() => FileLogSourceFactory.CreateMetadataView(null, source));
+            Assert.Throws<ArgumentNullException>(() => FileLogSourceFactory.CreateMetadataView(new ManualTaskScheduler(), null));
+        }
+
+        [Test]
         public void MetadataViewUsesTheEarliestParsedTimestampAndLeavesItsInputOpen()
         {
             using var raw = new InMemoryLogSource();

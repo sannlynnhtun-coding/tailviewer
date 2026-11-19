@@ -14,6 +14,8 @@ namespace Tailviewer.Core
 		/// <summary>Creates a metadata/derived-column view; the caller retains ownership of the input source.</summary>
 		public static ILogSource CreateMetadataView(ITaskScheduler scheduler, ILogSource source)
 		{
+			if (scheduler == null) throw new ArgumentNullException(nameof(scheduler));
+			if (source == null) throw new ArgumentNullException(nameof(source));
 			return new LogSourceColumnAdorner(new LogSourcePropertyAdorner(scheduler, source, TimeSpan.FromMilliseconds(100)));
 		}
 

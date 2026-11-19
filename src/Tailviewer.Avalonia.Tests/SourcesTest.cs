@@ -101,6 +101,74 @@ public sealed class SourcesTest
     private string _second = null!;
 
     [AvaloniaTest]
+    public Task FileElapsedTimesRebaseAfterEarlierAppendAndReplacement() => ElapsedTimeVisibility("file");
+
+    [AvaloniaTest]
+    public Task FolderElapsedTimesRebaseAfterEarlierAppendAndReplacement() => ElapsedTimeVisibility("folder");
+
+    [AvaloniaTest]
+    public Task GroupElapsedTimesRebaseAfterEarlierAppendAndReplacement() => ElapsedTimeVisibility("group");
+
+    private async Task ElapsedTimeVisibility(string kind)
+    {
+        const string later = "2026-11-20 12:00:03.000 INFO မြန်မာ";
+        const string earlier = "2026-11-20 12:00:01.000 INFO earlier";
+        const string first = "2026-11-20 12:00:00.000 INFO first";
+        const string otherText = "2026-11-20 12:00:04.000 WARN other";
+        File.WriteAllText(_first, later + "\n" + earlier);
+        File.WriteAllText(_second, otherText);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var source = workspace.All.Single(source => source.File == _first);
+            var other = workspace.All.Single(source => source.File == _second);
+            if (kind == "folder") { await window.OpenFileAsync(_folder); source = (DataSource)tree.SelectedItem!; }
+            else if (kind == "group") source = workspace.GroupWith(source.Id, other.Id);
+            tree.SelectedItem = source;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == source.Id && Rows(window).ItemCount == (kind == "file" ? 2 : 3));
+            var selected = kind == "file" ? 0 : 1;
+            await Copy(window, selected, later);
+            await ClickSourceMenu(tree, source, "Show Elapsed Times");
+            source.ShowElapsedTime.Should().BeTrue();
+            await ExpectElapsed(selected, "00:00:02.000");
+            await CopySelected(window, later);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            other.ShowElapsedTime.Should().BeFalse();
+            File.AppendAllText(_first, "\n" + first);
+            await WaitUntil(() => Rows(window).ItemCount == (kind == "file" ? 3 : 4));
+            await ExpectElapsed(selected, kind == "file" ? "00:00:03.000" : "00:00:01.000");
+            await ClickSourceMenu(tree, source, "Show Elapsed Times");
+            source.ShowElapsedTime.Should().BeFalse();
+            await ClickSourceMenu(tree, source, "Show Elapsed Times");
+            var replaced = (later + "\n" + earlier + "\n" + first).Replace("12:00:03", "12:00:08").Replace("12:00:01", "12:00:09").Replace("12:00:00", "12:00:10");
+            var modified = File.GetLastWriteTimeUtc(_first);
+            File.WriteAllText(_first, replaced);
+            File.SetLastWriteTimeUtc(_first, modified);
+            await ExpectElapsed(selected, kind == "file" ? "00:00:00.000" : "00:00:04.000");
+            var profilePath = Path.Combine(_folder, "elapsed-time-settings.xml");
+            var profile = new ApplicationSettings(profilePath);
+            foreach (var item in workspace.All) profile.DataSources.Add(item.Clone());
+            profile.Save().Should().BeTrue();
+            var restored = new ApplicationSettings(profilePath);
+            restored.Restore();
+            restored.DataSources.Single(item => item.Id == source.Id).ShowElapsedTime.Should().BeTrue();
+            File.ReadAllText(_first).Should().Be(replaced);
+            File.ReadAllText(_second).Should().Be(otherText);
+
+            async Task ExpectElapsed(int index, string expected) => await WaitUntil(() =>
+            {
+                var current = window.GetVisualDescendants().OfType<NavigationView>().Single().Document;
+                return current?.SourceId == source.Id && current.Lines.Count > index && current.GetLine(index).DisplayText.Contains(expected);
+            });
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public Task FileDeltaTimesRespectOriginalOrderAndReplacement() => DeltaTimeVisibility("file");
 
     [AvaloniaTest]

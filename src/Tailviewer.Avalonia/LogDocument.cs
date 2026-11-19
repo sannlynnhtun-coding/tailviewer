@@ -6,6 +6,7 @@ using Tailviewer.Core;
 using Tailviewer.Settings;
 using Tailviewer.Avalonia.Views;
 using Tailviewer.Ui.LogView.DeltaTimes;
+using Tailviewer.Ui.LogView.ElapsedTime;
 using System.Globalization;
 
 namespace Tailviewer.Avalonia;
@@ -28,6 +29,9 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     private string? _readError;
     private bool _showLineNumbers;
     private bool _showDeltaTimes;
+    private bool _showElapsedTime;
+    private ILogSource? _metadata;
+    private DateTime? _elapsedStart;
 
     public string FileName { get; }
     public DataSourceId SourceId { get; }
@@ -49,6 +53,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             ArgumentNullException.ThrowIfNull(configuration);
             _showLineNumbers = configuration.ShowLineNumbers;
             _showDeltaTimes = configuration.ShowDeltaTimes;
+            _showElapsedTime = configuration.ShowElapsedTime;
             _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
             SourceId = configuration.Id;
             FileName = Path.GetFullPath(configuration.File);
@@ -74,6 +79,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             FileName = configuration.LogFileFolderPath ?? configuration.DisplayName ?? "Group";
             _showLineNumbers = configuration.ShowLineNumbers;
             _showDeltaTimes = configuration.ShowDeltaTimes;
+            _showElapsedTime = configuration.ShowElapsedTime;
             _group = new SourceGroup(_scheduler);
             _group.Configure(configuration, members);
             _source = _group.LogSource;
@@ -111,6 +117,9 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         if (reset)
         {
             if (!notifiedReset) _configuration.Invalidate(SourceId);
+            _metadata?.Dispose();
+            _metadata = null;
+            _elapsedStart = null;
             _pages.Clear();
             _loading.Clear();
             Lines.Clear();
@@ -118,9 +127,12 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         if (count > Lines.Count)
             Lines.AddRange(Enumerable.Range(Lines.Count, count - Lines.Count));
 
+        var start = _metadata?.GetProperty(Core.Properties.StartTimestamp);
+        var timesChanged = start != _elapsedStart;
+        _elapsedStart = start;
         foreach (var (page, rows) in _pages.ToArray())
         {
-            if ((changed && page == Math.Max(0, previousCount - 1) / PageSize) ||
+            if ((_showElapsedTime && timesChanged) || (changed && page == Math.Max(0, previousCount - 1) / PageSize) ||
                 rows.Any(row => row.Index < count && row.Text == null))
                 _ = LoadPageAsync(page, rows);
         }
@@ -136,7 +148,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         {
             if (_pages.Count >= MaxPages)
                 _pages.Remove(_pages.Keys.First());
-            rows = Enumerable.Range(page * PageSize, PageSize).Select(i => new LogLine(i, _showLineNumbers, _showDeltaTimes)).ToArray();
+            rows = Enumerable.Range(page * PageSize, PageSize).Select(i => new LogLine(i, _showLineNumbers, _showDeltaTimes, _showElapsedTime)).ToArray();
             _pages.Add(page, rows);
             _ = LoadPageAsync(page, rows);
         }
@@ -157,19 +169,37 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         foreach (var row in _pages.Values.SelectMany(rows => rows)) row.SetShowDeltaTimes(visible);
     }
 
+    internal void SetShowElapsedTime(bool visible)
+    {
+        if (_showElapsedTime == visible) return;
+        _showElapsedTime = visible;
+        // shortcut: keep requested metadata warm until reset/close; stop on hide if measured cost requires it.
+        if (visible) _metadata ??= FileLogSourceFactory.CreateMetadataView(_scheduler, ParsedSource);
+        foreach (var (page, rows) in _pages.ToArray())
+        {
+            foreach (var row in rows) row.SetShowElapsedTime(visible);
+            if (visible) _ = LoadPageAsync(page, rows);
+        }
+    }
+
     private async Task LoadPageAsync(int page, LogLine[] rows)
     {
         if (_loading.TryGetValue(page, out var pending) && ReferenceEquals(rows, pending))
             return;
         _loading[page] = rows;
         var generation = _configuration.GetGeneration(SourceId);
+        var wantElapsed = _showElapsedTime;
+        var start = _metadata?.GetProperty(Core.Properties.StartTimestamp);
         try
         {
+            var source = wantElapsed ? _metadata ??= FileLogSourceFactory.CreateMetadataView(_scheduler, ParsedSource) : ParsedSource;
             var section = new LogSourceSection(page * PageSize, Math.Min(PageSize, Lines.Count - page * PageSize));
             var entries = await Task.Run(() =>
             {
-                var buffer = new LogBufferArray(section.Count, new IColumnDescriptor[] { Core.Columns.RawContent, Core.Columns.DeltaTime });
-                ParsedSource.GetEntries(section, buffer, 0,
+                var columns = wantElapsed ? new IColumnDescriptor[] { Core.Columns.RawContent, Core.Columns.DeltaTime, Core.Columns.ElapsedTime } :
+                    new IColumnDescriptor[] { Core.Columns.RawContent, Core.Columns.DeltaTime };
+                var buffer = new LogBufferArray(section.Count, columns);
+                source.GetEntries(section, buffer, 0,
                     new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2)));
                 return buffer;
             });
@@ -179,7 +209,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             {
                 if (_disposed) return;
                 for (var i = 0; i < entries.Count; ++i)
-                    rows[i].SetText(entries[i].RawContent, entries[i].DeltaTime);
+                    rows[i].SetText(entries[i].RawContent, entries[i].DeltaTime, wantElapsed ? entries[i].ElapsedTime : null);
                 _readError = null;
             });
         }
@@ -192,6 +222,9 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         {
             if (_loading.TryGetValue(page, out var current) && ReferenceEquals(rows, current))
                 _loading.Remove(page);
+            if (!_disposed && _showElapsedTime && _metadata != null && start != _metadata.GetProperty(Core.Properties.StartTimestamp) &&
+                _pages.TryGetValue(page, out var visible) && ReferenceEquals(rows, visible))
+                _ = LoadPageAsync(page, rows);
         }
     }
 
@@ -241,6 +274,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         _disposed = true;
         _configuration.Invalidate(SourceId);
         _source.RemoveListener(this);
+        _metadata?.Dispose();
         if (_group != null) _group.Dispose();
         else ParsedSource.Dispose();
         _scheduler.Dispose();
@@ -248,15 +282,18 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     }
 }
 
-public sealed class LogLine(int index, bool showLineNumbers = true, bool showDeltaTimes = false) : INotifyPropertyChanged
+public sealed class LogLine(int index, bool showLineNumbers = true, bool showDeltaTimes = false, bool showElapsedTime = false) : INotifyPropertyChanged
 {
     private bool _showLineNumbers = showLineNumbers;
     private bool _showDeltaTimes = showDeltaTimes;
     private TimeSpan? _deltaTime;
+    private bool _showElapsedTime = showElapsedTime;
+    private TimeSpan? _elapsedTime;
     public int Index { get; } = index;
     public string? Text { get; private set; }
     public string DisplayText => (_showLineNumbers ? $"{Index + 1,7}  " : "") +
-        (_showDeltaTimes ? $"{DeltaTimeFormatter.Format(_deltaTime, CultureInfo.CurrentCulture),8}  " : "") + (Text ?? "Loading…");
+        (_showDeltaTimes ? $"{DeltaTimeFormatter.Format(_deltaTime, CultureInfo.CurrentCulture),8}  " : "") +
+        (_showElapsedTime ? $"{ElapsedTimeFormatter.ToString(_elapsedTime, CultureInfo.CurrentCulture),11}  " : "") + (Text ?? "Loading…");
     public event PropertyChangedEventHandler? PropertyChanged;
 
     internal void SetShowLineNumbers(bool visible)
@@ -273,12 +310,20 @@ public sealed class LogLine(int index, bool showLineNumbers = true, bool showDel
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayText)));
     }
 
-    internal void SetText(string? text, TimeSpan? deltaTime)
+    internal void SetShowElapsedTime(bool visible)
     {
-        if (Text == text && _deltaTime == deltaTime)
+        if (_showElapsedTime == visible) return;
+        _showElapsedTime = visible;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayText)));
+    }
+
+    internal void SetText(string? text, TimeSpan? deltaTime, TimeSpan? elapsedTime)
+    {
+        if (Text == text && _deltaTime == deltaTime && _elapsedTime == elapsedTime)
             return;
         Text = text;
         _deltaTime = deltaTime;
+        _elapsedTime = elapsedTime;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayText)));
     }
 }
