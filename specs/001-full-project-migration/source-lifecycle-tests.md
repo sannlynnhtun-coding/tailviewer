@@ -1803,3 +1803,40 @@ sequence owned by another PID. The guard preserved that clipboard data. This
 is evidence of desktop interference during the failed copy, not proof of its
 complete cause or a repaired cancel journey. Evidence:
 t024-picker-provenance-focused.log/TRX (1 pass / 1 fail / zero skips).
+
+### T022 file/folder operations checkpoint (2026-11-20)
+
+T022 is complete for its file/folder operations and loading/empty/error tree
+binding scope. Its implementation was delivered in the preceding small commits;
+this checkpoint audits those actual sources and reruns their behavioral tests.
+T018 and T017 are already complete. No production change was needed here.
+
+| T022 responsibility | Implementation | Behavioral evidence |
+|---|---|---|
+| Folder discovery, patterns, recursion, deterministic member identities and recovery | Core Sources/Migration/FolderSources.cs | FolderSourcesTest: semicolon/legacy case/unanchored rules, recursive enumeration, disappearance/reopening, cached reads and late-disposal publication |
+| File unavailable/empty/access-error and recovery without dropping configured IDs | Core Sources/Migration/FileSourceStates.cs; MainWindow source configuration/opening | FileSourceStatesTest; SourcesTest.NewlyMissingPathRemainsConfiguredAndRetryPreservesItsIdentity and MissingConfiguredTreeItemKeepsItsErrorAndIdentityUntilSuccessfulRetry |
+| Background file ownership, open/switch/close and cleanup | SourceDocuments.cs; MainWindow.cs | SourceDocumentsTest: shared leases, pending removal/closure, path/encoding replacement, retry and 40-reader append/handle-release lifecycle; SourcesTest opening/switching/close journeys |
+| Loading/empty/error tree presentation and live folder/file updates | MainWindow pending/opening/indexing state binding; Views/SourcesView.cs accessible status/count controls | SourcesTest.SourceTreeShowsEmptyGroupFolderAndFileStatesAndClearsAfterAppend; inactive availability, exclusive-lock recovery and unselected folder discovery/indexing tests |
+
+Fresh verification with SDK 10.0.302 on Windows x64: 26 modern Core
+FolderSourcesTest/FileSourceStatesTest/SourceIdentityTest cases pass, and all
+96 Avalonia SourcesTest/SourceDocumentsTest cases pass. Both runs have zero
+failures/skips. The Core command also selected the retained net471 target;
+its migration-only filter matched no tests, so no legacy-runtime coverage is
+claimed. Legacy NU1902 warnings remain visible.
+
+Reproduce from the repository root (add --logger trx and an owned
+--results-directory when retaining raw results):
+
+```powershell
+dotnet test src/Tailviewer.Core.Tests/Tailviewer.Core.Tests.csproj -c Release -f net10.0 --filter 'FullyQualifiedName~Migration.FolderSourcesTest|FullyQualifiedName~Migration.FileSourceStatesTest|FullyQualifiedName~Migration.SourceIdentityTest'
+dotnet test src/Tailviewer.Avalonia.Tests/Tailviewer.Avalonia.Tests.csproj -c Release --filter 'FullyQualifiedName~SourcesTest|FullyQualifiedName~SourceDocumentsTest'
+```
+
+Raw evidence is ignored artifacts/migration/t022-core-checkpoint.log/TRX and
+t022-ui-checkpoint.log/TRX. This checkpoint does not complete FR-002 or US1:
+group command acceptance (T023), native picker/drop/handoff acceptance (T024
+onward), later profile persistence (T055), plugin-provided sources (US4),
+remaining navigation/performance acceptance and full migration remain open.
+The separately recorded native clipboard/focus failures were not rerun or
+reclassified as passing by these headless tests.

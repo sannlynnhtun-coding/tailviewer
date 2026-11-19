@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T021 complete. File/folder/group lifecycle and navigation/selection contracts are verified. T020 recovery contracts pass, including hidden middle rewrites and BOM changes; T021 native arguments/pickers/clipboard/OLE and single-instance handoff/restore/restart/timeout contracts pass (17 cases including native pointer arrange/group/cancel); T024/T025 implementation dependencies and remaining window behavior stay open; T029/T030 implementation dependencies and broader acceptance remain open. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T022 complete. T022 file/folder operations and tree states are verified by its checkpoint below. T023 group-command implementation/acceptance and T024 onward remain open. Earlier native entry-point contracts have passing evidence, but the latest clipboard/focus investigation retains intermittent failures; see source-lifecycle-tests.md. User stories and full migration acceptance remain incomplete.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -90,7 +90,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [ ] T022 [US1] Port file/folder operations from `src/Tailviewer/BusinessLogic/DataSources/` into `src/Tailviewer.Core/Sources/Migration/` and bind loading/empty/error tree items in `src/Tailviewer.Avalonia/Views/SourcesView.cs`. **Depends**: T018.
+- [X] T022 [US1] Port file/folder operations from `src/Tailviewer/BusinessLogic/DataSources/` into `src/Tailviewer.Core/Sources/Migration/` and bind loading/empty/error tree items in `src/Tailviewer.Avalonia/Views/SourcesView.cs`. **Depends**: T018. **Evidence**: [file/folder checkpoint](source-lifecycle-tests.md#t022-filefolder-operations-checkpoint-2026-11-20).
 - [ ] T023 [US1] Implement stable ordered groups, include/exclude, rename, close-current/all in `src/Tailviewer.Avalonia/ViewModels/SourcesViewModel.cs`; missing paths remain unresolved, not deleted. Model constraint: "No cycles or duplicate member identities; deterministic timestamp-tie and missing-timestamp rules pinned to baseline fixtures.". **Depends**: T022.
 - [ ] T024 [US1] Wire multi-file/folder picker, drag/drop and arguments in `src/Tailviewer.Avalonia/MainWindow.cs` and `Program.cs`; cancel preserves current workspace. **Depends**: T023, T021.
 - [ ] T025 [US1] Port single-instance handoff to `src/Tailviewer.Avalonia/SingleApplicationHelper.cs` using mutex/named pipes with bounded validated messages and owned-process cleanup. **Depends**: T024.
