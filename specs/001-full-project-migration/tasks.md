@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T013 complete. Import contracts executed (14 pass, two behavioral failures); T014 conversion remains in progress. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T014 complete. Backup-verified settings/bookmark import and journal recovery implemented; T015 source/group/revision contracts are next. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -63,7 +63,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [ ] T014 Implement backup-verified legacy conversion and keep/replace conflict handling in `src/Tailviewer.Core/Settings/Migration/LegacyProfileImporter.cs`; retain original/unknown nodes and save only validated destination. **Depends**: T013.
+- [X] T014 Implement backup-verified legacy conversion and keep/replace conflict handling in `src/Tailviewer.Core/Settings/Migration/LegacyProfileImporter.cs`; retain original/unknown nodes and save only validated destination. **Depends**: T013.
 
 ### Tests / contract checks
 

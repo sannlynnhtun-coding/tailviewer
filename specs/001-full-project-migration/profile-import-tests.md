@@ -82,3 +82,59 @@ t014-bundle-conflict-red.log, t014-bundle-conflict.log and
 t014-bundle-conflict-regression.log. Recoverable publication is still pending;
 these early and prepublication checks alone do not eliminate concurrent writer
 races. T014 remains incomplete and no import UI is enabled.
+## T014 slice 4 — recoverable bundle publication (completed service)
+
+The final implementation imports settings and dependent bookmarks together.
+Both original inputs remain locked read-only through backup/conversion/publication;
+both backups are reopened and hash-verified first. Missing source and quick-filter
+IDs are deterministic within the immutable source snapshot and identity domain;
+existing IDs remain unchanged. Duplicate identities fail before publication.
+Unknown root/plugin/bookmark XML, labels and processing instructions survive
+import and two save/restart cycles. Replacing from a profile without bookmarks
+publishes an empty bookmark collection rather than retaining unrelated old marks.
+
+A named folder mutex serializes cooperating modern readers/writers in the Windows
+session. The importer prepares both validated candidates and bounded, flushed undo
+copies in an owner-only directory, then publishes a bounded undo journal before
+changing either destination. Deleting that journal is the commit point. Failure
+or cancellation before commit restores both original byte snapshots; first-save
+rollback removes only the transaction-created member. A pending journal is
+recovered before subsequent store reads/writes, including restore existence checks.
+Recovery verifies all original copies/current hashes and confines journal paths
+before mutating anything. Unexpected external changes or corrupt recovery data
+block recovery rather than overwriting them. Original DACL/creation metadata and
+normal copy semantics are retained for undo copies. Separate model reads can still
+straddle a later successful import; a future workspace loader must load its pair
+under the shared lock when it needs one simultaneous snapshot.
+
+### Executed checks
+
+- All 34 import/recovery cases are now ordinary net10.0 tests; the temporary
+  ProfileImportContracts compiler property/guard was removed.
+- Final affected Migration suite: 172 passed, zero failures/skips. Includes
+  cancellation after either member, locked-second-member rollback with/without
+  prior settings, exact-byte undo, corrupt-undo refusal and malformed journal
+  stage/target/digest/entry validation.
+- Full Core checkpoint: 7064 passed, zero failed, five pre-existing parser/time
+  TODO skips (7069 total). The final cancellation-before-commit guard and second
+  cancellation case were subsequently checked in the 172-case affected suite.
+- Modern solution checkpoint: 81 Archiver + 22 Avalonia passed.
+- Legacy net45 Core build: passed; existing NU1902 warnings remain visible.
+- Signed source probe: eight profile + five format-editor cases passed; evidence
+  directory profile-probe/run-2ce01b1519954b38a0929a0d26a5a6b7.
+- Native owned-process interruption probe: five PASS cases, including partial
+  pair publication, both members written before commit, and post-commit. Pending
+  transactions restore the old pair; committed pairs retain the new values.
+
+Ignored evidence: artifacts/migration/t014-migration-final.log,
+t014-migration/t014-migration.trx, t014-core.log, t014-core/t014-core.trx,
+t014-solution.log, t014-legacy-build.log, t014-source-probe.log,
+t014-bundle-interruption.log and t014-filter-identity-red.log.
+
+T014's conversion/conflict service is complete. First-launch/later-import UI is
+T053 and remains pending. Recovery/private preparation directories are deliberately
+retained; no crash-orphan sweep or retention UI is implemented. A broken/partial
+immutable backup is never overwritten automatically. Non-cooperating writers or
+held files can block recovery until released. These checks do not prove physical
+power-loss durability, EFS key lifecycle, cross-session/path-alias locking, SMB,
+Linux/macOS, or full legacy desktop/service runtime behavior.

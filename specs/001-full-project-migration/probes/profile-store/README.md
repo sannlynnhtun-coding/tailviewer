@@ -20,7 +20,9 @@ private directory/candidate is left untouched by the subsequent save. The probe 
 its cleanup directory remains a direct child of the original temporary parent
 before recursive cleanup. It never accesses actual user profiles or logs.
 
-Expected output: two PASS lines. It does not simulate physical power loss,
+The bundle cases additionally terminate after the first member, after both members but before commit, and after commit. Pending journals restore both original snapshots before a normal store read; committed pairs remain new. Direct physical-file observations bypass the folder mutex only in this probe, while the child deliberately holds it.
+
+Expected output: five PASS lines. It does not simulate physical power loss,
 termination inside an individual kernel rename call, EFS certificate/key setup,
 SMB/network filesystems or Linux/macOS. The regular NUnit tests separately cover
 read-only/sharing failures, candidate IO/validation errors, metadata preservation,
