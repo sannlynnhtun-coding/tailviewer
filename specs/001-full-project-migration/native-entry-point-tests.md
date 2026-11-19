@@ -427,3 +427,38 @@ JSONL). It does not reach final copy/pause checks or produce a qualified p95.
 The original foreground failure remains in t027-native-tail-foreground-failure.log.
 No owned processes or native fixture directories remain. Further foreground
 acceptance needs an uninterrupted interactive desktop; T027 stays unchecked.
+
+## Large native select-all/copy and paused append
+
+Added an independent functional native case with the same 300,000 synthetic
+integer records as the five-minute workload, generated before startup. It waits
+for the complete source count including terminal EOF, sends the owned Ctrl+A
+chord, and compares the exact native clipboard contents including every record
+and trailing newline. It appends one more record, waits for the new indexed
+count, requires follow to remain off, and compares copy from the unchanged
+selection: the formerly selected empty EOF now contributes the new record while
+the newly created terminal EOF remains unselected. The visible viewport must
+remain at its paused position through append and copy.
+
+The first case passed full copy but failed an incorrect expectation that the
+selected EOF would remain visible. A diagnostic run recorded visible record 14
+both before and after append: select-all focused the start, and paused follow
+correctly retained that viewport. The fixture now verifies unchanged viewport,
+new source count and exact updated selected copy instead of demanding an EOF
+jump. The same append assertions are shared with the five-minute test. No
+production code, timeout, workload rate, p95 threshold or foreground guard changed.
+
+Focused final case passes 1/1 in eight seconds. Evidence under ignored
+artifacts/migration: t027-large-copy.log (initial failure),
+t027-large-copy-diagnostic.log and its TRX (numeric viewport diagnostics),
+t027-large-copy-final.log and matching TRX directory. The unchanged five-minute
+gate has not completed; this is functional large-selection evidence, not a
+replacement for paced display-latency acceptance. T027/US1 remain open.
+
+Combined final native regression: 4 pass / 1 failure / zero skips. The new large
+copy/pause case, both Unicode CLI cases and system-codepage dropdown pass; the
+existing small terminal-newline case again times out observing its EOF label
+before keyboard/copy. Retain t027-large-copy-regression.log/TRX as a failing
+combined checkpoint; it is not a fully green native suite. Cleanup audit finds
+no owned viewer/testhost processes or native fixture directories. Production
+sources were unchanged, so Core/modern/legacy suites were not repeated here.

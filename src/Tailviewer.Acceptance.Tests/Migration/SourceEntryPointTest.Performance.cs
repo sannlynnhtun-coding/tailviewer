@@ -12,6 +12,51 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 public sealed partial class SourceEntryPointTest
 {
+    [Test]
+    public void NativeLargeSelectAllCopiesEveryRecordAndRetainsPausedSelectionAfterAppend()
+    {
+        var records = Enumerable.Range(0, PacedLogWriter.Records).Select(index => index.ToString(CultureInfo.InvariantCulture)).ToArray();
+        File.WriteAllText(_path, string.Join("\n", records) + "\n", new UTF8Encoding(false));
+        var window = StartApplication();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The native log list must be accessible.");
+        WaitForNativeLineCount(window, rows, PacedLogWriter.Records + 1);
+        NativeKeyboard.SelectAll(_process!, rows);
+        var expected = string.Join(Environment.NewLine, records) + Environment.NewLine;
+        CopyAndCheck(window, expected);
+        AppendAndCheckPausedSelection(window, rows, expected);
+    }
+
+    private void AppendAndCheckPausedSelection(AutomationElement window, AutomationElement rows, string expected)
+    {
+        // Select-all may focus the first line; a paused viewport need not remain at EOF.
+        var visibleBeforeAppend = -1;
+        WaitFor(() => (visibleBeforeAppend = LastVisibleNumericRecord(rows)) >= 0 ? rows : null,
+            "The selected native viewport must remain observable.");
+        TestContext.Progress.WriteLine("complete_records_copied=" + PacedLogWriter.Records + "; visible_before_append=" + visibleBeforeAppend);
+        var follow = (TogglePattern)window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox)).GetCurrentPattern(TogglePattern.Pattern);
+        Assert.That(follow.Current.ToggleState, Is.EqualTo(ToggleState.Off));
+        File.AppendAllText(_path, PacedLogWriter.Records.ToString(CultureInfo.InvariantCulture) + "\n", new UTF8Encoding(false));
+        WaitForNativeLineCount(window, rows, PacedLogWriter.Records + 2);
+        Assert.That(follow.Current.ToggleState, Is.EqualTo(ToggleState.Off));
+        CopyAndCheck(window, expected + PacedLogWriter.Records.ToString(CultureInfo.InvariantCulture));
+        var visibleAfterAppend = -1;
+        WaitFor(() => (visibleAfterAppend = LastVisibleNumericRecord(rows)) >= 0 ? rows : null,
+            "The paused viewport must remain observable after append and copy.");
+        Assert.That(visibleAfterAppend, Is.EqualTo(visibleBeforeAppend), "Appending while paused must preserve the viewport.");
+        Assert.That(follow.Current.ToggleState, Is.EqualTo(ToggleState.Off));
+    }
+
+    private static void WaitForNativeLineCount(AutomationElement window, AutomationElement rows, int count)
+    {
+        var prefix = count.ToString("N0", CultureInfo.CurrentCulture) + " lines";
+        WaitFor(() => window.FindAll(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+            .Any(label => label.Current.Name.StartsWith(prefix, StringComparison.Ordinal)) ? rows : null,
+            "Every complete record and the indexed EOF must be reflected in the native source count.");
+    }
+
     [Test, Category("Performance")]
     public void NativeFiveMinuteTailDisplaysBatchesAndCopiesEveryRecord()
     {
@@ -82,18 +127,12 @@ public sealed partial class SourceEntryPointTest
             Report(new { writer_seconds = duration / 1000, samples = delays.Count, ui_tail_advance_p95_ms = p95,
                 max_advance_ms = delays[^1], writer_p95_lateness_ms = pacingP95 });
 
+            WaitForNativeLineCount(window, rows, PacedLogWriter.Records + 1);
             NativeKeyboard.SelectAll(_process!, rows);
             var expected = string.Join(Environment.NewLine, Enumerable.Range(0, PacedLogWriter.Records)
                 .Select(index => index.ToString(CultureInfo.InvariantCulture))) + Environment.NewLine;
             CopyAndCheck(window, expected);
-            var follow = window.FindFirst(TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox));
-            Assert.That(((TogglePattern)follow.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState, Is.EqualTo(ToggleState.Off));
-            File.AppendAllText(_path, PacedLogWriter.Records.ToString(CultureInfo.InvariantCulture) + "\n", new UTF8Encoding(false));
-            WaitFor(() => LastVisibleNumericRecord(rows) >= PacedLogWriter.Records ? rows : null,
-                "The selected EOF row must receive the extra append while paused.");
-            Assert.That(((TogglePattern)follow.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState, Is.EqualTo(ToggleState.Off));
-            CopyAndCheck(window, expected + PacedLogWriter.Records.ToString(CultureInfo.InvariantCulture));
+            AppendAndCheckPausedSelection(window, rows, expected);
             Report(new { exact_records_copied = PacedLogWriter.Records, paused_append_preserves_selection = true });
             Assert.That(delays.Count, Is.EqualTo(PacedLogWriter.Batches));
             Assert.That(pacingP95, Is.LessThanOrEqualTo(100), "Writer pacing must qualify the workload.");
