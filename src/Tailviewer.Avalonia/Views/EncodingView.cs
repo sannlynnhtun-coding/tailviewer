@@ -19,7 +19,9 @@ public sealed class EncodingView : UserControl
         var choices = new List<ComboBoxItem> { new() { Content = "Auto detect" } };
 #pragma warning disable SYSLIB0001 // Retain the explicit legacy UTF-7 choice; never select it automatically.
         var encodings = new[] { Encoding.ASCII, Encoding.UTF8, Encoding.UTF7,
-            Encoding.UTF32, Encoding.BigEndianUnicode, Encoding.Unicode, Encoding.Default };
+            Encoding.UTF32, Encoding.BigEndianUnicode, Encoding.Unicode,
+            // Preserve Framework's Windows system code page instead of .NET 10's UTF-8 default.
+            CodePagesEncodingProvider.Instance.GetEncoding(0) ?? Encoding.Default };
 #pragma warning restore SYSLIB0001
         foreach (var encoding in encodings.DistinctBy(value => value.WebName))
             choices.Add(new ComboBoxItem { Content = encoding.WebName, Tag = encoding });

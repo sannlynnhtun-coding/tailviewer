@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
@@ -103,6 +104,38 @@ public sealed partial class SourceEntryPointTest
         var window = StartApplication();
         SelectSecondLine(window);
         CopyAndCheck(window);
+    }
+
+    [Test]
+    public void NativeSystemCodePageChoiceDecodesAndCopiesOriginalText()
+    {
+        var encoding = CodePagesEncodingProvider.Instance.GetEncoding(0) ?? Encoding.Default;
+        var bytes = encoding.GetBytes("café");
+        File.WriteAllBytes(_path, bytes);
+        var window = StartApplication();
+        var selector = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Text encoding")), "The encoding selector must be accessible.");
+        Assert.That(selector.Current.ProcessId, Is.EqualTo(_process!.Id));
+        var expand = (ExpandCollapsePattern)selector.GetCurrentPattern(ExpandCollapsePattern.Pattern);
+        expand.Expand();
+        var choice = WaitFor(() => AutomationElement.RootElement.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ProcessIdProperty, _process.Id)).Cast<AutomationElement>()
+            .Select(root => root.FindFirst(TreeScope.Descendants, new AndCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem),
+                new PropertyCondition(AutomationElement.NameProperty, encoding.WebName))))
+            .FirstOrDefault(item => item != null), "The Windows system encoding must be selectable in the native dropdown.");
+        ((SelectionItemPattern)choice.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        expand.Collapse();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The log list must be accessible.");
+        var line = WaitFor(() => rows.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem)).Cast<AutomationElement>()
+            .FirstOrDefault(item => item.FindAll(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .Any(text => text.Current.Name.Trim() == "1  café")), "The selected decoder must render the original text.");
+        ((SelectionItemPattern)line.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        CopyAndCheck(window, "café");
+        Assert.That(File.ReadAllBytes(_path), Is.EqualTo(bytes));
     }
 
     [Test]

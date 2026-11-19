@@ -197,6 +197,31 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task WindowsSystemCodePageCanBeSelectedWithoutAnInjectedProfile()
+    {
+        var systemEncoding = CodePagesEncodingProvider.Instance.GetEncoding(0) ?? Encoding.Default;
+        File.WriteAllBytes(_path, systemEncoding.GetBytes("café"));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>()
+                .Single(item => item.Tag is Encoding encoding && encoding.CodePage == systemEncoding.CodePage);
+            await window.OpenFileAsync(_path);
+            var list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => list.ItemCount == 1 && list.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(block => block.Text?.Contains("café") == true));
+            list.Selection.Select(0);
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "café");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task CompleteTerminalNewlineHasAnEmptyCopyableRowThatReceivesAppends()
     {
         File.WriteAllText(_path, "first\nမြန်မာ 😀\n");

@@ -109,3 +109,35 @@ t028-unavailable-legacy.log and t028-unavailable-legacy-reference-pack.log.
 This is distinct from the passing retained Core/Archiver target builds in the
 modern solution. No legacy test runtime or new native suite was run in this
 settings-only slice. Shipping profile lifecycle and native performance remain open.
+
+## Windows system code page choice
+
+The legacy default option used the Windows system code page, while .NET 10
+Encoding.Default is UTF-8. On the recorded Windows reference host, direct BCL
+observation reports code page 1252/windows-1252 versus modern 65001/utf-8. The
+selector initially omitted windows-1252 unless a profile injected it; a new
+behavior case failed because no such choice existed. The list now obtains the
+system code page from the already available CodePagesEncodingProvider without
+registering a global provider or adding a dependency. It retains the separate
+UTF-8 option and deduplicates equivalent code pages by the existing web-name rule.
+
+The headless case chooses the system encoding without an injected profile,
+opens its synthetic encoded file and verifies rendered text and exact copy.
+Focused system-codepage/profile/unavailable cases pass 3/3. A real-process native
+case opens the dropdown through UIA, locates the encoding only within windows
+owned by its app PID, selects it, requires the decoded text, copies through the
+native clipboard and verifies fixture bytes unchanged: 1/1 pass. The fixture's
+existing owned-process/temp-directory/conditional clipboard restoration applies.
+
+Evidence under artifacts/migration/t028: t028-system-codepage-red.log,
+t028-system-codepage-focused.log and t028-system-codepage-native.log with TRX.
+The native run uses the current host's system code page; it is not proof of
+every historical Windows code page or the five-minute foreground performance
+gate. No shipping profile startup/save or import behavior changed.
+
+Final full Avalonia suite: 176 pass, zero failures/skips
+(t028-system-codepage-full.log/TRX). Cleanup audit finds no owned viewer/testhost
+processes or native fixture directories. Core and Archiver suites were not
+repeated for this UI choice-list change; their preceding checkpoints remain
+separate. T028/US1 and full migration are still open for remaining integration
+and acceptance, including shipping restart persistence.
