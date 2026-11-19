@@ -71,3 +71,23 @@ JSONL progress/measurements are attached to the NUnit result; no clipboard data
 is logged. Visible accessibility text is the observation boundary, not a pixel
 presentation timestamp. This does not replace the wider recovery, memory,
 navigation or mixed-monitor acceptance matrix.
+
+## Native large-file first-page and memory gate
+
+```powershell
+dotnet test src/Tailviewer.Acceptance.Tests/Migration/Tailviewer.Native.Acceptance.Tests.csproj -c Release --filter FullyQualifiedName~NativeLargeFileVisiblePageAndIndexMemory
+```
+
+Six explicit cases generate the manifest's fixed-width 100 MiB/1 GiB fixtures,
+with three fresh owned app processes per size. The native and Core tools share
+FixedWidthLogWriter. Each fixture is read through before process launch; this
+records warm-cache intent, not guaranteed OS cache residency. The first-page
+clock includes process startup, and every on-screen accessible row must resolve
+to expected contents (or the terminal EOF). The owned app must be foreground.
+
+First-page budgets are 3/10 seconds respectively. Complete indexing has a separate
+120-second observation deadline, and the viewer's lifetime peak working set
+through that checkpoint must stay below 1 GiB for the 1 GiB file. No forced GC
+or process priority override is used. Numeric JSONL measurements are attached
+to NUnit results. This measures UIA-visible data rather than pixel presentation;
+native navigation p95, cold-cache and wider workload matrices remain separate.

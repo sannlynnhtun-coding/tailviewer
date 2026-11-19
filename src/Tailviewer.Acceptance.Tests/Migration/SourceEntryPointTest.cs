@@ -638,10 +638,10 @@ public sealed partial class SourceEntryPointTest
         ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
     }
 
-    private static AutomationElement WaitFor(Func<AutomationElement?> query, string message)
+    private static AutomationElement WaitFor(Func<AutomationElement?> query, string message, int timeoutSeconds = 10)
     {
         var timer = Stopwatch.StartNew();
-        while (timer.Elapsed < TimeSpan.FromSeconds(10))
+        while (timer.Elapsed < TimeSpan.FromSeconds(timeoutSeconds))
         {
             try { if (query() is { } element) return element; }
             catch (ElementNotAvailableException) { }

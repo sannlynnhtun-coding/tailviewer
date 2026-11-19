@@ -564,3 +564,24 @@ table, observer limits, remaining gates and exact log/TRX/attachment paths.
 
 The previous failures above remain historical evidence. This passing paced gate
 does not close T027, large-file native performance, US1 or the full migration.
+
+## Native large-file first-page and memory preflight
+
+Six Performance cases (100 MiB/1 GiB, three fresh owned processes each) pass,
+zero failures/skips. All visible accessible rows must resolve to expected fixed
+record data or EOF; startup is included in the first-page clock. The 1 GiB
+viewer process peaks below 1 GiB through the final indexed source count.
+The shared polling helper retains its existing ten-second default; only the
+large-file indexing observation explicitly uses 120 seconds. First-page budgets
+remain 3/10 seconds. Generation/read-through are outside the startup clock and
+are shared with the Core harness through FixedWidthLogWriter.
+
+Detailed measurements, observer limits and the exact six JSONL/TRX attachments
+are recorded in [recovery evidence](recovery-tests.md). A subsequent native
+Unicode CLI/EOF/system-codepage/large-copy regression passes 5/5, zero
+failures/skips (t027-native-large-file-regression.log/TRX). This verifies callers
+of the unchanged default polling budget; it is not a repeat of all 22 functional
+cases or the five-minute tail gate. No production source changed in this slice.
+Core/modern suites were not repeated; the standalone tool builds successfully.
+Cleanup leaves no owned app/testhost processes or native fixture directories.
+Navigation p95, cold-cache and broader source/performance acceptance stay open.

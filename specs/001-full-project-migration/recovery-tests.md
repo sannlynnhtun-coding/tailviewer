@@ -600,3 +600,40 @@ hardware claim. No timing threshold, writer rate, duration or focus guard was
 relaxed. Native large-file first-page/application-memory/navigation measurements,
 the wider recovery/source matrix and prerequisite integration remain open.
 T027, US1, P13 and the full migration are not marked complete by this result.
+
+## Native large-file first-page and complete-app index memory
+
+Added six explicit Performance cases, three runs each for 100 MiB/1 GiB, using
+the same fixed 128-byte-record writer as the Core harness. Each case owns a new
+fixture and app process. Read-through happens before launch to record warm-cache
+intent; it does not prove OS cache residency. The first-page clock starts before
+process launch and includes startup and UIA observation. Every non-offscreen
+accessible row must resolve to 127 x characters or the indexed terminal EOF,
+with at least one complete data record. Foreground ownership is required.
+
+The final source count (complete records plus EOF) proves complete indexing
+before sampling the entire viewer process's lifetime peak working set. The
+existing ten-second polling default is retained; this new indexing checkpoint
+alone uses the Core harness's separate 120-second bounded observation deadline.
+No forced GC, priority override, larger first-page budget or relaxed memory
+threshold was introduced.
+
+All six cases pass on the same Windows x64 reference host, SDK 10.0.302, 20
+logical processors, 31.71 GiB runtime memory and 168-DPI owned windows:
+
+| Measurement | 100 MiB, runs 1 / 2 / 3 | 1 GiB, runs 1 / 2 / 3 |
+|---|---|---|
+| First UIA-visible page including startup | 1,877.2895 / 1,605.2139 / 1,667.5207 ms | 1,482.2904 / 2,042.1954 / 1,572.6932 ms |
+| Complete index checkpoint including startup | 1,970.0218 / 1,669.2288 / 1,759.4450 ms | 2,785.7206 / 2,886.0295 / 2,843.5928 ms |
+| Complete-app lifetime peak working set through indexing | 261,414,912 / 262,291,456 / 261,595,136 bytes | 550,797,312 / 510,193,664 / 562,679,808 bytes |
+
+Evidence: artifacts/migration/t027-native-large-file.log and matching TRX
+directory, with six attached native-large-file-*.jsonl files. The standalone
+tool builds with zero errors and two inherited NU1902 warnings
+(t027-fixed-writer-build.log). Fixture byte lengths and final indexed counts are
+asserted; complete all-offset validation remains a separate Core preflight.
+
+This proves the recorded UIA first-page and indexing-memory preflight on one
+host, not pixel presentation, native navigation latency, cold-cache behavior or
+all configurations. The broader source/recovery matrix, navigation p95 and
+prerequisite integration remain open. T027/US1/P13/full migration stay open.

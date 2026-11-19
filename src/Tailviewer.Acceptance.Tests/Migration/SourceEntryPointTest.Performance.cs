@@ -12,6 +12,60 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 public sealed partial class SourceEntryPointTest
 {
+    [TestCase(100, 1), TestCase(100, 2), TestCase(100, 3)]
+    [TestCase(1024, 1), TestCase(1024, 2), TestCase(1024, 3)]
+    [Category("Performance")]
+    public void NativeLargeFileVisiblePageAndIndexMemoryMeetReferenceBudgets(int sizeMiB, int run)
+    {
+        Assert.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(4));
+        Assert.That(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, Is.GreaterThanOrEqualTo(16L * 1024 * 1024 * 1024));
+        Assert.That(new DriveInfo(Path.GetPathRoot(_folder)!).AvailableFreeSpace, Is.GreaterThanOrEqualTo(2L * 1024 * 1024 * 1024));
+        FixedWidthLogWriter.Write(_path, sizeMiB);
+        var length = (long)sizeMiB * 1024 * 1024;
+        Assert.That(new FileInfo(_path).Length, Is.EqualTo(length));
+        FixedWidthLogWriter.ReadThrough(_path);
+        var records = (int)(length / FixedWidthLogWriter.RecordWidth);
+        var logPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "native-large-file-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        using var report = new StreamWriter(logPath, false, new UTF8Encoding(false)) { AutoFlush = true };
+        TestContext.AddTestAttachment(logPath, "Native large-file measurements; synthetic fixture only.");
+        void Report(object value) => report.WriteLine(JsonSerializer.Serialize(value));
+        Report(new { size_mib = sizeMiB, run, records, read_through_before_start = true, processors = Environment.ProcessorCount,
+            available_memory_bytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes });
+        var clock = Stopwatch.StartNew();
+        var window = StartApplication();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The native log list must be accessible.");
+        rows.SetFocus();
+        var marker = "  " + new string('x', FixedWidthLogWriter.RecordWidth - 1);
+        var eofLabel = (records + 1).ToString(CultureInfo.CurrentCulture);
+        WaitFor(() =>
+        {
+            Assert.That(NativeKeyboard.IsForeground(_process!), Is.True, "Visible-page measurements require the owned foreground app.");
+            var names = rows.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .Where(label => !label.Current.IsOffscreen).Select(label => label.Current.Name).ToArray();
+            return names.Any(name => name.EndsWith(marker, StringComparison.Ordinal)) &&
+                names.All(name => name.EndsWith(marker, StringComparison.Ordinal) || name.Trim() == eofLabel) ? rows : null;
+        }, "Every visible row must resolve to the fixed-width fixture content or terminal EOF.");
+        var pageMs = clock.Elapsed.TotalMilliseconds;
+        Report(new { first_visible_page_ms = pageMs, process_id = _process!.Id, dpi = GetDpiForWindow(_process.MainWindowHandle) });
+        var countPrefix = (records + 1).ToString("N0", CultureInfo.CurrentCulture) + " lines";
+        WaitFor(() =>
+        {
+            Assert.That(_process.HasExited, Is.False);
+            Assert.That(NativeKeyboard.IsForeground(_process), Is.True, "Index memory measurements require the owned foreground app.");
+            return window.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .Any(label => label.Current.Name.StartsWith(countPrefix, StringComparison.Ordinal)) ? rows : null;
+        }, "The complete fixed-width source and terminal EOF must finish indexing.", timeoutSeconds: 120);
+        _process.Refresh();
+        var peakBytes = _process.PeakWorkingSet64;
+        Report(new { complete_index_ms = clock.Elapsed.TotalMilliseconds, app_peak_working_set_bytes = peakBytes });
+        Assert.That(pageMs, Is.LessThanOrEqualTo(sizeMiB == 100 ? 3000 : 10000), "The visible page must meet the reference first-page budget.");
+        if (sizeMiB == 1024)
+            Assert.That(peakBytes, Is.LessThan(1024L * 1024 * 1024), "The complete viewer process must peak below 1 GiB through indexing.");
+    }
+
     [Test]
     public void NativeLargeSelectAllCopiesEveryRecordAndRetainsPausedSelectionAfterAppend()
     {
