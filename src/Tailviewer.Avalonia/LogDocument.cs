@@ -3,6 +3,7 @@ using System.Text;
 using Avalonia.Collections;
 using Tailviewer.Api;
 using Tailviewer.Core;
+using Tailviewer.Settings;
 
 namespace Tailviewer.Avalonia;
 
@@ -17,19 +18,28 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     private volatile bool _disposed;
     private int _changed;
     private int _reset;
-    private int _generation;
+    private readonly SourceConfiguration _configuration;
     private string? _readError;
 
     public string FileName { get; }
+    public DataSourceId SourceId { get; }
     // shortcut: one integer per indexed line, use a lazy IList if index memory becomes a bottleneck.
     public AvaloniaList<int> Lines { get; } = new();
     public string? Error => _source.GetProperty(Core.Properties.EmptyReason)?.Explanation ?? _readError;
 
     public LogDocument(string fileName)
+        : this(new DataSource(fileName) { Id = DataSourceId.CreateNew() })
+    {
+    }
+
+    public LogDocument(DataSource configuration)
     {
         try
         {
-            FileName = Path.GetFullPath(fileName);
+            ArgumentNullException.ThrowIfNull(configuration);
+            _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
+            SourceId = configuration.Id;
+            FileName = Path.GetFullPath(configuration.File);
             using var stream = new FileStream(FileName, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete);
             using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -49,7 +59,10 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     public void OnLogFileModified(ILogSource logSource, LogSourceModification modification)
     {
         if (modification.IsReset())
+        {
+            _configuration.Invalidate(SourceId);
             Interlocked.Exchange(ref _reset, 1);
+        }
         Interlocked.Exchange(ref _changed, 1);
     }
 
@@ -61,10 +74,11 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         var previousCount = Lines.Count;
         var count = _source.GetProperty(Core.Properties.LogEntryCount);
         var changed = Interlocked.Exchange(ref _changed, 0) != 0;
-        var reset = Interlocked.Exchange(ref _reset, 0) != 0 || count < previousCount;
+        var notifiedReset = Interlocked.Exchange(ref _reset, 0) != 0;
+        var reset = notifiedReset || count < previousCount;
         if (reset)
         {
-            ++_generation;
+            if (!notifiedReset) _configuration.Invalidate(SourceId);
             _pages.Clear();
             _loading.Clear();
             Lines.Clear();
@@ -102,22 +116,26 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         if (_loading.TryGetValue(page, out var pending) && ReferenceEquals(rows, pending))
             return;
         _loading[page] = rows;
-        var generation = _generation;
+        var generation = _configuration.GetGeneration(SourceId);
         try
         {
             var section = new LogSourceSection(page * PageSize, Math.Min(PageSize, Lines.Count - page * PageSize));
             var text = await Task.Run(() => _source.GetColumn(section, Core.Columns.RawContent,
                 new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
-            if (_disposed || generation != _generation)
+            if (_disposed)
                 return;
-            for (var i = 0; i < text.Length; ++i)
-                rows[i].SetText(text[i]);
-            _readError = null;
+            _configuration.TryPublish(SourceId, generation, () =>
+            {
+                if (_disposed) return;
+                for (var i = 0; i < text.Length; ++i)
+                    rows[i].SetText(text[i]);
+                _readError = null;
+            });
         }
         catch (Exception ex)
         {
             if (!_disposed)
-                _readError = ex.Message;
+                _configuration.TryPublish(SourceId, generation, () => _readError = ex.Message);
         }
         finally
         {
@@ -129,12 +147,14 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     public async Task<string> CopyTextAsync(IEnumerable<int> selection)
     {
         var indices = selection.Distinct().Order().Select(i => new LogLineIndex(i)).ToArray();
-        var generation = _generation;
+        var generation = _configuration.GetGeneration(SourceId);
         var text = await Task.Run(() => _source.GetColumn(indices, Core.Columns.RawContent,
             new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
-        if (_disposed || generation != _generation || text.Any(line => line == null))
+        var result = string.Empty;
+        if (_disposed || text.Any(line => line == null) ||
+            !_configuration.TryPublish(SourceId, generation, () => result = string.Join(Environment.NewLine, text)))
             throw new IOException("The file changed or could not be read. Select the lines and try again.");
-        return string.Join(Environment.NewLine, text);
+        return result;
     }
 
     public void Dispose()
@@ -142,6 +162,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         if (_disposed)
             return;
         _disposed = true;
+        _configuration.Invalidate(SourceId);
         _source.RemoveListener(this);
         _source.Dispose();
         _scheduler.Dispose();

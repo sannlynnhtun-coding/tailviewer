@@ -111,6 +111,7 @@ namespace Tailviewer.Settings
                         if (model.DataSources.GroupBy(item => item.Id).Any(group => group.Count() > 1) ||
                             model.QuickFilters.GroupBy(item => item.Id).Any(group => group.Count() > 1))
                             return Result(ProfileImportStatus.Failed, "DuplicateIdentity");
+                        SourceConfiguration.Validate(model.DataSources);
                         cancellationToken.ThrowIfCancellationRequested();
                         if ((File.Exists(targetFile) || File.Exists(targetBookmarks)) && choice == ProfileImportChoice.RequireChoice)
                             return Result(ProfileImportStatus.Conflict);

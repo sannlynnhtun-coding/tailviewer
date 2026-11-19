@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T014 complete. Backup-verified settings/bookmark import and journal recovery implemented; T015 source/group/revision contracts are next. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T016 complete. Source/group identity and generation contracts are implemented and used by the Avalonia reader; T017 foundation audit is next. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -71,7 +71,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [ ] T016 Reuse existing source IDs/config in `src/Tailviewer.Core/Settings/Migration/SourceConfiguration.cs`; preserve missing-source configuration, source generation and deterministic group membership rather than parallel entry models. Model constraint: "Reopening same configured source preserves identity. Paths can be missing; never silently remove unavailable sources.". **Depends**: T015.
+- [X] T016 Reuse existing source IDs/config in `src/Tailviewer.Core/Settings/Migration/SourceConfiguration.cs`; preserve missing-source configuration, source generation and deterministic group membership rather than parallel entry models. Model constraint: "Reopening same configured source preserves identity. Paths can be missing; never silently remove unavailable sources.". **Depends**: T015.
 - [ ] T017 Run affected metadata/profile/identity suites, inspect net10 assets and record `artifacts/migration/foundation.md`; preserve working modern pins and keep legacy advisory/reference strictly outside modern outputs. **Depends**: T016.
 
 ## Phase 3: US1 — Read and navigate logs (P1; P03/P04)

@@ -76,6 +76,33 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task TestConfiguredIdentitySurvivesReplacementAndReopening()
+    {
+        File.WriteAllText(_path, "old");
+        var configured = new Tailviewer.Settings.DataSource(_path)
+        {
+            Id = Tailviewer.Api.DataSourceId.CreateNew()
+        };
+        using (var document = new LogDocument(configured))
+        {
+            await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 1; });
+            var old = document.GetLine(0);
+            await WaitUntil(() => old.Text == "old");
+            File.WriteAllText(_path, "new");
+            await WaitUntil(() =>
+            {
+                document.Refresh();
+                return document.Lines.Count == 1 && document.GetLine(0).Text == "new";
+            });
+            document.SourceId.Should().Be(configured.Id);
+        }
+        using var reopened = new LogDocument(configured);
+        await WaitUntil(() => { reopened.Refresh(); return reopened.Lines.Count == 1; });
+        reopened.SourceId.Should().Be(configured.Id);
+        (await reopened.CopyTextAsync(new[] { 0 })).Should().Be("new");
+    }
+
+    [AvaloniaTest]
     public async Task TestUtf16Bom()
     {
         File.WriteAllText(_path, "မြန်မာ\r\nsecond", Encoding.Unicode);

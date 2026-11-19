@@ -211,6 +211,22 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public async Task CyclicSourceGroupsDoNotReplaceTheCurrentProfile()
+        {
+            var before = CreateTarget();
+            var document = XDocument.Load(_source);
+            document.Root.Element("datasources").Element("datasource").SetAttributeValue("parentid", SourceId);
+            document.Save(_source);
+            var original = File.ReadAllBytes(_source);
+            var result = await Import(ProfileImportChoice.ReplaceExisting);
+            Assert.That(result.Status, Is.EqualTo(ProfileImportStatus.Failed));
+            Assert.That(result.ErrorCode, Is.EqualTo("InvalidProfile"));
+            Assert.That(result.HasVerifiedBackup, Is.True);
+            Assert.That(File.ReadAllBytes(_source), Is.EqualTo(original));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+        }
+
+        [Test]
         public async Task RepeatedImportPreservesExistingIdentitiesWithoutDuplicatingSources()
         {
             var first = await Import();

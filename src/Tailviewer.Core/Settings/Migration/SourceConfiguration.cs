@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml;
 using Tailviewer.Api;
 
 namespace Tailviewer.Settings
@@ -18,6 +19,7 @@ namespace Tailviewer.Settings
         {
             ArgumentNullException.ThrowIfNull(settings);
             _settings = settings.Clone();
+            Validate(_settings);
             _generations = _settings.ToDictionary(source => source.Id, _ => 0L);
         }
 
@@ -49,6 +51,27 @@ namespace Tailviewer.Settings
                 if (_generations[source] != generation) return false;
                 publish();
                 return true;
+            }
+        }
+
+        internal static void Validate(IEnumerable<DataSource> settings)
+        {
+            var sources = settings.ToArray();
+            var parents = new Dictionary<DataSourceId, DataSourceId>();
+            foreach (var source in sources)
+                if (source.Id == DataSourceId.Empty || !parents.TryAdd(source.Id, source.ParentId))
+                    throw new XmlException("Source identities must be nonempty and unique.");
+            var settled = new HashSet<DataSourceId>();
+            foreach (var source in sources)
+            {
+                var path = new HashSet<DataSourceId>();
+                var current = source.Id;
+                while (current != DataSourceId.Empty && !settled.Contains(current) && parents.TryGetValue(current, out var parent))
+                {
+                    if (!path.Add(current)) throw new XmlException("Source groups cannot contain cycles.");
+                    current = parent;
+                }
+                settled.UnionWith(path);
             }
         }
     }
