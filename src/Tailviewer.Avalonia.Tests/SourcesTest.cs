@@ -490,6 +490,39 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task NewlyMissingPathRemainsConfiguredAndRetryPreservesItsIdentity()
+    {
+        var path = Path.Combine(_folder, "new-missing.log");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var active = (DataSource)tree.SelectedItem!;
+            Rows(window).Selection.Select(1);
+            await window.OpenFileAsync(path);
+            tree.ItemCount.Should().Be(2);
+            var missing = tree.Items.OfType<DataSource>().Single(source => source.File == path);
+            missing.Id.Should().NotBe(DataSourceId.Empty);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(active.Id);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1);
+            await Copy(window, 1, "  original spaces  ");
+            await window.OpenFileAsync(path);
+            tree.ItemCount.Should().Be(2);
+            tree.Items.OfType<DataSource>().Single(source => source.File == path).Id.Should().Be(missing.Id);
+            File.WriteAllText(path, "returned");
+            await window.OpenFileAsync(path);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(missing.Id);
+            tree.ItemCount.Should().Be(2);
+            await Copy(window, 0, "returned");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task OpeningAfterWindowClosureDoesNotPublishRows()
     {
         var window = new MainWindow();
@@ -573,7 +606,8 @@ public sealed class SourcesTest
         {
             await window.OpenFilesAsync(new[] { missing, _first, otherMissing, _second });
             var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
-            tree.ItemCount.Should().Be(2);
+            tree.ItemCount.Should().Be(4);
+            tree.Items.OfType<DataSource>().Select(source => source.File).Should().Equal(missing, _first, otherMissing, _second);
             ((DataSource)tree.SelectedItem!).File.Should().Be(_second);
             window.GetVisualDescendants().OfType<TextBlock>().Should().Contain(block => block.Text != null &&
                 block.Text.Contains("missing-one.log") && block.Text.Contains("missing-two.log"));

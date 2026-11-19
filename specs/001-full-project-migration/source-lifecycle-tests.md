@@ -591,3 +591,31 @@ accessibility, many-source performance and remote-share latency were not checked
 
 Legacy net471 test-project build also passes with zero errors and five existing
 warnings; legacy tests were not executed. Log: t022-inactive-legacy-build.log.
+
+## First-open missing file retention (T022)
+
+Previously a new missing path was reported only in the global error text and
+was absent from the workspace. File configurations now enter the tree with their
+stable identity before the background open starts. Failed initial reads preserve
+the prior active document/selection/copy while keeping the unresolved path for
+retry. Repeated opens reuse the same configuration; successful recovery activates
+that same identity. Existing open-request fences still prevent close-all from
+being undone by late construction.
+
+The new identity/retry regression failed first on the missing tree item. Seven
+focused open/failure/batch/close cases then pass. The mixed batch contract now
+retains both failed paths in input order alongside both usable files and still
+activates the last successful document. Full modern suite: 81 Archiver and 168
+Avalonia pass, zero failures/skips. No Core production source changed in this
+slice, so the immediately preceding Core baseline remains separate.
+
+Evidence under ignored artifacts/migration: t022-missing-new-red.log,
+t022-missing-new-focused.log and t022-missing-new-modern.log.
+This supersedes the earlier limitation that new paths enter the tree only after
+successful construction. Invalid path syntax still reports an error without
+creating a configuration. T022 remains partial pending complete source-lifecycle
+parity; workspace disk persistence is the later T055 integration.
+
+Relevant native multi-file CLI/picker and secondary-instance handoff checks also
+pass 3/3 with zero skips: t022-missing-new-native.log. Full native acceptance,
+Core/legacy runtime suites and disk-profile integration were not rerun here.

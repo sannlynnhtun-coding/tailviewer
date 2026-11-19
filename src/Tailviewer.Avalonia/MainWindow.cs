@@ -607,6 +607,10 @@ public sealed class MainWindow : Window
                 return;
             }
             source ??= new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
+            // Retain configured identity even when the first read cannot open the file.
+            if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
+            selected = source;
+            _openingSource = source.Id;
             var document = await Task.Run(() => new LogDocument(source));
             if (_closed || request != _openRequest)
             {
