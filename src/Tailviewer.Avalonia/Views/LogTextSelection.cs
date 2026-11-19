@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using System.Globalization;
 
 namespace Tailviewer.Avalonia.Views;
 
@@ -13,6 +14,10 @@ public sealed class LogTextSelection
     private LogSelection? _selection;
     private long _revision;
     private IPointer? _pointer;
+    private long _inputEpoch;
+    private Task _keyWork = Task.CompletedTask;
+    private int? _preferredColumn;
+    public event Action<string>? Failed;
 
     public LogTextSelection(ListBox rows, Action changed)
     {
@@ -22,13 +27,23 @@ public sealed class LogTextSelection
         rows.AddHandler(InputElement.PointerMovedEvent, Moved, RoutingStrategies.Tunnel);
         rows.AddHandler(InputElement.PointerReleasedEvent, Released, RoutingStrategies.Tunnel);
         rows.PointerCaptureLost += (_, _) => _pointer = null;
+        rows.AddHandler(InputElement.KeyDownEvent, KeyDown, RoutingStrategies.Tunnel);
     }
 
     public bool HasSelection => _document != null && _document.Revision == _revision &&
         _selection is { } range && (range.AnchorLine != range.ActiveLine || range.AnchorColumn != range.ActiveColumn);
 
-    public Task<string>? CopyTextAsync() => HasSelection
-        ? _document!.CopyTextAsync(_selection!.Value, _revision) : null;
+    public bool CanCopy => HasSelection || (_selection != null && !_keyWork.IsCompleted);
+
+    public Task<string>? CopyTextAsync() => CanCopy ? CopyAfterKeysAsync(_keyWork, _document!, _inputEpoch) : null;
+
+    private async Task<string> CopyAfterKeysAsync(Task pending, LogDocument document, long epoch)
+    {
+        await pending;
+        if (_document != document || epoch != _inputEpoch || !HasSelection)
+            throw new IOException("The selection changed. Select the text and try again.");
+        return await document.CopyTextAsync(_selection!.Value, _revision);
+    }
 
     public void BindDocument(LogDocument? document)
     {
@@ -38,6 +53,8 @@ public sealed class LogTextSelection
 
     public void Clear()
     {
+        ++_inputEpoch;
+        _preferredColumn = null;
         var hadSelection = _selection != null;
         _selection = null;
         var pointer = _pointer;
@@ -80,6 +97,7 @@ public sealed class LogTextSelection
             return;
         }
         if (Position(args) is not { } position) return;
+        Clear();
         _rows.Selection.Clear();
         _revision = _document.Revision;
         _selection = new(position.Line, position.Column, position.Line, position.Column);
@@ -89,6 +107,84 @@ public sealed class LogTextSelection
         args.Handled = true;
         Highlight();
         _changed();
+    }
+
+    private async void KeyDown(object? sender, KeyEventArgs args)
+    {
+        if (args.Key == Key.Escape && _selection != null)
+        {
+            Clear();
+            args.Handled = true;
+            return;
+        }
+        if (_document == null || _document.Lines.Count == 0 ||
+            args.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End) ||
+            !(args.KeyModifiers == (KeyModifiers.Alt | KeyModifiers.Shift) ||
+              (args.KeyModifiers == KeyModifiers.Shift && _selection != null))) return;
+        args.Handled = true;
+        if (_selection == null)
+        {
+            var line = _rows.SelectedIndex >= 0 ? _rows.SelectedIndex : 0;
+            _rows.Selection.Clear();
+            _revision = _document.Revision;
+            _selection = new(line, 0, line, 0);
+        }
+        var epoch = _inputEpoch;
+        var pending = _keyWork = MoveAsync(_keyWork, _document, epoch, args.Key);
+        _changed();
+        await pending;
+        if (epoch == _inputEpoch) _changed();
+    }
+
+    private async Task MoveAsync(Task previous, LogDocument document, long epoch, Key key)
+    {
+        await previous;
+        if (_document != document || epoch != _inputEpoch || _selection is not { } range) return;
+        try
+        {
+            if (document.Revision != _revision) { Clear(); return; }
+            var line = range.ActiveLine;
+            var column = range.ActiveColumn;
+            var preferredColumn = _preferredColumn;
+            var text = await document.CopyTextAsync(new[] { line });
+            if (key is Key.Up or Key.Down)
+            {
+                preferredColumn ??= column;
+                line = Math.Clamp(line + (key == Key.Up ? -1 : 1), 0, document.Lines.Count - 1);
+                text = await document.CopyTextAsync(new[] { line });
+                column = StringInfo.ParseCombiningCharacters(text).Append(text.Length)
+                    .Last(offset => offset <= Math.Min(preferredColumn.Value, text.Length));
+            }
+            else
+            {
+                preferredColumn = null;
+                if (key == Key.Home) column = 0;
+                else if (key == Key.End) column = text.Length;
+                else if (key == Key.Right && column < text.Length)
+                    column = StringInfo.ParseCombiningCharacters(text).Append(text.Length).First(offset => offset > column);
+                else if (key == Key.Left && column > 0)
+                    column = StringInfo.ParseCombiningCharacters(text).Last(offset => offset < column);
+                else if (key == Key.Right && line + 1 < document.Lines.Count) { ++line; column = 0; }
+                else if (key == Key.Left && line > 0)
+                {
+                    --line;
+                    column = (await document.CopyTextAsync(new[] { line })).Length;
+                }
+            }
+            if (_document != document || epoch != _inputEpoch) return;
+            if (document.Revision != _revision) { Clear(); return; }
+            _preferredColumn = preferredColumn;
+            _selection = range with { ActiveLine = line, ActiveColumn = column };
+            _rows.ScrollIntoView(line);
+            Highlight();
+            _changed();
+        }
+        catch (Exception error)
+        {
+            if (_document != document || epoch != _inputEpoch) return;
+            Clear();
+            Failed?.Invoke("Cannot select text: " + error.Message);
+        }
     }
 
     private void Moved(object? sender, PointerEventArgs args)

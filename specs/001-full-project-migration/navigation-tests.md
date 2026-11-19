@@ -150,3 +150,32 @@ T019/T029/T030 remain open: keyboard range extension, edge autoscroll for draggi
 beyond realized rows, wider large-file/provenance integration and native input/
 clipboard acceptance are still pending. The realized-row drag limit is documented
 in the controller; this slice does not claim complete selection parity.
+## Slice 6: keyboard character range extension
+
+Alt+Shift+arrows/Home/End starts a text range from the selected row (or the first
+row if no row is selected). Once a text anchor exists, Shift+arrows/Home/End
+extends it; ordinary line navigation remains available outside text-range mode.
+Escape clears the text anchor and invalidates queued movements. The row tooltip
+documents the keyboard entry gesture. Left/Right step by StringInfo Unicode text
+elements instead of splitting surrogate pairs or combining sequences. Up/Down
+retain a preferred column across short lines and snap to a text-element boundary.
+Line boundaries, Home/End, scrolling to the active endpoint and Ctrl+C are wired.
+
+Background row reads are ordered for rapid key repeats. Epoch/document/revision
+checks reject moves after cancellation/source/reset changes; stale work cannot
+publish preferred-column state. Copy waits for preceding queued movements,
+including a copy requested immediately after starting an asynchronous range.
+Read failures clear the range and report an actionable selection error.
+
+Three new headless cases cover Unicode stepping and Ctrl+C, preferred-column
+movement/Home/End/collapse, rapid repeats and Escape/new-range isolation. The
+initial missing-keyboard-range failure is recorded in t019-keyrange-red.log.
+The full affected suite passed 80 Avalonia tests, zero failures/skips. After the
+final preferred-column publication change, all four keyboard-filtered cases
+passed again. Evidence: ignored artifacts/migration/t019-keyrange-focused.log,
+t019-keyrange-full.log, t019-keyrange-final-focused.log and
+t019-keyrange/t019-keyrange.trx.
+
+T019/T029/T030 remain open for drag edge autoscroll and their broader
+large-file/rotation/provenance/dependency acceptance. Native keyboard/clipboard
+and bidirectional-text visual caret behavior have not been accepted yet.

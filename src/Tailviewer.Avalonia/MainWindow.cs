@@ -56,10 +56,11 @@ public sealed class MainWindow : Window
     {
         _textSelection = new LogTextSelection(_rows, () =>
         {
-            _copy.IsEnabled = _rows.Selection.SelectedIndexes.Count > 0 || _textSelection!.HasSelection;
+            _copy.IsEnabled = _rows.Selection.SelectedIndexes.Count > 0 || _textSelection!.CanCopy;
             _follow.IsChecked = false;
         });
-        ToolTip.SetTip(_rows, "Alt+drag to select text; Shift/Ctrl+click to select whole lines.");
+        _textSelection.Failed += message => _status.Text = _operationError = message;
+        ToolTip.SetTip(_rows, "Alt+drag or Alt+Shift+arrows to select text; Shift/Ctrl+click to select whole lines; Escape clears text selection.");
         _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
         _quickNavigation = new QuickNavigationView(_workspace);
         DataContext = _workspace;
@@ -539,7 +540,7 @@ public sealed class MainWindow : Window
     {
         var document = _document;
         var indices = _rows.Selection.SelectedIndexes.ToArray();
-        if (document == null || (indices.Length == 0 && !_textSelection.HasSelection))
+        if (document == null || (indices.Length == 0 && !_textSelection.CanCopy))
             return;
         try
         {

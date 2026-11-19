@@ -482,6 +482,97 @@ public sealed class NavigationTest
         await copy.Should().ThrowAsync<IOException>();
     }
 
+    [AvaloniaTest]
+    public async Task KeyboardCharacterSelectionUsesUnicodeElementsAndCopiesWithControlC()
+    {
+        File.WriteAllText(_path, "A😀e\u0301Z\nxy");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 2);
+            Rows(window).Selection.Select(0);
+            Rows(window).Focus();
+            CharacterKey(window, Key.Right, KeyModifiers.Alt | KeyModifiers.Shift);
+            await CopyAndCheck(window, "A");
+            CharacterKey(window, Key.Right);
+            await CopyAndCheck(window, "A😀");
+            CharacterKey(window, Key.Right);
+            await CopyAndCheck(window, "A😀e\u0301");
+            CharacterKey(window, Key.Left);
+            await CopyAndCheck(window, "A😀");
+            CharacterKey(window, Key.End);
+            await CopyAndCheck(window, "A😀e\u0301Z");
+            CharacterKey(window, Key.Right);
+            await CopyAndCheck(window, "A😀e\u0301Z" + Environment.NewLine);
+            CharacterKey(window, Key.Right);
+            await CopyAndCheck(window, "A😀e\u0301Z" + Environment.NewLine + "x");
+            var clipboard = window.Clipboard!;
+            await clipboard.SetTextAsync("pending");
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.C, KeyModifiers = KeyModifiers.Control });
+            await CheckClipboard(clipboard, "A😀e\u0301Z" + Environment.NewLine + "x");
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected")).IsEnabled.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task KeyboardVerticalSelectionPreservesThePreferredColumnAcrossShortLines()
+    {
+        File.WriteAllText(_path, "abcd\nx\nwxyz");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 3);
+            Rows(window).Focus();
+            CharacterKey(window, Key.End, KeyModifiers.Alt | KeyModifiers.Shift);
+            CharacterKey(window, Key.Down);
+            await CopyAndCheck(window, "abcd" + Environment.NewLine + "x");
+            CharacterKey(window, Key.Down);
+            await CopyAndCheck(window, string.Join(Environment.NewLine, "abcd", "x", "wxyz"));
+            CharacterKey(window, Key.Up);
+            CharacterKey(window, Key.Home);
+            await CopyAndCheck(window, "abcd" + Environment.NewLine);
+            CharacterKey(window, Key.Left);
+            await CopyAndCheck(window, "abcd");
+            CharacterKey(window, Key.Home);
+            await Until(() => !window.GetVisualDescendants().OfType<Button>()
+                .Single(button => Equals(button.Content, "_Copy selected")).IsEnabled);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task RapidKeyboardSelectionIsOrderedAndEscapeInvalidatesQueuedMoves()
+    {
+        File.WriteAllText(_path, "A😀e\u0301Z");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).ItemCount == 1);
+            Rows(window).Focus();
+            CharacterKey(window, Key.Right, KeyModifiers.Alt | KeyModifiers.Shift);
+            CharacterKey(window, Key.Right);
+            CharacterKey(window, Key.Right);
+            CharacterKey(window, Key.Right);
+            await CopyAndCheck(window, "A😀e\u0301Z");
+            for (var i = 0; i < 4; ++i) CharacterKey(window, Key.Left);
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            CharacterKey(window, Key.Right, KeyModifiers.Alt | KeyModifiers.Shift);
+            await CopyAndCheck(window, "A");
+        }
+        finally { window.Close(); }
+    }
+
+    private static void CharacterKey(MainWindow window, Key key, KeyModifiers modifiers = KeyModifiers.Shift) =>
+        Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+
     private static void DragText(MainWindow window, Point start, Point end)
     {
         window.MouseMove(start);
