@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -10,6 +11,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Api;
 using Tailviewer.Settings;
+using Tailviewer.Avalonia.ViewModels;
 
 namespace Tailviewer.Avalonia.Tests;
 
@@ -37,6 +39,145 @@ public sealed class SourcesTest
         var owned = Path.GetFullPath(_folder);
         Path.GetDirectoryName(owned).Should().Be(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())));
         Directory.Delete(owned, recursive: true);
+    }
+
+    [AvaloniaTest]
+    public async Task NewGroupCreatesANamedSelectableSourceWithAStableIdentity()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            await WaitUntil(() => tree.ItemCount == 1);
+            var group = (DataSource)tree.SelectedItem!;
+            group.Id.Should().NotBe(DataSourceId.Empty);
+            group.DisplayName.Should().Be("Merged Data Source");
+            group.File.Should().BeNull();
+            group.LogFileFolderPath.Should().BeNull();
+            window.Title.Should().Contain("Merged Data Source");
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => tree.ItemCount == 0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ContextMenuGroupingPreservesIdsAndClosingTheGroupKeepsItsFile()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var file = (DataSource)tree.SelectedItem!;
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var group = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, file, group);
+            await WaitUntil(() => tree.ItemCount == 1 && Rows(window).ItemCount == 2);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
+            file.ParentId.Should().Be(group.Id);
+            await Copy(window, 0, "first");
+            await window.OpenFileAsync(_first);
+            tree.ItemCount.Should().Be(1, "because a configured group member must not be duplicated at the root");
+            var profile = new ApplicationSettings(Path.Combine(_folder, "group-profile.xml"));
+            foreach (var source in ((SourcesViewModel)window.DataContext!).All) profile.DataSources.Add(source.Clone());
+            profile.DataSources.SelectedItem = file.Id;
+            profile.Save().Should().BeTrue();
+            var reopened = new ApplicationSettings(Path.Combine(_folder, "group-profile.xml"));
+            reopened.Restore();
+            reopened.DataSources.Single(source => source.Id == file.Id).ParentId.Should().Be(group.Id);
+            reopened.DataSources.Single(source => source.Id == group.Id).DisplayName.Should().Be("Merged Data Source");
+            tree.SelectedItem = group;
+            Command(window, "Close current source").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => tree.ItemCount == 1 && Rows(window).ItemCount == 2);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
+            file.ParentId.Should().Be(DataSourceId.Empty);
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task InvalidGroupCycleReportsAnErrorWithoutChangingMembership()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var group = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, group, group);
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                text.Text != null && text.Text.StartsWith("Cannot change group:")));
+            await Task.Delay(150);
+            Dispatcher.UIThread.RunJobs();
+            window.GetVisualDescendants().OfType<TextBlock>().Should().Contain(text =>
+                text.Text != null && text.Text.StartsWith("Cannot change group:"));
+            tree.ItemCount.Should().Be(1);
+            group.ParentId.Should().Be(DataSourceId.Empty);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task NestedGroupCycleIsRejectedByTheContextMenu()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var first = (DataSource)tree.SelectedItem!;
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var second = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, first, second);
+            first.ParentId.Should().Be(second.Id);
+            await AddThroughMenu(tree, second, first);
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                text.Text != null && text.Text.StartsWith("Cannot change group:")));
+            first.ParentId.Should().Be(second.Id);
+            second.ParentId.Should().Be(DataSourceId.Empty);
+            tree.ItemCount.Should().Be(1);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task MissingFolderKeepsItsConfiguredIdentityAndRecoversInTheTree()
+    {
+        var watched = Path.Combine(_folder, "watched");
+        Directory.CreateDirectory(watched);
+        var original = Path.Combine(watched, "original.log");
+        File.WriteAllText(original, "original");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(watched);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = (DataSource)tree.SelectedItem!;
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 1);
+            File.Delete(original);
+            Directory.Delete(watched);
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Folder is unavailable."));
+            tree.ItemCount.Should().Be(1);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(folder.Id);
+            Directory.CreateDirectory(watched);
+            var recovered = Path.Combine(watched, "recovered.log");
+            File.WriteAllText(recovered, "recovered");
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 1 &&
+                ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single().File == recovered);
+            tree.SelectedItem = ((TreeViewItem)tree.ContainerFromItem(folder)!).Items.OfType<DataSource>().Single();
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "recovered");
+        }
+        finally { window.Close(); }
     }
 
     [AvaloniaTest]
@@ -402,6 +543,24 @@ public sealed class SourcesTest
             .SingleOrDefault(control => AutomationProperties.GetName(control) == name);
         button.Should().NotBeNull("because the workspace must expose " + name);
         return button!;
+    }
+
+    private static async Task AddThroughMenu(TreeView tree, DataSource member, DataSource group)
+    {
+        await WaitUntil(() => tree.ContainerFromItem(member) is TreeViewItem item && item.ContextMenu != null);
+        var container = (TreeViewItem)tree.ContainerFromItem(member)!;
+        var menu = container.ContextMenu!;
+        container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+        try
+        {
+            await WaitUntil(() => menu.IsOpen);
+            await WaitUntil(() => menu.Items.OfType<MenuItem>().Any(item => Equals(item.Header, "Add to group") &&
+                item.Items.OfType<MenuItem>().Any(target => Equals(target.Tag, group.Id))));
+            var add = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Add to group"));
+            add.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, group.Id))
+                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
+        finally { menu.Close(); }
     }
 
     private static ListBox Rows(MainWindow window) => window.GetVisualDescendants().OfType<ListBox>().Single();

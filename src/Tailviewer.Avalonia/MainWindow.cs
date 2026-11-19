@@ -17,6 +17,9 @@ using Avalonia.Threading;
 using Tailviewer.Api;
 using Tailviewer.Core;
 using Tailviewer.Settings;
+using Tailviewer.Avalonia.ViewModels;
+using System.Xml;
+using Avalonia.VisualTree;
 
 namespace Tailviewer.Avalonia;
 
@@ -26,11 +29,13 @@ public sealed class MainWindow : Window
     private readonly Button _copy = new() { Content = "_Copy selected", IsEnabled = false };
     private readonly Button _closeSource = new() { Content = "C_lose", IsEnabled = false };
     private readonly Button _closeAll = new() { Content = "Close _all", IsEnabled = false };
+    private readonly Button _newGroup = new() { Content = "New _group" };
     private readonly CheckBox _follow = new() { Content = "Follow _tail", IsChecked = true };
     private readonly TextBlock _path = new() { Text = "Open a log file to begin.", TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new() { Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy" };
     private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple };
-    private readonly AvaloniaList<DataSource> _sources = new();
+    private readonly SourcesViewModel _workspace = new();
+    private AvaloniaList<DataSource> _sources => _workspace.Roots;
     private readonly TreeView _sourceTree = new();
     private readonly Dictionary<DataSourceId, FolderSources> _folders = new();
     private readonly Dictionary<DataSourceId, AvaloniaList<DataSource>> _folderChildren = new();
@@ -46,6 +51,7 @@ public sealed class MainWindow : Window
     public MainWindow(string? fileName = null)
     {
         _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
+        DataContext = _workspace;
         Title = "Tailviewer — Avalonia prototype";
         using var logoStream = AssetLoader.Open(new Uri("avares://Tailviewer.Avalonia/Assets/Tailviewer.png"));
         var logo = new Bitmap(logoStream);
@@ -61,21 +67,34 @@ public sealed class MainWindow : Window
         AutomationProperties.SetName(_sourceTree, "Sources");
         AutomationProperties.SetName(_closeSource, "Close current source");
         AutomationProperties.SetName(_closeAll, "Close all sources");
+        AutomationProperties.SetName(_newGroup, "New group");
         _sourceTree.ItemsSource = _sources;
-        // shortcut: folder nodes expose files; aggregate/group views remain T023/US2.
+        // shortcut: groups expose members; timestamp-aware aggregate views remain US2.
         _sourceTree.ItemTemplate = new FuncTreeDataTemplate<DataSource>((source, _) =>
         {
-            var path = source.File ?? source.LogFileFolderPath;
-            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+            var path = source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "Merged Data Source";
+            var name = SourcesViewModel.IsGroup(source) ? path : Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
             var label = new TextBlock { Text = string.IsNullOrEmpty(name) ? path : name, TextTrimming = TextTrimming.CharacterEllipsis };
             ToolTip.SetTip(label, path);
             AutomationProperties.SetName(label, path);
+            label.ContextMenu = CreateSourceMenu(source);
+            label.AttachedToVisualTree += (_, _) =>
+            {
+                var item = label.FindAncestorOfType<TreeViewItem>();
+                if (item != null) item.ContextMenu = label.ContextMenu;
+            };
             return label;
-        }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : Array.Empty<DataSource>());
+        }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : _workspace.GetChildren(source.Id));
         _sourceTree.ContainerPrepared += (_, args) =>
         {
             if (args.Container is TreeViewItem item) item.IsExpanded = true;
         };
+        _sourceTree.AddHandler(InputElement.ContextRequestedEvent, (_, args) =>
+        {
+            var owner = (args.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
+                .FirstOrDefault(control => control.ContextMenu?.Tag is Action);
+            (owner?.ContextMenu?.Tag as Action)?.Invoke();
+        }, RoutingStrategies.Tunnel);
         ScrollViewer.SetHorizontalScrollBarVisibility(_rows, ScrollBarVisibility.Auto);
         _rows.ItemTemplate = new FuncDataTemplate<int>((index, _) =>
         {
@@ -104,12 +123,14 @@ public sealed class MainWindow : Window
         layout.Children.Add(toolbar);
         Grid.SetRow(_path, 1);
         Grid.SetColumnSpan(_path, 2);
-        var sourcePanel = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8 };
+        var sourcePanel = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 8 };
         sourcePanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, Children = { _closeSource, _closeAll }
         });
-        Grid.SetRow(_sourceTree, 1);
+        Grid.SetRow(_newGroup, 1);
+        sourcePanel.Children.Add(_newGroup);
+        Grid.SetRow(_sourceTree, 2);
         sourcePanel.Children.Add(_sourceTree);
         Grid.SetRow(sourcePanel, 2);
         Grid.SetRow(_rows, 2);
@@ -126,11 +147,15 @@ public sealed class MainWindow : Window
         _copy.Click += async (_, _) => await CopyAsync();
         _closeSource.Click += async (_, _) => await CloseCurrentSourceAsync();
         _closeAll.Click += (_, _) => CloseAllSources();
+        _newGroup.Click += async (_, _) =>
+        {
+            if (!_closed) await ActivateSourceAsync(_workspace.AddGroup());
+        };
         _sourceTree.SelectionChanged += async (_, _) =>
         {
             UpdateCloseCommands();
             if (!_changingSourceSelection && _sourceTree.SelectedItem is DataSource source && source.Id != _document?.SourceId)
-                await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
+                await ActivateSourceAsync(source);
         };
         _follow.IsCheckedChanged += (_, _) => ScrollToTail();
         _rows.SelectionChanged += (_, _) =>
@@ -183,6 +208,67 @@ public sealed class MainWindow : Window
 
     public Task OpenFileAsync(string fileName) => OpenSourceAsync(fileName, null);
 
+    private async Task ActivateSourceAsync(DataSource source)
+    {
+        if (_closed) return;
+        if (!SourcesViewModel.IsGroup(source))
+        {
+            await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
+            return;
+        }
+        ++_openRequest;
+        _open.IsEnabled = true;
+        SaveFollowState();
+        ClearDocument();
+        SelectSource(source);
+        _path.Text = source.DisplayName;
+        Title = $"{source.DisplayName} — Tailviewer prototype";
+        RefreshDocument();
+    }
+
+    private ContextMenu CreateSourceMenu(DataSource source)
+    {
+        var menu = new ContextMenu();
+        void RefreshMenu()
+        {
+            menu.Items.Clear();
+            if (!_workspace.Contains(source.Id)) return;
+            var add = new MenuItem { Header = "Add to group", IsEnabled = source.ParentId == DataSourceId.Empty };
+            foreach (var group in _workspace.All.Where(SourcesViewModel.IsGroup))
+            {
+                var target = new MenuItem { Header = group.DisplayName, Tag = group.Id };
+                target.Click += async (_, _) => await ChangeGroupAsync(source, () => _workspace.AddToGroup(source.Id, group.Id));
+                add.Items.Add(target);
+            }
+            add.IsEnabled &= add.Items.Count > 0;
+            menu.Items.Add(add);
+            if (source.ParentId != DataSourceId.Empty)
+            {
+                var remove = new MenuItem { Header = "Remove from group" };
+                remove.Click += async (_, _) => await ChangeGroupAsync(source, () => _workspace.Ungroup(source.Id));
+                menu.Items.Add(remove);
+            }
+        }
+        RefreshMenu();
+        // Refresh before context routing opens menus created before a group existed.
+        menu.Tag = (Action)RefreshMenu;
+        return menu;
+    }
+
+    private async Task ChangeGroupAsync(DataSource source, Action change)
+    {
+        if (_closed) return;
+        try
+        {
+            change();
+            await ActivateSourceAsync(source);
+        }
+        catch (Exception error) when (error is XmlException || error is ArgumentException)
+        {
+            _status.Text = _operationError = "Cannot change group: " + error.Message;
+        }
+    }
+
     private async Task OpenSourceAsync(string fileName, DataSource? selected)
     {
         var request = ++_openRequest;
@@ -193,7 +279,7 @@ public sealed class MainWindow : Window
             if (_closed) return;
             var path = Path.GetFullPath(fileName);
             var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            var source = selected ?? _sources.FirstOrDefault(item => string.Equals(item.File ?? item.LogFileFolderPath, path, comparison));
+            var source = selected ?? _workspace.All.FirstOrDefault(item => string.Equals(item.File ?? item.LogFileFolderPath, path, comparison));
             var isFolder = source?.LogFileFolderPath != null ||
                 (source == null && await Task.Run(() => Directory.Exists(path)));
             if (_closed || request != _openRequest) return;
@@ -280,9 +366,9 @@ public sealed class MainWindow : Window
 
     private void UpdateCloseCommands()
     {
-        _closeSource.IsEnabled = !_closed && _sourceTree.SelectedItem is DataSource selected && _sources.Contains(selected);
+        _closeSource.IsEnabled = !_closed && _sourceTree.SelectedItem is DataSource selected && _workspace.Contains(selected.Id);
         _closeAll.IsEnabled = !_closed && (_sources.Count > 0 || !_open.IsEnabled);
-        ToolTip.SetTip(_closeSource, _sourceTree.SelectedItem is DataSource child && child.ParentId != DataSourceId.Empty
+        ToolTip.SetTip(_closeSource, _sourceTree.SelectedItem is DataSource child && !_workspace.Contains(child.Id)
             ? "Close the parent folder to stop watching this file." : "Remove this source from the workspace.");
     }
 
@@ -300,7 +386,7 @@ public sealed class MainWindow : Window
 
     private async Task CloseCurrentSourceAsync()
     {
-        if (_closed || _sourceTree.SelectedItem is not DataSource source || !_sources.Contains(source)) return;
+        if (_closed || _sourceTree.SelectedItem is not DataSource source || !_workspace.Contains(source.Id)) return;
         ++_openRequest;
         _open.IsEnabled = true;
         SaveFollowState();
@@ -308,13 +394,13 @@ public sealed class MainWindow : Window
         SelectSource(null);
         if (_folders.Remove(source.Id, out var folder)) folder.Dispose();
         _folderChildren.Remove(source.Id);
-        _sources.Remove(source);
+        _workspace.Remove(source.Id);
         UpdateCloseCommands();
         if (_sources.Count > 0)
         {
             var next = _sources[0];
             SelectSource(next);
-            await OpenSourceAsync(next.File ?? next.LogFileFolderPath, next);
+            await ActivateSourceAsync(next);
         }
     }
 
@@ -328,7 +414,7 @@ public sealed class MainWindow : Window
         foreach (var folder in _folders.Values) folder.Dispose();
         _folders.Clear();
         _folderChildren.Clear();
-        _sources.Clear();
+        _workspace.Clear();
         UpdateCloseCommands();
     }
 
@@ -336,8 +422,15 @@ public sealed class MainWindow : Window
     {
         if (_document == null)
         {
+            if (_operationError != null)
+            {
+                _status.Text = _operationError;
+                return;
+            }
             if (_sourceTree.SelectedItem is DataSource selected && _folders.TryGetValue(selected.Id, out var folder))
                 _status.Text = folder.Error ?? (_folderChildren[selected.Id].Count == 0 ? "No matching files." : "Select a file in this folder.");
+            else if (_sourceTree.SelectedItem is DataSource group && SourcesViewModel.IsGroup(group))
+                _status.Text = _workspace.GetChildren(group.Id).Any() ? "Select a source in this group." : "No sources in this group.";
             return;
         }
         if (_document.Refresh())
@@ -348,7 +441,7 @@ public sealed class MainWindow : Window
     private void SaveFollowState()
     {
         if (_document == null) return;
-        var previous = _sources.Concat(_folderChildren.Values.SelectMany(children => children))
+        var previous = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
             .FirstOrDefault(source => source.Id == _document.SourceId);
         if (previous != null) previous.FollowTail = _follow.IsChecked == true;
     }
