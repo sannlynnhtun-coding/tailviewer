@@ -1,5 +1,6 @@
 ﻿using System;
 using FluentAssertions;
+using System.Linq;
 using NUnit.Framework;
 using Tailviewer.Api;
 using Tailviewer.Api.Tests;
@@ -9,6 +10,23 @@ namespace Tailviewer.Core.Tests.Sources.Merged
 	[TestFixture]
 	public sealed class MergedLogFileIndexTest
 	{
+		[Test]
+		[TestCase(0, 1)]
+		[TestCase(1, 2)]
+		public void BatchedAppendThenTailInvalidationDoesNotDuplicateRebuiltLines(int invalidatedFrom, int oldCount)
+		{
+			using var source = new InMemoryLogSource();
+			for (var line = 0; line < 3; ++line)
+				source.AddEntry("owned " + line, LevelFlags.Info, new DateTime(2026, 11, 20, 12, 0, line));
+			var index = new MergedLogSourceIndex(source);
+			index.Process(
+				new MergedLogSourcePendingModification(source, LogSourceModification.Appended(0, oldCount)),
+				new MergedLogSourcePendingModification(source, LogSourceModification.Removed(invalidatedFrom, oldCount - invalidatedFrom)),
+				new MergedLogSourcePendingModification(source, LogSourceModification.Appended(invalidatedFrom, 3 - invalidatedFrom)));
+			index.Count.Should().Be(3, "invalidated pending appends must not be reinserted alongside their replacement");
+			index.Get(new LogSourceSection(0, 3)).Select(line => line.SourceLineIndex).Should().Equal(new[] { 0, 1, 2 });
+		}
+
 		[Test]
 		public void TestGetInvalid()
 		{

@@ -1680,3 +1680,30 @@ failures and five existing skips. Evidence: ignored artifacts/migration/
 t045-elapsed-metadata-red.log/TRX, -green.log/TRX (quiet-source failure),
 -fixed.log/TRX and -core.log/TRX. This is a factory/lifetime foundation; elapsed
 UI and the full migration are not completed by this commit.
+
+## Batched merge invalidation duplicate fix (T026/T046, partial)
+
+The elapsed-display full-suite run exposed the nested-group tail timeout again.
+Temporary owned-fixture diagnostics established the actual failure: raw counts
+1/2, multiline counts 1/2, inner merge 3, outer merge 4. The earliest entry was
+duplicated; this was not merely a missing or slow tail row. The merge queue
+optimizer discarded obsolete appends before resets but retained appends whose
+tail was subsequently invalidated in the same batch. Reading those old append
+ranges against current data inserted rebuilt rows twice.
+
+The optimizer now trims prior same-source appends to their valid prefix before
+a nonempty tail invalidation. Other sources and later replacement appends are
+preserved. Two deterministic index fixtures first produced duplicate rows;
+another fixture demonstrated that obsolete source appends survived optimization.
+The corrected assertions verify integer source positions, and an empty-removal
+control preserves no-op behavior. All 1,024 merge checks now pass. A temporary
+wrapper ran the complete nested merge/tail/exclusion/encoding journey twenty
+times successfully after the fix; no retry-on-failure was used. Temporary
+reflection/file diagnostics, the wrapper and NUnit Repeat attributes were removed.
+
+Full Core passes 7,178 with zero failures and five existing skips in the combined
+working tree (also including metadata-input validation). Evidence: ignored
+artifacts/migration/t045-tail-state.log, t045-elapsed-tail-state-diagnostic.log/TRX,
+t026-merged-pending-invalidation-red.log/TRX, -green.log/TRX (typed expectation
+correction), -fixed.log/TRX, t026-merge-index-diagnostic.log/TRX and
+t045-elapsed-core-final.log/TRX. Full migration and T026/T046 remain open.

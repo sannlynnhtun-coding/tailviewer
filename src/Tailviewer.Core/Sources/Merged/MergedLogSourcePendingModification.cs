@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.Contracts;
+using System;
 using Tailviewer.Api;
 
 // ReSharper disable once CheckNamespace
@@ -30,10 +31,7 @@ namespace Tailviewer.Core
 		///     prior to this reset will be ignored and not forwarded.
 		/// </remarks>
 		/// <remarks>
-		///     TODO: Implement similar algorithm for invalidations
-		///     All modifications concerning a region which is invalidated later on should be changed so these modifications no
-		///     longer concern invalidated regions. All modifications which are fully inside the invalidated interval can even
-		///     be removed.
+		///     Tail invalidations trim earlier appends to the still-valid prefix, avoiding duplicate reads of rebuilt lines.
 		/// </remarks>
 		/// <param name="pendingModifications"></param>
 		/// <returns></returns>
@@ -50,6 +48,18 @@ namespace Tailviewer.Core
 				if (section.IsReset())
 				{
 					modifications.RemoveAll(x => x.LogSource == logFile);
+				}
+				else if (section.IsRemoved(out var removed) && removed.Count > 0)
+				{
+					for (var index = modifications.Count - 1; index >= 0; --index)
+					{
+						var previous = modifications[index];
+						if (previous.LogSource != logFile || !previous.Modification.IsAppended(out var appended)) continue;
+						var keepCount = Math.Min(appended.Count, removed.Index.Value - appended.Index.Value);
+						if (keepCount <= 0) modifications.RemoveAt(index);
+						else if (keepCount < appended.Count)
+							modifications[index] = new MergedLogSourcePendingModification(logFile, LogSourceModification.Appended(appended.Index, keepCount));
+					}
 				}
 
 				modifications.Add(modification);
