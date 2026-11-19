@@ -628,3 +628,25 @@ failures/skips (artifacts/migration/t029-boundary-navigation-modern.log/TRX).
 The behavioral red is retained in t029-boundary-navigation-red.log/TRX.
 This ports boundary selection; Shift-based range extension and the remaining
 derived-source navigation acceptance are separate migration work.
+
+## Qualified during-index interactions (T027)
+
+The native fixture can start an empty owned app without changing the existing
+default startup helper. It warms Ctrl+G, opens an owned 1 GiB fixture through
+handoff and times pause, boundary scroll and navigation only while the visible
+source count is incomplete at submission. Three cases pass; each provides five
+pause/scroll samples and four navigation samples. Highest per-run p95 is
+110.1727 ms (scroll), below the unchanged 200 ms threshold. Full sample tables,
+failed probes and clock/phase limits are in [recovery evidence](recovery-tests.md).
+The fixed Home/End injectors use extended-key flags per the
+[Windows KEYBDINPUT contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-keybdinput)
+and preserve the existing input ownership and partial-send cleanup guards.
+
+After these changes, all 23 non-Performance native cases pass with no skips or
+failures (artifacts/migration/t029-boundary-native-regression.log/TRX).
+The final focused boundary/copy headless case also passes after correcting its
+nullable annotation (t029-boundary-copy-final.log/TRX). The modern solution
+baseline above covers the application behavior change. Core tests and the
+five-minute live-tail gate were not repeated; Core production code did not
+change. Cleanup leaves no owned viewer process. T027/T029 and the full migration
+remain open; these small during-index samples do not close broader acceptance.

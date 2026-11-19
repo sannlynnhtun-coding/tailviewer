@@ -12,6 +12,126 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 public sealed partial class SourceEntryPointTest
 {
+    [TestCase(1), TestCase(2), TestCase(3), Category("Performance")]
+    public void NativeInteractionsDuringVisibleIndexingMeetResponseBudget(int run)
+    {
+        const int records = 1024 * 1024 * 1024 / FixedWidthLogWriter.RecordWidth;
+        Assert.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(4));
+        Assert.That(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, Is.GreaterThanOrEqualTo(16L * 1024 * 1024 * 1024));
+        Assert.That(new DriveInfo(Path.GetPathRoot(_folder)!).AvailableFreeSpace, Is.GreaterThanOrEqualTo(2L * 1024 * 1024 * 1024));
+        FixedWidthLogWriter.Write(_path, 1024);
+        Assert.That(new FileInfo(_path).Length, Is.EqualTo(1024L * 1024 * 1024));
+        FixedWidthLogWriter.ReadThrough(_path);
+        var window = StartApplicationWithPaths(Array.Empty<string>());
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The empty app must expose its log list.");
+        var status = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy")),
+            "The empty app must expose its status text before file opening.");
+        NativeKeyboard.GoToLine(_process!, rows);
+        InvokeButton(window, "Cancel line navigation");
+        var checkbox = window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox));
+        var follow = (TogglePattern)checkbox.GetCurrentPattern(TogglePattern.Pattern);
+        var logPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "native-index-interactions-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        using var report = new StreamWriter(logPath, false, new UTF8Encoding(false)) { AutoFlush = true };
+        TestContext.AddTestAttachment(logPath, "Interactions qualified by incomplete visible source count.");
+        report.WriteLine(JsonSerializer.Serialize(new { run, records, process_id = _process!.Id, dpi = GetDpiForWindow(_process.MainWindowHandle) }));
+        var samples = new Dictionary<string, List<double>>();
+        bool Measure(string action, Action invoke, Func<bool> ready)
+        {
+            var beforeCount = NativeSourceCount(status);
+            if (beforeCount < 0 || beforeCount >= records + 1) return false;
+            var timer = Stopwatch.StartNew();
+            var resolved = false;
+            try
+            {
+                invoke();
+                WaitFor(() =>
+                {
+                    Assert.That(NativeKeyboard.IsForeground(_process), Is.True);
+                    return ready() ? rows : null;
+                }, "The indexing interaction must produce its expected visible response.", pollMilliseconds: 10);
+                resolved = true;
+                return true;
+            }
+            finally
+            {
+                var elapsed = timer.Elapsed.TotalMilliseconds;
+                if (!samples.TryGetValue(action, out var values)) samples[action] = values = new List<double>();
+                values.Add(elapsed);
+                report.WriteLine(JsonSerializer.Serialize(new { action, source_count_at_submit = beforeCount, elapsed_ms = elapsed, resolved }));
+            }
+        }
+        SendSecondary(_path);
+        WaitFor(() =>
+        {
+            var count = NativeSourceCount(status);
+            Assert.That(count, Is.LessThan(records + 1), "Indexing finished before qualification; this run provides no during-index evidence.");
+            return count >= 64 ? rows : null;
+        }, "An incomplete indexed source count must be observable.", pollMilliseconds: 10);
+        var marker = "  " + new string('x', FixedWidthLogWriter.RecordWidth - 1);
+        for (var cycle = 0; cycle < 30; ++cycle)
+        {
+            if (follow.Current.ToggleState == ToggleState.Off &&
+                !Measure("follow", follow.Toggle, () => follow.Current.ToggleState == ToggleState.On)) break;
+            if (!Measure("pause", follow.Toggle, () => follow.Current.ToggleState == ToggleState.Off)) break;
+            rows.SetFocus();
+            var first = -1;
+            WaitFor(() => (first = FirstVisibleFixedLine(rows, marker)) > 0 ? rows : null,
+                "Indexed data must become visible before scrolling.", pollMilliseconds: 10);
+            var down = first == 1;
+            var after = -1;
+            try
+            {
+                if (!Measure("scroll", () => { if (down) NativeKeyboard.ScrollToEnd(_process, rows); else NativeKeyboard.ScrollToStart(_process, rows); },
+                        () => (after = FirstVisibleFixedLine(rows, marker)) > 0 && (down ? after > first : after < first))) break;
+            }
+            finally
+            {
+                report.WriteLine(JsonSerializer.Serialize(new { first_before_scroll = first, first_after_scroll = after,
+                    follow_state = follow.Current.ToggleState.ToString() }));
+            }
+            NativeKeyboard.GoToLine(_process, rows);
+            var input = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.NameProperty, "Line number")), "The navigator must be accessible.");
+            var target = Math.Max(1, NativeSourceCount(status) / 2);
+            ((ValuePattern)input.GetCurrentPattern(ValuePattern.Pattern)).SetValue(target.ToString(CultureInfo.CurrentCulture));
+            var go = window.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, "Go to line"));
+            var submit = (InvokePattern)go.GetCurrentPattern(InvokePattern.Pattern);
+            var expected = $"{target,7}" + marker;
+            if (!Measure("navigation", submit.Invoke, () => rows.FindFirst(TreeScope.Descendants, new AndCondition(
+                    new PropertyCondition(AutomationElement.NameProperty, expected),
+                    new PropertyCondition(AutomationElement.IsOffscreenProperty, false))) != null)) break;
+        }
+        WaitFor(() => NativeSourceCount(status) == records + 1 ? rows : null,
+            "The qualified source must eventually finish indexing the complete fixture.", timeoutSeconds: 120);
+        foreach (var action in new[] { "pause", "scroll", "navigation" })
+        {
+            Assert.That(samples.ContainsKey(action), Is.True, "Every requested interaction needs a qualified during-index sample: " + action);
+            var values = samples[action];
+            values.Sort();
+            var p95 = values[(int)Math.Ceiling(values.Count * .95) - 1];
+            report.WriteLine(JsonSerializer.Serialize(new { action, samples = values.Count, p95_ms = p95, max_ms = values[^1] }));
+            Assert.That(p95, Is.LessThanOrEqualTo(200), "During-index response p95 must meet 200 ms: " + action);
+        }
+    }
+
+    private static int NativeSourceCount(AutomationElement status)
+    {
+        var name = status.Current.Name;
+        var end = name.IndexOf(" lines • ", StringComparison.Ordinal);
+        if (end > 0 && int.TryParse(name.AsSpan(0, end), NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var count)) return count;
+        return -1;
+    }
+
+    private static int FirstVisibleFixedLine(AutomationElement rows, string marker) => rows.FindAll(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+        .Where(text => !text.Current.IsOffscreen).Select(text => text.Current.Name)
+        .Where(name => name.EndsWith(marker, StringComparison.Ordinal))
+        .Select(name => int.TryParse(name.AsSpan(0, name.Length - marker.Length), out var line) ? line : int.MaxValue)
+        .Where(line => line != int.MaxValue).DefaultIfEmpty(-1).Min();
+
     [TestCase(100, 1), TestCase(100, 2), TestCase(100, 3)]
     [TestCase(1024, 1), TestCase(1024, 2), TestCase(1024, 3)]
     [Category("Performance")]

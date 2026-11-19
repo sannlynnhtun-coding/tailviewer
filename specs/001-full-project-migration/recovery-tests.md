@@ -681,3 +681,49 @@ close that interaction requirement. During-index scroll/navigation/pause samples
 broader recovery/format workloads and prerequisite integration remain open.
 Cold-cache results are not collected; the planned warm-cache runs are the current
 reference recipe. T027/T029, US1/P13 and the full migration remain open.
+## Native during-index interaction preflight (2026-11-19)
+
+Three fresh owned Windows x64 viewer processes open the read-through 1 GiB
+fixed-width fixture through secondary-instance handoff after an empty startup.
+The navigator is warmed before opening. Each timed action requires the visible
+source count to be incomplete at submission (8,388,608 records plus EOF).
+All submitted samples, including unresolved/slow samples, are retained; samples
+after completion are excluded. The 200 ms threshold is unchanged.
+
+| Run | Pause N / p95 ms | Scroll N / p95 ms | Navigation N / p95 ms |
+|---|---|---|---|
+| 1 | 5 / 8.7576 | 5 / 100.4583 | 4 / 60.3049 |
+| 2 | 5 / 5.7642 | 5 / 110.1727 | 4 / 61.6166 |
+| 3 | 5 / 9.4788 | 5 / 100.6472 | 4 / 47.8500 |
+
+All 42 required-action samples resolved, and all three cases pass without skips.
+Nearest-rank p95 equals maximum with these small sample counts. Follow-enable
+samples are retained separately and are not substituted for pause. Qualification
+uses the refreshed visible count, not a direct worker timestamp; this is an
+accessibility-response preflight, not a pixel-presentation or broad statistical
+acceptance claim. The index is not artificially delayed and no larger fixture
+is substituted. Setup/button discovery and field entry precede the navigation
+submit clock. Scroll timing includes guarded Ctrl+Home/End injection and waits
+for an actual change in the first visible numbered record. Pause observes the
+toggle state; it does not independently establish all subsequent viewport rules.
+
+Earlier probes all failed 0/3 and remain under artifacts/migration:
+t027-during-index, t027-during-index-diagnostic,
+t027-during-index-scroll-provider, t027-during-index-keyboard and
+t027-during-index-extended-keys (.log and matching TRX directories).
+Root UIA ScrollPattern reported no scrolling, descendant provider discovery
+found no eligible provider, and keyboard probes produced no movement. Capturing
+the stable footer avoids repeated whole-window status searches (one initial
+probe encountered COM E_FAIL). The proper Home/End extended-key flag alone did
+not fix movement. A subsequent headless behavioral red proved the missing app
+shortcut; the boundary-navigation port fixes the actual application behavior.
+
+Passing evidence: artifacts/migration/t027-during-index-boundary-fix.log and its
+TRX directory, with native-index-interactions JSONL attachments ending
+6dee631b4b544b8894ca52100e9b79e9 (run 1),
+9777497c90264e9dbd6d928868206f41 (run 2), and
+25d8db68904844e9b97cc5db2c393cf5 (run 3).
+Host: i7-13700H, 20 logical processors, 31.71 GiB RAM, local NVMe, SDK 10.0.302,
+168 DPI. Native input keeps owned PID/focus and held-key guards, including
+partial-injection cleanup. T027/T029 and full migration remain open for broader
+workloads, recovery deadlines and derived-source integration.

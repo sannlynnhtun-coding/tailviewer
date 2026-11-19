@@ -329,12 +329,15 @@ public sealed partial class SourceEntryPointTest
             "The owned process must show its native file picker.");
     }
 
-    private AutomationElement StartApplication(params string[] paths)
+    private AutomationElement StartApplication(params string[] paths) =>
+        StartApplicationWithPaths(paths.Length == 0 ? new[] { _path } : paths);
+
+    private AutomationElement StartApplicationWithPaths(IReadOnlyList<string> paths)
     {
         var executable = Path.Combine(TestContext.CurrentContext.TestDirectory, "app", "Tailviewer.Avalonia.exe");
         Assert.That(File.Exists(executable), Is.True, "Build the isolated native acceptance project first.");
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = _folder };
-        foreach (var path in paths.Length == 0 ? new[] { _path } : paths) start.ArgumentList.Add(path);
+        foreach (var path in paths) start.ArgumentList.Add(path);
         _process = Process.Start(start) ?? throw new InvalidOperationException("The owned app process did not start.");
         return WaitFor(() =>
         {

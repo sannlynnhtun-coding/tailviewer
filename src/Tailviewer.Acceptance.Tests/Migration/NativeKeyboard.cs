@@ -22,13 +22,17 @@ internal static class NativeKeyboard
 
     public static void GoToLine(Process process, AutomationElement list) => ControlKey(process, list, 71);
 
+    public static void ScrollToStart(Process process, AutomationElement list) => ControlKey(process, list, 36);
+
+    public static void ScrollToEnd(Process process, AutomationElement list) => ControlKey(process, list, 35);
+
     private static void ControlKey(Process process, AutomationElement list, ushort key)
     {
         if (IntPtr.Size != 8 || Marshal.SizeOf<Input>() != 40)
             throw new PlatformNotSupportedException("This native keyboard fixture requires Windows x64 INPUT layout.");
-        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 65, 71, 91, 92 };
+        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 35, 36, 65, 71, 91, 92 };
         if (inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
-            throw new InvalidOperationException("Release mouse buttons, modifiers, A and G before the owned keyboard fixture.");
+            throw new InvalidOperationException("Release mouse buttons, modifiers and chord keys before the owned keyboard fixture.");
         if (list.Current.ProcessId != process.Id) throw new InvalidOperationException("The log list is not owned by the test process.");
         list.SetFocus();
         GetWindowThreadProcessId(GetForegroundWindow(), out var foreground);
@@ -53,7 +57,11 @@ internal static class NativeKeyboard
         throw new InvalidOperationException("Keyboard focus is outside the owned log list.");
     }
 
-    private static Input Key(ushort key, uint flags) => new() { Type = 1, Key = key, Flags = flags };
+    private static Input Key(ushort key, uint flags) => new()
+    {
+        Type = 1, Key = key,
+        Flags = flags | (key is 35 or 36 ? 1u : 0u) // Home/End use the extended navigation-key cluster.
+    };
     [StructLayout(LayoutKind.Explicit, Size = 40)]
     private struct Input
     {
