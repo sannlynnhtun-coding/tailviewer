@@ -18,6 +18,16 @@ internal static class NativeKeyboard
 
     public static bool IsForeground(Process process) => ForegroundProcessId == process.Id;
 
+    public static void Focus(Process process, AutomationElement target)
+    {
+        if (process.HasExited || process.MainWindowHandle == IntPtr.Zero || target.Current.ProcessId != process.Id)
+            throw new InvalidOperationException("Focus must target a live window owned by the test process.");
+        SetForegroundWindow(process.MainWindowHandle);
+        target.SetFocus();
+        if (!IsForeground(process))
+            throw new InvalidOperationException("The owned app could not acquire foreground focus; input was not sent.");
+    }
+
     public static void SelectAll(Process process, AutomationElement list) => ControlKey(process, list, 65);
 
     public static void GoToLine(Process process, AutomationElement list) => ControlKey(process, list, 71);
@@ -37,8 +47,7 @@ internal static class NativeKeyboard
         var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 35, 36, 65, 71, 91, 92, 121 };
         if (inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
             throw new InvalidOperationException("Release mouse buttons, modifiers and chord keys before the owned keyboard fixture.");
-        if (list.Current.ProcessId != process.Id) throw new InvalidOperationException("The target control is not owned by the test process.");
-        list.SetFocus();
+        Focus(process, list);
         GetWindowThreadProcessId(GetForegroundWindow(), out var foreground);
         if (foreground != process.Id) throw new InvalidOperationException("The owned app must have foreground focus before keyboard input.");
         var focused = AutomationElement.FocusedElement;
@@ -74,6 +83,7 @@ internal static class NativeKeyboard
         [FieldOffset(12)] public uint Flags;
     }
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, Input[] inputs, int size);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);

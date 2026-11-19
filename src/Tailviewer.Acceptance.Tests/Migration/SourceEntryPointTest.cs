@@ -878,10 +878,10 @@ public sealed partial class SourceEntryPointTest
         var logList = WaitFor(() => window.FindFirst(TreeScope.Descendants,
             new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The owned app's log list must be accessible before copy.");
         Assert.That(logList.Current.ProcessId, Is.EqualTo(_process!.Id), "Copy must target the owned app's log list.");
+        var copy = FindButton(window, "Copy selected");
         ResetOwnedClipboard();
-        logList.SetFocus();
-        Assert.That(NativeKeyboard.IsForeground(_process!), Is.True, "The owned app must have foreground focus immediately before copy.");
-        InvokeButton(window, "Copy selected");
+        NativeKeyboard.Focus(_process!, copy);
+        ((InvokePattern)copy.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
         try
         {
             WaitFor(() =>
@@ -941,14 +941,14 @@ public sealed partial class SourceEntryPointTest
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
-    private static void InvokeButton(AutomationElement root, string text)
-    {
-        var button = WaitFor(() => root.FindAll(TreeScope.Descendants,
+    private static void InvokeButton(AutomationElement root, string text) =>
+        ((InvokePattern)FindButton(root, text).GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+
+    private static AutomationElement FindButton(AutomationElement root, string text) =>
+        WaitFor(() => root.FindAll(TreeScope.Descendants,
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button))
             .Cast<AutomationElement>().FirstOrDefault(element => element.Current.Name.Contains(text, StringComparison.Ordinal) && element.Current.IsEnabled),
             "The expected enabled app button must be accessible: " + text);
-        ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-    }
 
     private static AutomationElement WaitFor(Func<AutomationElement?> query, string message, int timeoutSeconds = 10, int pollMilliseconds = 50)
     {

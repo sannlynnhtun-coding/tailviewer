@@ -28,6 +28,7 @@ internal static class NativeOleDrag
             Top = SystemParameters.WorkArea.Top, Topmost = true, ShowInTaskbar = false,
             WindowStyle = WindowStyle.ToolWindow, Title = "Tailviewer native test source"
         };
+        new System.Windows.Interop.WindowInteropHelper(source) { Owner = process.MainWindowHandle };
         var frame = new DispatcherFrame();
         using var feedback = new ManualResetEventSlim();
         using var started = new ManualResetEventSlim();
