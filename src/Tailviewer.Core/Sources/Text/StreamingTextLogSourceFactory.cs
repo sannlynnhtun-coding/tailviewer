@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Reflection;
+using System;
 using System.Text;
 using System.Threading;
 using log4net;
@@ -36,9 +37,16 @@ namespace Tailviewer.Core
 		/// <remarks>Validates access without preventing writers or file replacement.</remarks>
 		public ILogSource OpenRead(string fileName)
 		{
+			return OpenRead(fileName, Encoding.UTF8);
+		}
+
+		/// <summary>Opens an existing text log with the selected fallback encoding and BOM semantics.</summary>
+		public ILogSource OpenRead(string fileName, Encoding encoding)
+		{
+			if (encoding == null) throw new ArgumentNullException(nameof(encoding));
 			fileName = Path.GetFullPath(fileName);
 			using (_filesystem.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-				return OpenRead(fileName, LogFileFormats.GenericText, Encoding.UTF8);
+				return OpenRead(fileName, LogFileFormats.GenericText, encoding);
 		}
 
 		/// <inheritdoc />

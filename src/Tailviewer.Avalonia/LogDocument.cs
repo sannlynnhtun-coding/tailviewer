@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text;
 using Avalonia.Collections;
 using Tailviewer.Api;
 using Tailviewer.Core;
@@ -34,7 +35,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     {
     }
 
-    public LogDocument(DataSource configuration)
+    public LogDocument(DataSource configuration, Encoding? encoding = null)
     {
         try
         {
@@ -43,7 +44,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             SourceId = configuration.Id;
             FileName = Path.GetFullPath(configuration.File);
             var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
-            _source = factory.OpenRead(FileName);
+            _source = factory.OpenRead(FileName, encoding ?? Encoding.UTF8);
             _source.AddListener(this, TimeSpan.Zero, 10000);
         }
         catch

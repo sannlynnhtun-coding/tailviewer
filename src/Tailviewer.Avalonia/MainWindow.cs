@@ -38,6 +38,7 @@ public sealed class MainWindow : Window
     private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple, Focusable = true };
     private readonly LogTextSelection _textSelection;
     private readonly NavigationView _navigation = new();
+    private readonly EncodingView _encoding;
     private readonly QuickNavigationView _quickNavigation;
     private readonly SourcesViewModel _workspace = new();
     private AvaloniaList<DataSource> _sources => _workspace.Roots;
@@ -60,8 +61,17 @@ public sealed class MainWindow : Window
     private bool _handlingHandoffs;
     private Task _handoffProcessing = Task.CompletedTask;
 
-    public MainWindow(string? fileName = null)
+    public MainWindow(string? fileName = null, ILogFileSettings? logFileSettings = null)
     {
+        // shortcut: default settings stay in memory until profile startup/save wiring in T055.
+        _encoding = new EncodingView(logFileSettings ?? new LogFileSettings());
+        _encoding.Changed += async () =>
+        {
+            if (_closed || !_open.IsEnabled || _document == null) return;
+            var source = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
+                .FirstOrDefault(item => item.Id == _document.SourceId);
+            if (source != null) await OpenSourceAsync(_document.FileName, source);
+        };
         _sourceDrag = new SourceTreeDrag(_sourceTree, _workspace, async (source, target, after) =>
         {
             if (after.HasValue) await MoveSourceAsync(source, target.Id, after.Value);
@@ -212,7 +222,7 @@ public sealed class MainWindow : Window
         sourcePanel.Children.Add(_newGroup);
         Grid.SetRow(_sourceTree, 2);
         sourcePanel.Children.Add(_sourceTree);
-        var navigationPanel = new StackPanel { Children = { _navigation, _quickNavigation } };
+        var navigationPanel = new StackPanel { Spacing = 8, Children = { _encoding, _navigation, _quickNavigation } };
         Grid.SetRow(navigationPanel, 2);
         Grid.SetColumnSpan(navigationPanel, 2);
         Grid.SetRow(sourcePanel, 3);
@@ -611,10 +621,17 @@ public sealed class MainWindow : Window
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             selected = source;
             _openingSource = source.Id;
-            var document = await Task.Run(() => new LogDocument(source));
+            var encoding = _encoding.Settings.DefaultEncoding;
+            var document = await Task.Run(() => new LogDocument(source, encoding));
             if (_closed || request != _openRequest)
             {
                 document.Dispose();
+                return;
+            }
+            if (!Equals(encoding, _encoding.Settings.DefaultEncoding))
+            {
+                document.Dispose();
+                await OpenSourceAsync(fileName, source);
                 return;
             }
             SaveFollowState();

@@ -35,7 +35,109 @@ public sealed class PrototypeTest
     public void SetUp() => _path = Path.Combine(Path.GetTempPath(), $"tailviewer-prototype-{Guid.NewGuid():N}.log");
 
     [TearDown]
-    public void TearDown() => File.Delete(_path);
+    public void TearDown()
+    {
+        File.Delete(_path);
+        File.Delete(_path + ".xml");
+    }
+
+    [AvaloniaTest]
+    public async Task EncodingSelectionReopensTheFileWithoutChangingItsIdentityOrPausedState()
+    {
+        var bytes = new UnicodeEncoding(false, false).GetBytes("မြန်မာ\nsecond");
+        File.WriteAllBytes(_path, bytes);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var id = ((Tailviewer.Settings.DataSource)tree.SelectedItem!).Id;
+            var follow = window.GetVisualDescendants().OfType<CheckBox>().Single();
+            follow.IsChecked = false;
+            var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "utf-16"));
+            var list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => list.ItemCount == 2 && list.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(block => block.Text?.Contains("မြန်မာ") == true));
+            list.Selection.Select(0);
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "မြန်မာ");
+            ((Tailviewer.Settings.DataSource)tree.SelectedItem!).Id.Should().Be(id);
+            tree.ItemCount.Should().Be(1);
+            follow.IsChecked.Should().BeFalse();
+            File.ReadAllBytes(_path).Should().Equal(bytes);
+            File.WriteAllText(_path, "😀 auto\nreplacement", new UTF8Encoding(false));
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "Auto detect"));
+            await WaitUntil(() => list.ItemCount == 2 && list.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(block => block.Text?.Contains("😀 auto") == true));
+            list.Selection.Select(0);
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "😀 auto");
+            ((Tailviewer.Settings.DataSource)tree.SelectedItem!).Id.Should().Be(id);
+            follow.IsChecked.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task PersistedCodePageEncodingFeedsTheReaderAndCanBeClearedToAutomatic()
+    {
+        var profilePath = _path + ".xml";
+        File.WriteAllBytes(_path, new byte[] { 0x63, 0x61, 0x66, 0xe9 });
+        var profile = new Tailviewer.Settings.ApplicationSettings(profilePath) { AllowSave = true };
+        profile.LogFile.DefaultEncoding = CodePagesEncodingProvider.Instance.GetEncoding(1252)!;
+        profile.Save().Should().BeTrue();
+        var restored = new Tailviewer.Settings.ApplicationSettings(profilePath) { AllowSave = true };
+        restored.Restore();
+        var window = new MainWindow(logFileSettings: restored.LogFile);
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            var list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => list.ItemCount == 1 && list.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(block => block.Text?.Contains("café") == true));
+            list.Selection.Select(0);
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "café");
+            var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            ((ComboBoxItem)selector.SelectedItem!).Content.Should().Be("windows-1252");
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "Auto detect"));
+            restored.LogFile.DefaultEncoding.Should().BeNull();
+            restored.Save().Should().BeTrue();
+            var automatic = new Tailviewer.Settings.ApplicationSettings(profilePath);
+            automatic.Restore();
+            automatic.LogFile.DefaultEncoding.Should().BeNull();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task EncodingChosenDuringOpenAppliesToThePendingFile()
+    {
+        File.WriteAllBytes(_path, new UnicodeEncoding(false, false).GetBytes("pending မြန်မာ"));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var selector = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            var opening = window.OpenFileAsync(_path);
+            selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "utf-16"));
+            await opening;
+            var list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => list.ItemCount == 1 && list.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .Any(block => block.Text?.Contains("pending မြန်မာ") == true));
+            window.GetVisualDescendants().OfType<TreeView>().Single().ItemCount.Should().Be(1);
+        }
+        finally { window.Close(); }
+    }
 
     [AvaloniaTest]
     public async Task CompleteTerminalNewlineHasAnEmptyCopyableRowThatReceivesAppends()

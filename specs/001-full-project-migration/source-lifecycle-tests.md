@@ -713,3 +713,7 @@ t022-terminal-row-legacy.log and the native logs above. The full Core TRX is in
 t022-terminal-row/t022-terminal-row.trx. Legacy runtime, native five-minute tail
 and the broader performance matrix were not executed in this slice. T022/T030
 and the full migration remain open for their remaining contracts/integration.
+
+The independent encoding/settings reader integration is now recorded in
+[encoding-tests.md](encoding-tests.md). Its functional checks do not close the
+open foreground-performance or shipping profile-lifecycle gates.
