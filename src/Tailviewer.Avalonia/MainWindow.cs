@@ -466,10 +466,38 @@ public sealed class MainWindow : Window
     private ContextMenu CreateSourceMenu(DataSource source, Action? beginRename, Action refreshHeading)
     {
         var menu = new ContextMenu();
+        void AddExclusion(DataSource parent)
+        {
+            var folderMember = parent.LogFileFolderPath != null;
+            var excluded = parent.ExcludedDataSources.Contains(source.Id);
+            var containerName = folderMember ? "folder" : "group";
+            var toggle = new MenuItem { Header = excluded ? "Include in " + containerName : "Exclude from " + containerName };
+            toggle.Click += (_, _) =>
+            {
+                if (_closed || source.ParentId != parent.Id || !_workspace.Contains(parent.Id)) return;
+                var currentMember = folderMember
+                    ? _folderChildren.TryGetValue(parent.Id, out var children) && children.Contains(source)
+                    : _workspace.GetChildren(parent.Id).Contains(source);
+                if (!currentMember) return;
+                try
+                {
+                    if (!folderMember) _workspace.SetExcluded(source.Id, !excluded);
+                    else if (!excluded) parent.ExcludedDataSources.Add(source.Id);
+                    else parent.ExcludedDataSources.Remove(source.Id);
+                }
+                catch (ArgumentException error) { _status.Text = _operationError = "Cannot change source inclusion: " + error.Message; }
+            };
+            menu.Items.Add(toggle);
+        }
         void RefreshMenu()
         {
             menu.Items.Clear();
-            if (!_workspace.Contains(source.Id)) return;
+            if (!_workspace.Contains(source.Id))
+            {
+                var folder = _workspace.All.FirstOrDefault(parent => parent.Id == source.ParentId && parent.LogFileFolderPath != null);
+                if (folder != null && _folderChildren.TryGetValue(folder.Id, out var children) && children.Contains(source)) AddExclusion(folder);
+                return;
+            }
             var siblings = (source.ParentId == DataSourceId.Empty ? _sources : _workspace.GetChildren(source.ParentId)).ToArray();
             var index = Array.FindIndex(siblings, item => item.Id == source.Id);
             foreach (var offset in new[] { -1, 1 })
@@ -534,15 +562,7 @@ public sealed class MainWindow : Window
             if (source.ParentId != DataSourceId.Empty)
             {
                 var parent = _workspace.All.Single(item => item.Id == source.ParentId);
-                var excluded = parent.ExcludedDataSources.Contains(source.Id);
-                var toggle = new MenuItem { Header = excluded ? "Include in group" : "Exclude from group" };
-                toggle.Click += (_, _) =>
-                {
-                    if (_closed || !_workspace.Contains(source.Id)) return;
-                    try { _workspace.SetExcluded(source.Id, !excluded); }
-                    catch (ArgumentException error) { _status.Text = _operationError = "Cannot change group: " + error.Message; }
-                };
-                menu.Items.Add(toggle);
+                AddExclusion(parent);
                 var remove = new MenuItem { Header = "Remove from group" };
                 remove.Click += async (_, _) => await ChangeGroupAsync(source, () => _workspace.Ungroup(source.Id));
                 menu.Items.Add(remove);

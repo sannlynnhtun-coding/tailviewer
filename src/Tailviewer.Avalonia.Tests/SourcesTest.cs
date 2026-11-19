@@ -1204,6 +1204,48 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task FolderMemberExclusionSurvivesDisappearanceAndOnlyCurrentMenusCanChangeIt()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _folder });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            var standalone = tree.Items.OfType<DataSource>().Single(source => source.File == _first);
+            await WaitUntil(() => (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 2);
+            var item = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var member = item.Items.OfType<DataSource>().Single(source => source.File == _second);
+            tree.SelectedItem = standalone;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, "first");
+            await ClickSourceMenu(tree, member, "Exclude from folder");
+            folder.ExcludedDataSources.Should().Contain(member.Id);
+            var oldView = tree.GetVisualDescendants().OfType<SourcesView>().Single(view => view.Source.Id == member.Id);
+            var oldMenu = oldView.FindAncestorOfType<TreeViewItem>()!.ContextMenu!;
+            ((Action)oldMenu.Tag!).Invoke();
+            var staleInclude = oldMenu.Items.OfType<MenuItem>().Single(command => Equals(command.Header, "Include in folder"));
+            File.Delete(_second);
+            await WaitUntil(() => item.ItemCount == 1);
+            File.WriteAllText(_second, "second");
+            await WaitUntil(() => item.ItemCount == 2);
+            var returned = item.Items.OfType<DataSource>().Single(source => source.File == _second);
+            returned.Id.Should().Be(member.Id);
+            returned.Should().NotBeSameAs(member);
+            staleInclude.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            folder.ExcludedDataSources.Should().Contain(returned.Id);
+            await ClickSourceMenu(tree, returned, "Include in folder");
+            folder.ExcludedDataSources.Should().NotContain(returned.Id);
+            tree.SelectedItem.Should().BeSameAs(standalone);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await CopySelected(window, "first");
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
     private static async Task ClickSourceMenu(TreeView tree, DataSource source, string header)
     {
         await WaitUntil(() => tree.GetVisualDescendants().OfType<SourcesView>().Any(view => view.Source.Id == source.Id));

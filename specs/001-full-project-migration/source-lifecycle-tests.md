@@ -929,3 +929,32 @@ changing inclusion does not close an individual log or remove its saved source.
 Full modern/native/Core/performance suites were not repeated for this small
 menu-only slice. Folder-child single-member controls and remaining T023/US1
 integration are separate work; the full migration remains incomplete.
+
+## Folder-child inclusion and stale menus (T023)
+
+Folder-managed files now expose Include in folder/Exclude from folder while
+retaining their existing ownership restrictions: they cannot be independently
+closed, moved or removed from their watcher. The same menu builder handles the
+existing group-member action and continues to use SourcesViewModel.SetExcluded
+for configured group members. Folder actions update the parent's existing
+ExcludedDataSources set only after validating current membership.
+
+Both action paths validate the owning parent and the actual current member
+object at invocation. A menu retained from a removed child cannot mutate a new
+child with the same stable ID after rediscovery. Disappearance does not erase
+the saved excluded ID; returning paths keep that exclusion until a current
+menu explicitly includes them again.
+
+The new fixture failed first because folder child menus were empty. It now
+excludes a child, removes/recreates the owned file, verifies stable ID with a
+different current configuration object, invokes an old Include action and
+requires exclusion to remain. The new child's Include action then works while
+the unrelated active source, selected line and exact copy remain unchanged.
+
+Final modern solution: 81 Archiver + 190 Avalonia tests pass, no failures/skips,
+including the preceding bulk controls and existing folder ownership tests.
+Evidence: artifacts/migration/t023-folder-member-exclusion-red.log/TRX and
+t023-folder-member-exclusion-modern.log/TRX. Core/native/performance suites were
+not repeated for this UI configuration slice. Aggregate merge/filter output and
+the full migration remain pending; these settings controls do not establish
+aggregate inclusion behavior or shipping restart persistence.
