@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -14,6 +15,7 @@ using NUnit.Framework;
 using Tailviewer.Api;
 using Tailviewer.Settings;
 using Tailviewer.Avalonia.ViewModels;
+using Tailviewer.Avalonia.Views;
 
 namespace Tailviewer.Avalonia.Tests;
 
@@ -1176,6 +1178,127 @@ public sealed class SourcesTest
             File.ReadAllText(_second).Should().Be("second");
         }
         finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task PointerDragOntoAFileCreatesAnOrderedGroup()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            await WaitUntil(() => tree.ContainerFromItem(sources[0]) is TreeViewItem && tree.ContainerFromItem(sources[1]) is TreeViewItem);
+            var start = TreePoint(window, tree, sources[1], .5);
+            var end = TreePoint(window, tree, sources[0], .5);
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(end, MouseButton.Left);
+            await WaitUntil(() => tree.ItemCount == 1 && tree.SelectedItem is DataSource group && SourcesViewModel.IsGroup(group));
+            var selected = (DataSource)tree.SelectedItem!;
+            ((SourcesViewModel)window.DataContext!).GetChildren(selected.Id).Should().Equal(sources[1], sources[0]);
+            tree.SelectedItem = sources[1];
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task PointerDragAtTheRowEdgeReordersWithoutGrouping()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            await WaitUntil(() => tree.ContainerFromItem(sources[0]) is TreeViewItem && tree.ContainerFromItem(sources[1]) is TreeViewItem);
+            var start = TreePoint(window, tree, sources[0], .5);
+            var end = TreePoint(window, tree, sources[1], .95);
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(end, MouseButton.Left);
+            await WaitUntil(() => tree.Items.OfType<DataSource>().First().Id == sources[1].Id && Rows(window).ItemCount == 2);
+            tree.Items.OfType<DataSource>().Should().Equal(sources[1], sources[0]);
+            ((SourcesViewModel)window.DataContext!).All.Should().OnlyContain(source => source.ParentId == DataSourceId.Empty);
+            await Copy(window, 1, "  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task EscapeOutsideReleaseAndCloseAllCancelCapturedTreeDrags()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            foreach (var cancel in new[] { "escape", "outside", "close" })
+            {
+                await WaitUntil(() => Command(window, "Open folder").IsEnabled && tree.ContainerFromItem(sources[0]) is TreeViewItem && tree.ContainerFromItem(sources[1]) is TreeViewItem);
+                var start = TreePoint(window, tree, sources[1], .5);
+                var end = TreePoint(window, tree, sources[0], .5);
+                window.MouseDown(start, MouseButton.Left);
+                window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+                if (cancel == "escape") tree.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                else if (cancel == "outside") end = new Point(window.Width - 30, window.Height - 30);
+                else Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.MouseUp(end, MouseButton.Left);
+                tree.Cursor.Should().BeNull();
+                if (cancel == "close") ((SourcesViewModel)window.DataContext!).All.Should().BeEmpty();
+                else tree.Items.OfType<DataSource>().Should().Equal(sources);
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task PointerDragDoesNotMoveAConfiguredFolderOrItsDiscoveredChildren()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            var folder = sources[1];
+            await WaitUntil(() => tree.ContainerFromItem(folder) is TreeViewItem item && item.ItemCount == 2);
+            var folderItem = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var child = folderItem.Items.OfType<DataSource>().First();
+            await WaitUntil(() => folderItem.ContainerFromItem(child) is TreeViewItem);
+            var childItem = (TreeViewItem)folderItem.ContainerFromItem(child)!;
+            var childRow = childItem.GetVisualDescendants().OfType<SourcesView>().First();
+            var childPoint = childRow.TranslatePoint(new Point(30, childRow.Bounds.Height / 2), window)!.Value;
+            var folderPoint = TreePoint(window, tree, folder, .5);
+            var end = TreePoint(window, tree, sources[0], .5);
+            foreach (var start in new[] { folderPoint, childPoint })
+            {
+                window.MouseDown(start, MouseButton.Left);
+                window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+                window.MouseUp(end, MouseButton.Left);
+                tree.Items.OfType<DataSource>().Should().Equal(sources);
+                ((SourcesViewModel)window.DataContext!).All.Should().OnlyContain(source => source.ParentId == DataSourceId.Empty);
+            }
+            Directory.Exists(_folder).Should().BeTrue();
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
+
+    private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
+    {
+        var item = (TreeViewItem)tree.ContainerFromItem(source)!;
+        var row = item.GetVisualDescendants().OfType<SourcesView>().First();
+        return row.TranslatePoint(new Point(Math.Min(40, row.Bounds.Width / 2), row.Bounds.Height * height), window)!.Value;
     }
 
     private static string? SourceStatus(TreeView tree, DataSource source) =>

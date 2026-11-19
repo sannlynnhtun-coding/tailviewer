@@ -451,3 +451,38 @@ Pointer tree gesture routing is not implemented by this menu/model slice.
 Native drag/menu accessibility and timestamp-aware merged rendering remain open;
 group selection still asks for an individual member. Full Core/native suites
 were not rerun for these UI/model changes. T023 and full migration stay open.
+
+## Internal pointer tree arrange/group slice (T023)
+
+SourceTreeDrag now captures an unmodified left-pointer gesture after a four-DIP
+axis threshold. File rows use the legacy 20% before / 60% group / 20% after
+regions; dragged groups use the legacy before/after half split and cannot nest
+through this gesture. The controller resolves only current configured source
+identities, rejects folder/discovered-child sources and folder targets, previews
+group capacity, and invokes the existing validated move/group operations on
+release. A border indicates placement and a no-drop cursor indicates rejection.
+It transfers no file contents and has no external data format; existing native
+file/OLE drops continue through their separate event handlers.
+
+Escape, release outside the tree, capture loss, Close all and shutdown clear the
+candidate, capture and indicator. Text editors/modifier gestures do not start a
+tree drag. The shared group command is reused by the menu and pointer paths.
+
+The initial pointer grouping case failed before implementation because the
+roots never became a group. Three headless pointer cases then verify grouping
+and original copy, edge arrangement without grouping, and Escape/outside/close-all
+cancellation. Complete modern solution: 81 Archiver + 162 Avalonia pass, no
+failures/skips. Afterward a folder/discovered-child rejection case was added;
+the final focused drag suite passes 4/4 with production unchanged. Two early
+compile errors in geometry helper usage were corrected, not counted as behavior
+regression evidence.
+
+Evidence: artifacts/migration/t023-tree-drag-red.log,
+t023-tree-drag-focused.log, t023-tree-drag-gestures.log,
+t023-tree-drag-modern.log and t023-tree-drag-guards.log (ignored).
+
+T023 remains open. Native pointer/keyboard/DPI acceptance, the full cross-parent
+gesture matrix, edge scrolling and hover expansion remain pending. The visible-row
+limit is an explicit code shortcut, not a completed tree-drag parity claim.
+Shared Core/native suites were not rerun for this UI controller; native OLE
+regression and accessibility will be checked with the native gesture slice.

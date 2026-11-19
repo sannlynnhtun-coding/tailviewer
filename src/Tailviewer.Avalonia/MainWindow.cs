@@ -42,6 +42,7 @@ public sealed class MainWindow : Window
     private readonly SourcesViewModel _workspace = new();
     private AvaloniaList<DataSource> _sources => _workspace.Roots;
     private readonly TreeView _sourceTree = new();
+    private readonly SourceTreeDrag _sourceDrag;
     private readonly Dictionary<DataSourceId, FolderSources> _folders = new();
     private readonly Dictionary<DataSourceId, AvaloniaList<DataSource>> _folderChildren = new();
     private readonly DefaultTaskScheduler _folderScheduler = new();
@@ -61,6 +62,11 @@ public sealed class MainWindow : Window
 
     public MainWindow(string? fileName = null)
     {
+        _sourceDrag = new SourceTreeDrag(_sourceTree, _workspace, async (source, target, after) =>
+        {
+            if (after.HasValue) await MoveSourceAsync(source, target.Id, after.Value);
+            else await GroupSourcesAsync(source, target.Id);
+        });
         _textSelection = new LogTextSelection(_rows, () =>
         {
             _copy.IsEnabled = _rows.Selection.SelectedIndexes.Count > 0 || _textSelection!.CanCopy;
@@ -285,6 +291,7 @@ public sealed class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            _sourceDrag.Clear();
             _handoffs.Clear();
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
@@ -469,13 +476,7 @@ public sealed class MainWindow : Window
                 foreach (var targetSource in _sources.Where(item => item.Id != source.Id && !SourcesViewModel.IsGroup(item) && item.LogFileFolderPath == null))
                 {
                     var target = new MenuItem { Header = targetSource.File ?? targetSource.DisplayName ?? "Custom source", Tag = targetSource.Id };
-                    target.Click += async (_, _) =>
-                    {
-                        if (_closed) return;
-                        try { await ActivateSourceAsync(_workspace.GroupWith(source.Id, targetSource.Id)); }
-                        catch (Exception error) when (error is XmlException || error is ArgumentException)
-                        { _status.Text = _operationError = "Cannot group sources: " + error.Message; }
-                    };
+                    target.Click += async (_, _) => await GroupSourcesAsync(source, targetSource.Id);
                     pair.Items.Add(target);
                 }
                 pair.IsEnabled = pair.Items.Count > 0;
@@ -502,6 +503,14 @@ public sealed class MainWindow : Window
         // Refresh before context routing opens menus created before a group existed.
         menu.Tag = (Action)RefreshMenu;
         return menu;
+    }
+
+    private async Task GroupSourcesAsync(DataSource source, DataSourceId target)
+    {
+        if (_closed) return;
+        try { await ActivateSourceAsync(_workspace.GroupWith(source.Id, target)); }
+        catch (Exception error) when (error is XmlException || error is ArgumentException)
+        { _status.Text = _operationError = "Cannot group sources: " + error.Message; }
     }
 
     private async Task MoveSourceAsync(DataSource source, DataSourceId target, bool after)
@@ -688,6 +697,7 @@ public sealed class MainWindow : Window
     private void CloseAllSources()
     {
         if (_closed) return;
+        _sourceDrag.Clear();
         _handoffs.Clear();
         ++_openRequest;
         _openingSource = DataSourceId.Empty;
