@@ -1496,3 +1496,30 @@ costs and complete performance/native/Framework acceptance remain open. Core
 multiline is a physical-line view with inherited entry metadata; it does not
 concatenate source text or alter logs. T023/T043 and full migration remain
 incomplete; no task checklist was marked complete by this slice.
+
+## Parser epoch notification to derived documents (T026/T043, partial)
+
+A read crossing a parser reset still returns defaults rather than stale parsed
+fields. The factory now also notifies the owning LogDocument when its parser's
+epoch resets, so member-revision checks invalidate aggregate caches even when
+raw and parser listeners receive their initial resets at different times. The
+callback runs outside the parser lock. The original ParseText(source) overload
+and supplied-parser ownership behavior remain intact.
+
+The forced-reset-during-read regression first failed because no invalidation
+notification arrived (expected one, observed zero). It now checks the public
+factory path, the notification, rejection of the old result and the subsequent
+valid timestamp. The nine parser tests pass. The full modern solution passes
+81 Archiver and 214 Avalonia tests with no failures/skips, including the nested
+group encoding-reopen case which timed out in the preceding Explorer run.
+That intermittent UI timeout motivated this investigation; the controlled Core
+regression proves the missing notification, not every possible UI timeout cause.
+The final full Core run passes 7,171 tests with zero failures and five existing
+skips. Its preceding run exposed the Explorer interface's incorrect Core link;
+moving that UI-only link to Avalonia preserved the namespace boundary test.
+
+Evidence: ignored artifacts/migration/t043-parser-epoch-notification-red.log/TRX,
+t043-parser-epoch-green.log/TRX, t043-epoch-explorer-focused.log/TRX and
+t022-explorer-epoch-modern.log/TRX and t043-parser-epoch-core-final.log/TRX.
+Full migration and T026/T043 remain open;
+custom/plugin parser integration and broader acceptance are still pending.

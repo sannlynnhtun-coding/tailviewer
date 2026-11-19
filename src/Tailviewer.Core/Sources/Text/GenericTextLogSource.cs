@@ -18,6 +18,7 @@ namespace Tailviewer.Core
 		private readonly ProxyLogListenerCollection _listeners;
 		private ILogEntryParser _parser;
 		private readonly Func<ILogEntryParser> _createParser;
+		private readonly Action _sourceReset;
 		private long _generation;
 		private bool _needsParserReset;
 		private readonly IReadOnlyList<IColumnDescriptor> _parsedColumns;
@@ -42,10 +43,11 @@ namespace Tailviewer.Core
 		}
 
 		// shortcut: factory parser columns stay fixed; rebuild the source when a plugin schema changes.
-		internal GenericTextLogSource(ILogSource source, Func<ILogEntryParser> createParser)
+		internal GenericTextLogSource(ILogSource source, Func<ILogEntryParser> createParser, Action reset = null)
 			: this(source, (createParser ?? throw new ArgumentNullException(nameof(createParser)))())
 		{
 			_createParser = createParser;
+			_sourceReset = reset;
 			_source.AddListener(this, TimeSpan.Zero, 10000);
 		}
 
@@ -203,6 +205,7 @@ namespace Tailviewer.Core
 				++_generation;
 				_needsParserReset = _createParser != null;
 			}
+			_sourceReset?.Invoke();
 		}
 
 		/// <inheritdoc />

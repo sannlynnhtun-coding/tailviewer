@@ -52,7 +52,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             FileName = Path.GetFullPath(configuration.File);
             var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
             _source = factory.OpenRead(FileName, encoding ?? Encoding.UTF8, detectByteOrderMarks: encoding == null);
-            ParsedSource = FileLogSourceFactory.ParseText(_source);
+            ParsedSource = FileLogSourceFactory.ParseText(_source, () => OnLogFileModified(_source, LogSourceModification.Reset()));
             _source.AddListener(this, TimeSpan.Zero, 10000);
         }
         catch

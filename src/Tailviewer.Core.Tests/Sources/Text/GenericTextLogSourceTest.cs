@@ -63,8 +63,10 @@ namespace Tailviewer.Core.Tests.Sources.Text
                         resets?.OnLogFileModified(raw.Object, LogSourceModification.Reset());
                     }
                 });
-            using var parsed = new GenericTextLogSource(raw.Object, () => new GenericTextLogEntryParser());
+            var revisions = 0;
+            using var parsed = FileLogSourceFactory.ParseText(raw.Object, () => ++revisions);
             Assert.That(parsed.GetColumn(new LogSourceSection(0, 1), Core.Columns.Timestamp), Is.EqualTo(new DateTime?[] { null }));
+            Assert.That(revisions, Is.EqualTo(1), "derived consumers must invalidate the read epoch that was rejected");
             Assert.That(parsed.GetColumn(new LogSourceSection(0, 1), Core.Columns.Timestamp),
                 Is.EqualTo(new DateTime?[] { new DateTime(2026, 11, 19, 12, 0, 1) }));
         }
