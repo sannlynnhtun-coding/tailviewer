@@ -527,3 +527,40 @@ ignored artifacts/migration: t027-bulk-final-core.log,
 t027-bulk-final/t027-bulk-final.trx, t027-bulk-final-modern.log,
 t027-bulk-final-legacy.log and t027-bulk-final-native.log. No owned performance
 fixture directories remained. No performance threshold or assertion was weakened.
+
+## Five-minute Core live-tail preflight (T027)
+
+Added the fixed-duration `tail` workload to the existing standalone performance
+harness. It writes 100 complete LF-terminated integer records every 100 ms for
+300 seconds: 300,000 records at the manifest's 1,000-lines/second rate. One
+sample per batch reads the last record through Core; final validation reads
+all complete records in bounded batches and compares the exact sequence
+0..299999. The terminal EOF index position is accounted separately. Unknown
+modes exit 2 before fixture creation. The producer is cancelled/awaited on failure
+before source/owned temporary-directory cleanup; there is no short-run option.
+
+An unprofiled standalone apphost run on the same recorded Windows x64 reference
+host exited 0 with these results:
+
+| Measurement | Result |
+|---|---|
+| Writer duration | 300.0024864 seconds |
+| Complete records / readiness samples | 300,000 / 3,000 |
+| Core-ready nearest-rank p95 | 125.2431 ms (budget 1,000 ms) |
+| Maximum sampled readiness | 202.8216 ms |
+| Writer p95 lateness against 100 ms batch deadlines | 13.8421 ms (qualification limit 100 ms) |
+| Every final complete record | Exact sequence verified |
+| Indexed terminal EOF positions | 1, separate from complete records |
+
+Evidence under ignored artifacts/migration: t027-live-tail.out.log,
+t027-live-tail.err.log (empty), t027-live-tail-build.log (zero errors, two visible
+inherited NU1902 warnings) and t027-live-tail-arguments.log (unknown mode rejected
+with exit 2). Progress is logged every 15 seconds. No owned performance fixture
+directories remained after exit. Reproduce with the command in the tool README.
+
+No production source changed in this slice; the functional suite baseline from
+the preceding commit was not rerun for a standalone harness change. This proves
+Core availability after writer flush, **not native UI display latency**. It does
+not close all of SC-006 or T027: rendered five-minute tail, interaction/pause,
+broader recovery/performance matrices and prerequisite integration remain pending.
+The full migration remains active and no user-story gate is marked complete.

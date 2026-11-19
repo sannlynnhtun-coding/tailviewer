@@ -5,6 +5,11 @@ using Tailviewer.Core;
 using SourceProperties = Tailviewer.Core.Properties;
 
 // Core-only preflight; native UI/interaction and complete-application memory gates remain separate.
+if (args.Length > 1 || args.Length == 1 && args[0] != "tail")
+{
+    Console.Error.WriteLine("Usage: Tailviewer.SourcePerformance [tail]");
+    return 2;
+}
 var root = Path.Combine(Path.GetTempPath(), "tailviewer-source-perf-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(12));
@@ -21,6 +26,11 @@ try
         available_memory_bytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
         runtime = Environment.Version.ToString(), temp_drive = Path.GetPathRoot(root)
     }));
+    if (args.Length == 1)
+    {
+        await LiveTailWorkload.Run(Path.Combine(root, "tail.log"), deadline.Token);
+        return 0;
+    }
     foreach (var sizeMiB in new[] { 100, 1024 })
     {
         var path = Path.Combine(root, "records.log");
