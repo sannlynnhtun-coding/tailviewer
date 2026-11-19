@@ -56,6 +56,7 @@ namespace Tailviewer.Core
 		private long _lastLineOffsetStreamPosition;
 		private long _lastStreamPosition;
 		private byte[] _checkpoint = new byte[0];
+		private long _generation;
 
 		private const int BufferSize = 4096 * 4;
 
@@ -124,6 +125,7 @@ namespace Tailviewer.Core
 
 			lock (_index)
 			{
+				++_generation;
 				_index.Clear();
 			}
 		}
@@ -445,6 +447,7 @@ namespace Tailviewer.Core
 		{
 			lock (_index)
 			{
+				++_generation;
 				_index.Clear();
 				_lastStreamPosition = 0;
 				_lastLineOffsetStreamPosition = 0;
@@ -481,6 +484,7 @@ namespace Tailviewer.Core
 		{
 			lock (_index)
 			{
+				++_generation;
 				_index.Clear();
 				_lastStreamPosition = 0;
 				_lastLineOffsetStreamPosition = 0;
@@ -581,11 +585,11 @@ namespace Tailviewer.Core
 			IReadRequest request;
 			if (sourceIndices is LogSourceSection section)
 			{
-				request = new ContiguousReadRequest(section, destination, destinationIndex);
+				request = new ContiguousReadRequest(this, section, destination, destinationIndex);
 			}
 			else
 			{
-				request = new FragmentedReadRequest(sourceIndices, destination, destinationIndex);
+				request = new FragmentedReadRequest(this, sourceIndices, destination, destinationIndex);
 			}
 
 			_pendingReadRequests.Enqueue(request);
@@ -737,9 +741,13 @@ namespace Tailviewer.Core
 			private readonly DateTime _creationTime;
 			private DateTime? _startTime;
 			private ILogBuffer _destination;
+			private readonly StreamingTextLogSource _source;
+			private readonly long _generation;
 
-			protected AbstractReadRequest(ILogBuffer destination, int destinationIndex)
+			protected AbstractReadRequest(StreamingTextLogSource source, ILogBuffer destination, int destinationIndex)
 			{
+				_source = source;
+				lock (source._index) _generation = source._generation;
 				_destination = destination;
 				_destinationIndex = destinationIndex;
 				_taskSource = new TaskCompletionSource<int>();
@@ -826,9 +834,18 @@ namespace Tailviewer.Core
 						return;
 					}
 
-					_destination.CopyFrom(Core.Columns.RawContent, _destinationIndex, lines, 0, linesRead);
-					if (_destination.Contains(Core.Columns.Index))
-						_destination.CopyFrom(Core.Columns.Index, _destinationIndex, sourceIndices, 0, linesRead);
+					// Reset and publication share the index lock so old reads cannot publish after invalidation.
+					lock (_source._index)
+					{
+						if (_generation != _source._generation)
+						{
+							_destination.FillDefault(_destinationIndex, lines.Length);
+							return;
+						}
+						_destination.CopyFrom(Core.Columns.RawContent, _destinationIndex, lines, 0, linesRead);
+						if (_destination.Contains(Core.Columns.Index))
+							_destination.CopyFrom(Core.Columns.Index, _destinationIndex, sourceIndices, 0, linesRead);
+					}
 				}
 			}
 
@@ -853,10 +870,10 @@ namespace Tailviewer.Core
 		{
 			private readonly LogSourceSection _sourceSection;
 
-			public ContiguousReadRequest(LogSourceSection sourceSection,
+			public ContiguousReadRequest(StreamingTextLogSource source, LogSourceSection sourceSection,
 			                             ILogBuffer destination,
 			                             int destinationIndex)
-				: base(destination, destinationIndex)
+				: base(source, destination, destinationIndex)
 			{
 				_sourceSection = sourceSection;
 			}
@@ -926,10 +943,10 @@ namespace Tailviewer.Core
 		{
 			private readonly LogLineIndex[] _sourceIndices;
 
-			public FragmentedReadRequest(IReadOnlyList<LogLineIndex> sourceIndices,
+			public FragmentedReadRequest(StreamingTextLogSource source, IReadOnlyList<LogLineIndex> sourceIndices,
 			                                ILogBuffer destination,
 			                                int destinationIndex)
-				: base(destination, destinationIndex)
+				: base(source, destination, destinationIndex)
 			{
 				_sourceIndices = sourceIndices as LogLineIndex[] ?? sourceIndices.ToArray();
 			}

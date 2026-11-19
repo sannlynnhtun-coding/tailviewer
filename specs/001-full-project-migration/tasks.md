@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T019 complete. File/folder/group lifecycle and navigation/selection contracts are verified. T020 recovery fixtures are next; T029/T030 implementation dependencies and broader acceptance remain open. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T019 complete. File/folder/group lifecycle and navigation/selection contracts are verified. T020 truncate/regrow and stale-read fixtures pass; hidden middle rewrites and encoding changes remain pending; T029/T030 implementation dependencies and broader acceptance remain open. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
