@@ -38,6 +38,22 @@ public sealed class PrototypeTest
     public void TearDown() => File.Delete(_path);
 
     [AvaloniaTest]
+    public async Task CompleteTerminalNewlineHasAnEmptyCopyableRowThatReceivesAppends()
+    {
+        File.WriteAllText(_path, "first\nမြန်မာ 😀\n");
+        using var document = new LogDocument(_path);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 3; });
+        var last = document.GetLine(2);
+        await WaitUntil(() => last.Text != null);
+        last.Text.Should().Be("");
+        (await document.CopyTextAsync(new[] { 0, 1, 2 })).Should().Be(string.Join(Environment.NewLine, "first", "မြန်မာ 😀", ""));
+        File.AppendAllText(_path, "continued");
+        await WaitUntil(() => { document.Refresh(); return document.GetLine(2).Text == "continued"; });
+        document.Lines.Count.Should().Be(3);
+        (await document.CopyTextAsync(new[] { 2 })).Should().Be("continued");
+    }
+
+    [AvaloniaTest]
     public void TestLogoLoadsInLightAndDarkThemes()
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })

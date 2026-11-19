@@ -522,6 +522,67 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase(true, 0)]
+        [TestCase(false, 0)]
+        [TestCase(true, 1)]
+        [TestCase(false, 1)]
+        [TestCase(true, 2)]
+        [TestCase(false, 2)]
+        [TestCase(true, 3)]
+        [TestCase(false, 3)]
+        [TestCase(true, 4)]
+        [TestCase(false, 4)]
+        [TestCase(true, 5)]
+        [TestCase(false, 5)]
+        public void TerminalNewlineReadsAsEmptyTextWithoutInventingOutOfRangeRows(bool contiguous, int variant)
+        {
+            var encodings = new Encoding[]
+            {
+                new UTF8Encoding(false), new UTF8Encoding(true),
+                new UnicodeEncoding(false, true), new UnicodeEncoding(true, true),
+                new UTF32Encoding(false, true), new UTF32Encoding(true, true)
+            };
+            var encoding = encodings[variant];
+            File.WriteAllText(_path, "first\nမြန်မာ 😀\n", encoding);
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var source = (StreamingTextLogSource)factory.OpenRead(_path))
+            {
+                _scheduler.RunOnce();
+                var reading = QueueRead(source, 4, contiguous);
+                _scheduler.RunOnce();
+                Assert.That(reading.GetAwaiter().GetResult(), Is.EqualTo(new[] { "first", "မြန်မာ 😀", "", null }));
+                File.AppendAllText(_path, "continued", encoding);
+                _scheduler.RunOnce();
+                reading = QueueRead(source, 4, contiguous);
+                _scheduler.RunOnce();
+                Assert.That(reading.GetAwaiter().GetResult(), Is.EqualTo(new[] { "first", "မြန်မာ 😀", "continued", null }));
+                File.AppendAllText(_path, "\n", encoding);
+                _scheduler.RunOnce();
+                reading = QueueRead(source, 5, contiguous);
+                _scheduler.RunOnce();
+                Assert.That(reading.GetAwaiter().GetResult(), Is.EqualTo(new[] { "first", "မြန်မာ 😀", "continued", "", null }));
+            }
+        }
+
+        [Test]
+        public void FragmentedReadContinuesAfterEofRowsAndPreservesRequestedOrder()
+        {
+            Write("first\nsecond\n");
+            using (var source = Open())
+            {
+                _scheduler.RunOnce();
+                var positions = new[] { 2, 0, 2, 3, 1 }.Select(index => new LogLineIndex(index)).ToArray();
+                var destination = Enumerable.Repeat("sentinel", positions.Length).ToArray();
+                var reading = Task.Run(() => source.GetColumn(positions, Core.Columns.RawContent, destination, 0,
+                    new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(3))));
+                Assert.That(SpinWait.SpinUntil(() => source.HasPendingReadRequests || reading.IsCompleted, TimeSpan.FromSeconds(2)), Is.True);
+                Assert.That(source.HasPendingReadRequests, Is.True);
+                _scheduler.RunOnce();
+                reading.GetAwaiter().GetResult();
+                Assert.That(destination, Is.EqualTo(new[] { "", "first", "", null, "second" }));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;

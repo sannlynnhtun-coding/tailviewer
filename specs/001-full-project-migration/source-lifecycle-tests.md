@@ -667,3 +667,49 @@ zero failures/skips. Evidence: ignored artifacts/migration/
 t022-active-lock-focused.log and t022-active-lock-modern.log.
 Core/native/legacy suites were not rerun for this test-only slice. T022/T031
 remain incomplete; this does not establish network-share recovery or full parity.
+
+## Terminal newline / indexed EOF row (T022/T030)
+
+A complete terminal LF already creates a valid EOF index position. Raw reads
+returned null there, so the Avalonia page stayed Loading and copying a selection
+including the final row failed. The headless document regression first timed out;
+all twelve UTF-8/BOM, UTF-16LE/BE and UTF-32LE/BE contiguous/fragmented behavior
+cases first failed with expected empty string / actual null.
+
+Both raw request paths now use one shared indexed-line reader. A null ReadLine
+becomes empty text only for a positive-length file whose same-generation indexed
+position equals that stream's EOF. Invalid/out-of-range positions remain null;
+empty files are not given invented rows. The existing generation/publication
+fences remain. Sparse reads can continue from an EOF row to earlier rows and
+preserve duplicates/request order. Append into that empty row and another terminal
+LF remain copyable; no decoder, line count or persisted format changes.
+
+Core tests verify EOF, out-of-range padding, append/reappend and sparse ordering.
+The headless document case verifies resolved empty text, copy including the
+trailing newline and subsequent append. The native case verifies the actual row's
+accessible line label without Loading and multi-row copy with the trailing newline;
+its fixture bytes stay unchanged. The existing clipboard snapshot/conditional
+restore now also tracks expected owned multiline copies without logging contents.
+
+Final validation: Core 7,158 pass / zero failures / five existing skips; modern
+solution 81 Archiver + 170 Avalonia pass / zero failures or skips; legacy net471
+test-project build zero errors / five existing warnings. Targeted native EOF and
+both CLI-leading-line cases pass 3/3 on the final run. One initial native leading-
+empty-line clipboard case timed out; retain t022-terminal-row-native.log beside
+the final t022-terminal-row-native-recheck.log rather than claiming no failure.
+
+The first modern run had character-drag and distant-scroll timeouts; a focused
+rerun retained the scroll failure. Diagnostic output showed realized=0 after the
+source count reached 20,000. A separate fixture-only commit (24feede3) realizes
+headless layout before its explicit ScrollIntoView, keeping the exact target-text
+and fewer-than-100-realized-row assertions. The focused three cases and final
+full solution then pass. No timeout was increased or assertion weakened.
+
+Evidence under ignored artifacts/migration: t022-terminal-row-ui-red.log,
+t022-terminal-row-core-red.log, t022-terminal-row-core-focused.log,
+t022-terminal-row-ui-focused.log, t022-terminal-row-layout-recheck.log,
+t022-terminal-row-core-full.log, t022-terminal-row-modern-final.log,
+t022-terminal-row-legacy.log and the native logs above. The full Core TRX is in
+t022-terminal-row/t022-terminal-row.trx. Legacy runtime, native five-minute tail
+and the broader performance matrix were not executed in this slice. T022/T030
+and the full migration remain open for their remaining contracts/integration.

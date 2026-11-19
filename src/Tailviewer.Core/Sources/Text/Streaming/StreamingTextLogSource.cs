@@ -927,6 +927,21 @@ namespace Tailviewer.Core
 				}
 			}
 
+			protected string ReadIndexedLine(StreamReader reader, LogLineIndex sourceIndex)
+			{
+				var line = reader.ReadLine();
+				if (line != null) return line;
+				var length = reader.BaseStream.Length;
+				if (length == 0) return null;
+				lock (_source._index)
+				{
+					if (_generation != _source._generation || sourceIndex < 0 || sourceIndex >= _source._index.Count)
+						return null;
+					// A real indexed EOF position is an empty line; absent rows remain unavailable.
+					return _source._index[(int)sourceIndex].GetValue(LineOffsetInBytes) == length ? string.Empty : null;
+				}
+			}
+
 			protected abstract int ReadLines(LogBufferList index, StreamReader reader);
 
 			#region IDisposable
@@ -1003,7 +1018,7 @@ namespace Tailviewer.Core
 				int i;
 				for (i = 0; i < destination.Length; ++i)
 				{
-					var line = reader.ReadLine();
+					var line = ReadIndexedLine(reader, _sourceSection.Index + i);
 					if (line == null)
 					{
 						break;
@@ -1075,7 +1090,7 @@ namespace Tailviewer.Core
 						reader.BaseStream.Position = lineOffset;
 						reader.DiscardBufferedData();
 
-						line = reader.ReadLine();
+						line = ReadIndexedLine(reader, _sourceIndices[i]);
 						if (line == null)
 						{
 							break;

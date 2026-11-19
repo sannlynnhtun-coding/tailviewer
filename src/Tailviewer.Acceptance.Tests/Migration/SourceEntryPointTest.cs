@@ -16,6 +16,7 @@ public sealed class SourceEntryPointTest
     private string _marker = null!;
     private Process? _process;
     private DataObject? _clipboard;
+    private readonly HashSet<string> _ownedCopies = new();
     private const string SelectedLine = "  မြန်မာ 😀  ";
     private const string PickerLine = "picker မြန်မာ 😀";
 
@@ -24,6 +25,7 @@ public sealed class SourceEntryPointTest
     {
         _process = null;
         _clipboard = null;
+        _ownedCopies.Clear();
         _folder = null!;
         Assert.That(Environment.UserInteractive, Is.True, "Native tests require an interactive Windows desktop.");
         var existing = Process.GetProcessesByName("Tailviewer.Avalonia");
@@ -75,7 +77,7 @@ public sealed class SourceEntryPointTest
                 if (_clipboard != null)
                 {
                     var current = Clipboard.ContainsText() ? Clipboard.GetText() : null;
-                    if (current == _marker || current == SelectedLine || current == PickerLine ||
+                    if (current == _marker || current != null && _ownedCopies.Contains(current) || current == SelectedLine || current == PickerLine ||
                         current is "first" or "last" or "picked-first" or "picked-last")
                         Clipboard.SetDataObject(_clipboard, copy: true);
                     else TestContext.Progress.WriteLine("Clipboard changed externally; preserved its current contents.");
@@ -101,6 +103,30 @@ public sealed class SourceEntryPointTest
         var window = StartApplication();
         SelectSecondLine(window);
         CopyAndCheck(window);
+    }
+
+    [Test]
+    public void NativeTerminalNewlineRowRendersWithoutLoadingAndCopiesTheTrailingNewline()
+    {
+        File.WriteAllText(_path, "first\n" + SelectedLine + "\n");
+        var window = StartApplication();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The log list must be accessible.");
+        var last = WaitFor(() =>
+        {
+            var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
+            return items.Count == 3 ? items[2] : null;
+        }, "The complete terminal newline must have its indexed EOF row.");
+        WaitFor(() => last.FindAll(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+            .Any(text => text.Current.Name.Trim() == "3") ? last : null,
+            "The EOF row must render its line number without a permanent Loading label.");
+        var selected = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
+        ((SelectionItemPattern)selected[0].GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        for (var index = 1; index < selected.Count; ++index)
+            ((SelectionItemPattern)selected[index].GetCurrentPattern(SelectionItemPattern.Pattern)).AddToSelection();
+        CopyAndCheck(window, string.Join(Environment.NewLine, "first", SelectedLine, ""));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\n"));
     }
 
     [Test]
@@ -539,8 +565,9 @@ public sealed class SourceEntryPointTest
         ((SelectionItemPattern)item.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
     }
 
-    private static void CopyAndCheck(AutomationElement window, string expected = SelectedLine)
+    private void CopyAndCheck(AutomationElement window, string expected = SelectedLine)
     {
+        _ownedCopies.Add(expected);
         InvokeButton(window, "Copy selected");
         WaitFor(() => Clipboard.ContainsText() && Clipboard.GetText() == expected ? window : null,
             "The native clipboard must receive the original owned fixture line (contents are not logged).");
