@@ -1294,6 +1294,45 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task CapturedTreeDragScrollsViewportEdgesAndStopsAfterEscape()
+    {
+        var window = new MainWindow { Height = 400 };
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var source = (DataSource)tree.SelectedItem!;
+            var workspace = (SourcesViewModel)window.DataContext!;
+            workspace.Roots.AddRange(Enumerable.Range(0, 60).Select(index => new DataSource(Path.Combine(_folder, $"missing-{index}.log"))
+                { Id = DataSourceId.CreateNew() }));
+            var order = workspace.All.Select(item => item.Id).ToArray();
+            await WaitUntil(() => tree.GetVisualDescendants().OfType<ScrollViewer>().Any(scroll => scroll.Extent.Height > scroll.Viewport.Height));
+            var scroll = tree.GetVisualDescendants().OfType<ScrollViewer>().First();
+            var viewport = scroll.GetVisualDescendants().OfType<global::Avalonia.Controls.Presenters.ScrollContentPresenter>().First();
+            var start = TreePoint(window, tree, source, .5);
+            var bottom = viewport.TranslatePoint(new Point(30, viewport.Bounds.Height - 2), window)!.Value;
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(bottom, RawInputModifiers.LeftMouseButton);
+            await WaitUntil(() => scroll.Offset.Y > scroll.Viewport.Height);
+            var down = scroll.Offset.Y;
+            var top = viewport.TranslatePoint(new Point(30, 2), window)!.Value;
+            window.MouseMove(top, RawInputModifiers.LeftMouseButton);
+            await WaitUntil(() => scroll.Offset.Y < down);
+            tree.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            window.MouseUp(top, MouseButton.Left);
+            await WaitUntil(() => Command(window, "Open folder").IsEnabled);
+            var stopped = scroll.Offset;
+            await Task.Delay(300);
+            Dispatcher.UIThread.RunJobs();
+            scroll.Offset.Should().Be(stopped);
+            workspace.All.Select(item => item.Id).Should().Equal(order);
+            tree.Cursor.Should().BeNull();
+        }
+        finally { window.Close(); }
+    }
+
     private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
     {
         var item = (TreeViewItem)tree.ContainerFromItem(source)!;

@@ -287,7 +287,7 @@ public sealed class MainWindow : Window
         AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
-        _timer.Tick += (_, _) => { RefreshDocument(); RefreshSourceStates(); };
+        _timer.Tick += (_, _) => { RefreshDocument(); RefreshSourceStates(); _sourceDrag.Refresh(); };
         Closed += (_, _) =>
         {
             _closed = true;

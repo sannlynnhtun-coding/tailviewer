@@ -486,3 +486,29 @@ gesture matrix, edge scrolling and hover expansion remain pending. The visible-r
 limit is an explicit code shortcut, not a completed tree-drag parity claim.
 Shared Core/native suites were not rerun for this UI controller; native OLE
 regression and accessibility will be checked with the native gesture slice.
+
+## Captured tree drag viewport-edge scrolling (T023)
+
+SourceTreeDrag.Refresh reuses the existing 100 ms window timer. While a current
+configured source owns pointer capture, a 16-DIP viewport edge band calls the
+existing ScrollViewer line-scroll operations. Pointer coordinates stay relative
+to the tree; layout and the target/placement preview are refreshed after
+scrolling so release resolves the currently visible row. A deleted source clears
+the gesture. Escape/capture loss/Close all/shutdown already clear the active
+gesture, so no second timer or background scrolling work is introduced.
+
+The initial regression failed because the scroll offset never advanced. It
+uses 61 owned source configurations in a short window, drags at the bottom then
+top viewport edges, cancels with Escape and observes a stable offset over three
+timer periods with source identity/order unchanged. Complete modern solution:
+81 Archiver + 164 Avalonia pass, no failures/skips. After that checkpoint the
+same test was strengthened to require travel beyond one viewport before moving
+back up; its focused rerun passes with production unchanged and no timeout
+increase. The implementation also wires horizontal edge line scrolling; that
+direction has not received a dedicated native/headless acceptance case yet.
+
+Ignored evidence: artifacts/migration/t023-tree-scroll-red.log,
+t023-tree-scroll-focused.log, t023-tree-scroll-modern.log and
+t023-tree-scroll-page.log. T023 remains open for hover expansion, native pointer/
+DPI/accessibility and the full gesture matrix. Shared Core/native suites were
+not repeated for this UI-only timer integration.

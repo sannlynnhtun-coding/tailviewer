@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -20,6 +21,7 @@ internal sealed class SourceTreeDrag
     private SourcesView? _target;
     private IPointer? _pointer;
     private Point _start;
+    private Point _point;
     private bool _dragging;
     private bool? _after;
 
@@ -50,6 +52,31 @@ internal sealed class SourceTreeDrag
         if (pointer?.Captured == _tree) pointer.Capture(null);
     }
 
+    public void Refresh()
+    {
+        if (!_dragging || _source == null) return;
+        if (!_workspace.Contains(_source.Id)) { Clear(); return; }
+        var scroll = _tree.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        var presenter = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+        if (scroll == null || presenter?.TranslatePoint(default, _tree) is not { } origin) return;
+        var viewport = new Rect(origin, presenter.Bounds.Size);
+        const double edge = 16;
+        if (_point.X >= viewport.Left && _point.X <= viewport.Right &&
+            _point.Y >= viewport.Top - edge && _point.Y <= viewport.Bottom + edge)
+        {
+            if (_point.Y < viewport.Top + edge) scroll.LineUp();
+            else if (_point.Y > viewport.Bottom - edge) scroll.LineDown();
+        }
+        if (_point.Y >= viewport.Top && _point.Y <= viewport.Bottom &&
+            _point.X >= viewport.Left - edge && _point.X <= viewport.Right + edge)
+        {
+            if (_point.X < viewport.Left + edge) scroll.LineLeft();
+            else if (_point.X > viewport.Right - edge) scroll.LineRight();
+        }
+        _tree.UpdateLayout();
+        UpdateTarget(_point);
+    }
+
     private void Pressed(object? sender, PointerPressedEventArgs args)
     {
         Clear();
@@ -67,6 +94,7 @@ internal sealed class SourceTreeDrag
     {
         if (_source == null || _pointer != args.Pointer) return;
         if (!args.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed) { Clear(); return; }
+        _point = args.GetPosition(_tree);
         if (!_dragging)
         {
             var position = args.GetPosition(_tree);
@@ -74,21 +102,20 @@ internal sealed class SourceTreeDrag
             _dragging = true;
             args.Pointer.Capture(_tree);
         }
-        UpdateTarget(args);
+        UpdateTarget(_point);
         args.Handled = true;
     }
 
-    private void UpdateTarget(PointerEventArgs args)
+    private void UpdateTarget(Point point)
     {
         _target?.ShowDropPosition(false, null);
         _target = null;
         _tree.Cursor = NoDropCursor;
-        var point = args.GetPosition(_tree);
-        // shortcut: use visible rows; add edge scrolling/hover expansion with native drag acceptance.
+        // shortcut: collapsed groups require manual expansion until hover expansion/native acceptance.
         if (_source == null || !_workspace.Contains(_source.Id) || !new Rect(_tree.Bounds.Size).Contains(point)) return;
         var view = (_tree.GetVisualAt(point) as Visual)?.GetSelfAndVisualAncestors().OfType<SourcesView>().FirstOrDefault();
         if (view == null || !_workspace.Contains(view.Source.Id) || view.Source.Id == _source.Id || view.Source.LogFileFolderPath != null) return;
-        var fraction = args.GetPosition(view).Y / view.Bounds.Height;
+        var fraction = _tree.TranslatePoint(point, view)!.Value.Y / view.Bounds.Height;
         _after = SourcesViewModel.IsGroup(_source) ? fraction >= .5 : fraction < .2 ? false : fraction > .8 ? true : null;
         if (SourcesViewModel.IsGroup(_source) && view.Source.ParentId != DataSourceId.Empty) return;
         var parent = _after == null && SourcesViewModel.IsGroup(view.Source) ? view.Source.Id : view.Source.ParentId;
@@ -102,7 +129,7 @@ internal sealed class SourceTreeDrag
     {
         if (_pointer != args.Pointer || args.GetCurrentPoint(_tree).Properties.IsLeftButtonPressed) return;
         if (!_dragging) { Clear(); return; }
-        UpdateTarget(args);
+        UpdateTarget(args.GetPosition(_tree));
         var source = _source;
         var target = _target?.Source;
         var after = _after;
