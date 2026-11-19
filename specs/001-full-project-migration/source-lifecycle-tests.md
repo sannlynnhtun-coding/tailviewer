@@ -1296,3 +1296,44 @@ provenance UI, multiline/custom/plugin parser integration, parser-state changes
 across replacement, and full performance/native acceptance remain pending.
 Native/Framework runtime suites were not rerun in this slice. No task checklist
 is marked complete from this partial implementation; full migration stays open.
+
+## Selected folder aggregate output (T022/T023, partial)
+
+Folder activation now reuses the same leased GroupDocument/parsed Core merge as
+configured groups. The existing watcher still owns discovery and stable child
+IDs; membership/exclusion changes rebuild the selected folder merge on refresh.
+The shared activation accepts the current open-request ID, so a folder at the
+start of OpenFilesAsync does not increment the request twice or abort remaining
+batch items. Automatic aggregate refresh is suppressed while an explicit file
+open is in progress. Folder path/title and unavailable/no-matching-files status
+remain visible; single-file activation retains its existing reader/cache path.
+
+A behavioral test failed before wiring folder output. It now opens folder then
+standalone file in one batch, activates the folder, verifies timestamp order and
+exact copied text, tails an append, discovers a new middle-timestamp file,
+removes it, excludes/re-includes a member, and verifies original owned bytes.
+The first affected run passed this case plus missing-folder/close-all checks,
+but an existing nested-group tail case timed out. A diagnostic rerun passed both
+merge cases. Its readiness check was strengthened to require the actual bound
+navigation source ID: parent and child groups share the same default title, so
+title equality cannot prove the parent view is active. No timeout/assertion was
+weakened. The original timeout is retained; its precise cause is not conclusively
+isolated and these passes do not prove all timing flakiness is eliminated.
+
+Final modern solution passes 81 Archiver + 205 Avalonia = 286, zero failures or
+skips. Targeted Windows native folder-picker apply/cancel, folder-options browse
+apply/cancel and Ctrl+G checks pass 5/5. These native cases verify entry/dialog/
+navigation flows, not chronological folder aggregate rendering. Evidence:
+artifacts/migration/t022-folder-merge-red.log/TRX,
+t022-folder-merge-focused.log/TRX (3 pass/1 timeout),
+t022-folder-merge-diagnostic.log/TRX (2/2),
+t022-folder-merge-modern.log/TRX and t022-folder-merge-native.log/TRX.
+Temporary reflection diagnostics were removed. Core production code is unchanged;
+its full suite and performance workloads were not rerun. Known legacy NU1902
+warnings remain visible.
+
+Folder/group output now works with built-in single-line timestamps. Viewport/
+selection restoration for aggregate views, parser-state changes on replacement,
+multiline/custom/plugin parsers, provenance navigation and full performance
+acceptance remain unfinished. T022/T023/T026/T031 remain unchecked; the complete
+migration goal is still active.

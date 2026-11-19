@@ -1703,6 +1703,49 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task SelectedFolderMergesDiscoveredFilesAndTracksMembershipAndExclusions()
+    {
+        const string earlier = "2026-11-19 12:00:01.000 INFO earlier";
+        const string later = "2026-11-19 12:00:03.000 INFO later";
+        const string added = "2026-11-19 12:00:02.000 INFO discovered";
+        const string tail = "2026-11-19 12:00:04.000 INFO tail";
+        File.WriteAllText(_first, later);
+        File.WriteAllText(_second, earlier);
+        var third = Path.Combine(_folder, "third.log");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _folder, _first });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            tree.ItemCount.Should().Be(2, "a folder open must not interrupt the remaining batch");
+            var folder = tree.Items.OfType<DataSource>().Single(source => source.LogFileFolderPath != null);
+            tree.SelectedItem = folder;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains(Path.GetFileName(_folder)));
+            await Copy(window, 0, earlier);
+            File.AppendAllText(_second, "\n" + tail);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 2, tail);
+            File.WriteAllText(third, added);
+            await WaitUntil(() => Rows(window).ItemCount == 4);
+            await Copy(window, 1, added);
+            File.Delete(third);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            var item = (TreeViewItem)tree.ContainerFromItem(folder)!;
+            var second = item.Items.OfType<DataSource>().Single(source => source.File == _second);
+            folder.ExcludedDataSources.Add(second.Id);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, later);
+            folder.ExcludedDataSources.Remove(second.Id);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 0, earlier);
+            File.ReadAllText(_first).Should().Be(later);
+            File.ReadAllText(_second).Should().Be(earlier + "\n" + tail);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task SelectedGroupMergesTimestampsTailsAndReconfiguresExclusions()
     {
         const string earlier = "2026-11-19 12:00:01.000 INFO earlier\u0001 original";
@@ -1727,7 +1770,8 @@ public sealed class SourcesTest
             var parent = workspace.AddGroup();
             workspace.AddToGroup(group.Id, parent.Id);
             tree.SelectedItem = parent;
-            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains(parent.DisplayName));
+            await WaitUntil(() => Rows(window).ItemCount == 2 &&
+                window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == parent.Id);
             await Copy(window, 0, earlier);
             File.AppendAllText(_second, "\n" + tail);
             await WaitUntil(() => Rows(window).ItemCount == 3);

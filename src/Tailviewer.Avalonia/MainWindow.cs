@@ -462,7 +462,11 @@ public sealed class MainWindow : Window
             await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
             return;
         }
-        var request = ++_openRequest;
+        await OpenGroupAsync(source, ++_openRequest);
+    }
+
+    private async Task OpenGroupAsync(DataSource source, long request)
+    {
         _openingSource = source.Id;
         _lastGroupRefresh = Environment.TickCount64;
         GroupDocument? pending = null;
@@ -482,8 +486,9 @@ public sealed class MainWindow : Window
             _document.Refresh();
             _rows.ItemsSource = _document.Lines;
             _follow.IsChecked = source.FollowTail;
-            _path.Text = source.DisplayName;
-            Title = $"{source.DisplayName} — Tailviewer prototype";
+            _path.Text = source.LogFileFolderPath ?? source.DisplayName;
+            var name = source.LogFileFolderPath != null ? Path.GetFileName(Path.TrimEndingDirectorySeparator(source.LogFileFolderPath)) : source.DisplayName;
+            Title = $"{name} — Tailviewer prototype";
             RefreshDocument();
         }
         catch (Exception error)
@@ -795,20 +800,8 @@ public sealed class MainWindow : Window
                     folder.Changed += () => Dispatcher.UIThread.Post(() => RefreshFolder(id));
                     RefreshFolder(id);
                 }
-                SaveViewState();
-                _rows.ItemsSource = null;
-                ReleaseActiveLease();
-                _document = null;
-                _navigation.BindDocument(null);
-                _textSelection.BindDocument(null);
-                _quickNavigation.Dismiss();
                 if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
-                SelectSource(source);
-                PruneDocuments();
-                _operationError = null;
-                _path.Text = path;
-                Title = $"{Path.GetFileName(path)} — Tailviewer prototype";
-                RefreshDocument();
+                await OpenGroupAsync(source, request);
                 return;
             }
             source ??= new DataSource(path) { Id = DataSourceId.CreateNew(), FollowTail = true };
@@ -1002,7 +995,9 @@ public sealed class MainWindow : Window
         }
         if (_document.Refresh())
             ScrollToTail();
-        _status.Text = _operationError ?? _activeGroup?.Error ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
+        var folderStatus = _sourceTree.SelectedItem is DataSource current && _folders.TryGetValue(current.Id, out var activeFolder)
+            ? activeFolder.Error ?? (_folderChildren[current.Id].Count == 0 ? "No matching files." : null) : null;
+        _status.Text = _operationError ?? folderStatus ?? _activeGroup?.Error ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
     }
 
     private void RefreshSourceStates()
@@ -1050,7 +1045,7 @@ public sealed class MainWindow : Window
             view.UpdateIndexedCount(!pendingReaders.Contains(source.Id) && readerError == null && _documents.TryGetValue(source.Id, out var indexed)
                 ? indexed.Document.Lines.Count : null);
         }
-        if (_sourceTree.SelectedItem is DataSource selected && SourcesViewModel.IsGroup(selected) &&
+        if (_open.IsEnabled && _sourceTree.SelectedItem is DataSource selected && (SourcesViewModel.IsGroup(selected) || selected.LogFileFolderPath != null) &&
             _openingSource == DataSourceId.Empty && Environment.TickCount64 - _lastGroupRefresh >= 500 &&
             (_activeGroup == null || !_activeGroup.IsCurrent(_readerOwner, GroupChildren)))
             _ = ActivateSourceAsync(selected);
