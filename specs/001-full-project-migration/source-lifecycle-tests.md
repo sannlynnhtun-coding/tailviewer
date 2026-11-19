@@ -1041,3 +1041,47 @@ Targeted native folder-picker apply/cancel and Ctrl+G checks pass 3/3 with no
 failures/skips (t022-folder-child-access-native.log/TRX). These verify normal
 file/folder activation after adding the global identity check; they are not a
 native lock-state or full-suite run.
+
+## Reader ownership foundation (T022/T026, integration pending)
+
+SourceDocuments is an internal application-level owner for existing LogDocument
+instances/Core readers. A configured source owns one reader reference; explicit
+view leases keep retired readers usable until their last holder releases them.
+Configuration snapshots validate identities/canonical file paths before changing
+the catalog, clone settings/decoder inputs, and start factories off the caller
+thread. Matching ID/path/decoder reuses one pending or live open. Changed paths
+or automatic-versus-manual decoder choices retire the old entry. Failed opens
+are observable and retried on the next configuration refresh.
+
+Removal/owner closure rejects pending acquisitions. An unleased late completion
+is disposed, while an already-issued lease stays valid until released. Lease
+disposal is idempotent; source disposal happens outside the catalog lock. The
+owner validates raw-reader identities/paths; workspace graph validation remains
+with the existing settings/source model. Parser-dependent key invalidation is
+explicitly deferred to T043 in a shortcut comment. No reference-counted forwarding
+ILogSource implementation or new package/public plugin API was introduced.
+
+Seven owned-temp-file contract tests cover shared opens, final-lease disposal,
+late completion after removal/closure, canonical path reuse, path/decoder
+replacement, failed-open retry, invalid snapshots retaining the old catalog,
+and refusal of new acquisitions after owner disposal. They establish successful
+original copy before testing read failure after final release. An initial
+closure test assumed only IOException; the underlying Core scheduler can also
+cancel an in-flight read during disposal, so the test recognizes the normal
+I/O/disposed/cancelled outcomes without accepting successful reads indefinitely.
+No timeout was extended and the factory gates are released in finally blocks.
+
+Evidence: artifacts/migration/t022-reader-owner-behavior-red.log/TRX (five
+unimplemented contracts), t022-reader-owner-focused.log/TRX (5/5),
+t022-reader-owner-contracts.log/TRX and t022-reader-owner-final.log/TRX (the narrow
+closure-exception fixture failure), t022-reader-owner-closure.log/TRX (7/7), and
+t022-reader-owner-modern.log/TRX (81 Archiver + 200 Avalonia, zero failures/skips).
+The initial unread stub-constructor parameter compile failure is separately
+retained in t022-reader-owner-red.log; it is not the behavioral red.
+
+This foundation is not yet wired into MainWindow. Automatic indexing of newly
+discovered files, shared scheduler/host lifetime integration, UI leases/status,
+and many-source performance remain the next implementation work. The current
+shipping window still uses its retained-document cache. Core/native/performance
+suites were not repeated because their callers and Core production code did not
+change. T022/T026 and full migration remain incomplete.

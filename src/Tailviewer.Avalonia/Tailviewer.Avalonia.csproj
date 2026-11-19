@@ -10,6 +10,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Tailviewer.Avalonia.Tests" />
     <AvaloniaResource Include="Assets/Tailviewer.png" />
     <ProjectReference Include="../Tailviewer.Core/Tailviewer.Core.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
