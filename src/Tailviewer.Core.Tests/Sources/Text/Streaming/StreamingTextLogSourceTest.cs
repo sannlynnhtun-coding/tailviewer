@@ -358,6 +358,40 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [Test]
+        public void OriginalPositionLookupTracksAvailableRowsAcrossSourceLifecycle()
+        {
+            Write("");
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var source = factory.OpenRead(_path))
+            {
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(LogLineIndex.Invalid));
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(LogLineIndex.Invalid));
+                Write("zero\none\ntwo");
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(LogLineIndex.Invalid), Is.EqualTo(LogLineIndex.Invalid));
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(new LogLineIndex(0)));
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(2), Is.EqualTo(new LogLineIndex(2)));
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(3), Is.EqualTo(LogLineIndex.Invalid));
+                File.AppendAllText(_path, "\nthree");
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(3), Is.EqualTo(new LogLineIndex(3)));
+                Write("only");
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(new LogLineIndex(0)));
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(2), Is.EqualTo(LogLineIndex.Invalid));
+                File.Delete(_path);
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(LogLineIndex.Invalid));
+                Write("returned\nnext");
+                _scheduler.RunOnce();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(1), Is.EqualTo(new LogLineIndex(1)));
+                source.Dispose();
+                Assert.That(source.GetLogLineIndexOfOriginalLineIndex(1), Is.EqualTo(LogLineIndex.Invalid));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;

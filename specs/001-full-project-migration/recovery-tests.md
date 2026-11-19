@@ -269,3 +269,31 @@ existing warnings. Logs: t026-index-core-full.log, t026-index-modern.log and
 t026-index-legacy-build.log under ignored artifacts/migration. Legacy runtime,
 native entry-point and performance suites were not rerun for this shared helper
 fix. No assertion was weakened or existing skip added.
+
+## Streaming original-position lookup (T026)
+
+StreamingTextLogSource.GetLogLineIndexOfOriginalLineIndex still threw
+NotImplementedException. Existing GenericTextLogSource, PageBufferedLogSource,
+column adorner and source proxy delegate to this contract. The raw streaming
+source has no transformed row order, so the implementation now returns the same
+position only when it exists in the current index; invalid, unavailable or
+out-of-range positions return LogLineIndex.Invalid under the index lock.
+No caller signature or persisted representation changes.
+
+A manual-scheduler regression first failed with the runtime
+NotImplementedException. It now covers pre-index/empty, indexed first/last rows,
+out-of-range, append, truncate, deletion, recovery and disposal. The full
+streaming fixture passes 35 cases. Evidence: ignored artifacts/migration/
+t026-original-position-red.log and t026-original-position-focused.log.
+
+This is current-position lookup, not content-based relocation of old bookmarks
+or proof of complete filter/merge provenance. Revision-aware consumers and the
+later bookmark integration still need their own acceptance evidence. T026 and
+the full migration remain incomplete.
+
+Full verification: Core 7,135 pass / zero failures / five existing skips; modern
+solution 81 Archiver + 169 Avalonia pass / zero failures or skips. Legacy net471
+test-project build passes with zero errors and five existing warnings. Logs:
+t026-original-position-core-full.log, t026-original-position-modern.log and
+t026-original-position-legacy-build.log under ignored artifacts/migration.
+Native/performance and legacy runtime suites were not executed for this helper.

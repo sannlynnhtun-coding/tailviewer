@@ -217,7 +217,8 @@ namespace Tailviewer.Core
 
 		public LogLineIndex GetLogLineIndexOfOriginalLineIndex(LogLineIndex originalLineIndex)
 		{
-			throw new NotImplementedException();
+			lock (_index)
+				return originalLineIndex >= 0 && originalLineIndex < _index.Count ? originalLineIndex : LogLineIndex.Invalid;
 		}
 
 		private void GetIndices(IReadOnlyList<LogLineIndex> sourceIndices, LogLineIndex[] destination, int destinationIndex)
