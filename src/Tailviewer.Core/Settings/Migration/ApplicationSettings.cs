@@ -162,6 +162,11 @@ namespace Tailviewer.Settings
 #endif
 			try
 			{
+#if NET10_0_OR_GREATER
+				ProfileStore.Write(_fileName, writer => BuildDocument().Save(writer),
+					document => new ApplicationSettings(_fileName).RestoreDocument(document, out _));
+				return true;
+#else
 				using (var stream = new MemoryStream())
 				{
 					var settings = new XmlWriterSettings
@@ -173,13 +178,11 @@ namespace Tailviewer.Settings
 						};
 					using (XmlWriter writer = XmlWriter.Create(stream, settings))
 					{
-#if NET10_0_OR_GREATER
-						BuildDocument().Save(writer);
-#else
+
 						writer.WriteStartElement("xml");
 						WriteKnown(writer);
 						writer.WriteEndElement();
-#endif
+
 					}
 
 					if (!Directory.Exists(_fileFolder))
@@ -194,6 +197,7 @@ namespace Tailviewer.Settings
 
 					return true;
 				}
+#endif
 			}
 			catch (Exception e)
 			{
@@ -226,33 +230,7 @@ namespace Tailviewer.Settings
 			try
 			{
 #if NET10_0_OR_GREATER
-				var document = ProfileStore.Read(_fileName);
-				var candidate = Clone();
-				var seen = new HashSet<XName>();
-				var patched = false;
-				foreach (var child in document.Root.Elements())
-				{
-					if (child.Name.Namespace != XNamespace.None) continue;
-					using (var content = child.CreateReader())
-					{
-						content.MoveToContent();
-						if (!candidate.RestoreSection(content, out var sectionPatched)) continue;
-						if (!seen.Add(child.Name)) throw new XmlException("Duplicate profile section.");
-						patched |= sectionPatched;
-					}
-				}
-				// Restore publishes new section snapshots; consumers bind after loading a profile.
-				_autoUpdate = candidate._autoUpdate;
-				_dataSources = candidate._dataSources;
-				_mainWindow = candidate._mainWindow;
-				_quickFilters = candidate._quickFilters;
-				_export = candidate._export;
-				_logViewer = candidate._logViewer;
-				_logFile = candidate._logFile;
-				_customFormats = candidate._customFormats;
-				_rawXml = document;
-				_restoreFailed = false;
-				neededPatching = patched;
+				RestoreDocument(ProfileStore.Read(_fileName), out neededPatching);
 #else
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
@@ -277,6 +255,38 @@ namespace Tailviewer.Settings
 #endif
 			}
 		}
+
+#if NET10_0_OR_GREATER
+		private void RestoreDocument(XDocument document, out bool neededPatching)
+		{
+			var candidate = Clone();
+			var seen = new HashSet<XName>();
+			var patched = false;
+			foreach (var child in document.Root.Elements())
+			{
+				if (child.Name.Namespace != XNamespace.None) continue;
+				using (var content = child.CreateReader())
+				{
+					content.MoveToContent();
+					if (!candidate.RestoreSection(content, out var sectionPatched)) continue;
+					if (!seen.Add(child.Name)) throw new XmlException("Duplicate profile section.");
+					patched |= sectionPatched;
+				}
+			}
+			// Restore publishes new section snapshots; consumers bind after loading a profile.
+			_autoUpdate = candidate._autoUpdate;
+			_dataSources = candidate._dataSources;
+			_mainWindow = candidate._mainWindow;
+			_quickFilters = candidate._quickFilters;
+			_export = candidate._export;
+			_logViewer = candidate._logViewer;
+			_logFile = candidate._logFile;
+			_customFormats = candidate._customFormats;
+			_rawXml = document;
+			_restoreFailed = false;
+			neededPatching = patched;
+		}
+#endif
 
 		private bool RestoreSection(XmlReader reader, out bool neededPatching)
 		{

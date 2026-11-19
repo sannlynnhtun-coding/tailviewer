@@ -68,6 +68,11 @@ namespace Tailviewer.Settings.Bookmarks
 #endif
 			try
 			{
+#if NET10_0_OR_GREATER
+				ProfileStore.Write(_fileName, writer => BuildDocument().Save(writer),
+					document => new Bookmarks(_fileName).RestoreDocument(document));
+				return true;
+#else
 				using (var stream = new MemoryStream())
 				{
 					var settings = new XmlWriterSettings
@@ -79,15 +84,13 @@ namespace Tailviewer.Settings.Bookmarks
 					};
 					using (XmlWriter writer = XmlWriter.Create(stream, settings))
 					{
-#if NET10_0_OR_GREATER
-						BuildDocument().Save(writer);
-#else
+
 						writer.WriteStartElement("xml");
 
 						Save(writer);
 
 						writer.WriteEndElement();
-#endif
+
 					}
 
 					if (!Directory.Exists(_fileFolder))
@@ -103,6 +106,7 @@ namespace Tailviewer.Settings.Bookmarks
 
 					return true;
 				}
+#endif
 			}
 			catch (Exception e)
 			{
@@ -131,26 +135,7 @@ namespace Tailviewer.Settings.Bookmarks
 			try
 			{
 #if NET10_0_OR_GREATER
-				var document = ProfileStore.Read(_fileName);
-				var element = document.Root;
-
-				var bookmarks = new List<BookmarkSettings>();
-				foreach (var child in element.Elements("bookmark"))
-				{
-					var bookmark = new BookmarkSettings();
-					using (var content = child.CreateReader())
-					{
-						content.MoveToContent();
-						bookmark.Restore(content);
-					}
-					bookmarks.Add(bookmark);
-				}
-				_rawXml = document;
-				_restoreFailed = false;
-
-				Clear();
-				Capacity = bookmarks.Count;
-				AddRange(bookmarks);
+				RestoreDocument(ProfileStore.Read(_fileName));
 #else
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
@@ -186,6 +171,28 @@ namespace Tailviewer.Settings.Bookmarks
 #endif
 			}
 		}
+
+#if NET10_0_OR_GREATER
+		private void RestoreDocument(XDocument document)
+		{
+			var bookmarks = new List<BookmarkSettings>();
+			foreach (var child in document.Root.Elements("bookmark"))
+			{
+				var bookmark = new BookmarkSettings();
+				using (var content = child.CreateReader())
+				{
+					content.MoveToContent();
+					bookmark.Restore(content);
+				}
+				bookmarks.Add(bookmark);
+			}
+			Clear();
+			Capacity = bookmarks.Count;
+			AddRange(bookmarks);
+			_rawXml = document;
+			_restoreFailed = false;
+		}
+#endif
 
 		/// <summary>Removes the supplied bookmark records.</summary>
 		public void Remove(IEnumerable<BookmarkSettings> removed)
