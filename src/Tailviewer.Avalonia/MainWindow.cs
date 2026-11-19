@@ -117,7 +117,6 @@ public sealed class MainWindow : Window
         AutomationProperties.SetName(_closeAll, "Close all sources");
         AutomationProperties.SetName(_newGroup, "New group");
         _sourceTree.ItemsSource = _sources;
-        // shortcut: groups expose members; timestamp-aware aggregate views remain US2.
         _sourceTree.ItemTemplate = new FuncTreeDataTemplate<DataSource>((source, _) =>
         {
             var path = source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "Merged Data Source";
@@ -550,6 +549,17 @@ public sealed class MainWindow : Window
         void RefreshMenu()
         {
             menu.Items.Clear();
+            var singleLine = new MenuItem { Header = "Single Line", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.IsSingleLine };
+            ToolTip.SetTip(singleLine, "Treat every single line as a separate log entry");
+            singleLine.Click += async (_, _) =>
+            {
+                if (_closed || !_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Any(item => ReferenceEquals(item, source))) return;
+                source.IsSingleLine = !source.IsSingleLine;
+                singleLine.IsChecked = source.IsSingleLine;
+                if (!ConfigureReaders()) return;
+                if (_document?.SourceId == source.Id) await ActivateSourceAsync(source);
+            };
+            menu.Items.Add(singleLine);
             if (!_workspace.Contains(source.Id))
             {
                 var folder = _workspace.All.FirstOrDefault(parent => parent.Id == source.ParentId && parent.LogFileFolderPath != null);

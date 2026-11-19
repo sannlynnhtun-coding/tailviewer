@@ -13,7 +13,7 @@ internal sealed class GroupDocument : IDisposable
     private readonly List<ILogSource> _emptySources = new();
     private readonly List<DataSourceId> _failedReaders = new();
     private readonly List<string> _errors = new();
-    private readonly List<(DataSource Source, DataSourceId[] Members, HashSet<DataSourceId> Excluded)> _snapshots = new();
+    private readonly List<(DataSource Source, DataSourceId[] Members, HashSet<DataSourceId> Excluded, bool SingleLine)> _snapshots = new();
     public LogDocument Document => _groups[^1];
     public string? Error => _errors.Count == 0 ? null : string.Join(Environment.NewLine, _errors);
 
@@ -23,17 +23,18 @@ internal sealed class GroupDocument : IDisposable
         var result = new GroupDocument();
         try
         {
-            await Build(source, new HashSet<DataSourceId>());
+            await Build(source, new HashSet<DataSourceId>(), false);
             return result;
         }
         catch { result.Dispose(); throw; }
 
-        async Task<LogDocument> Build(DataSource parent, HashSet<DataSourceId> ancestors)
+        async Task<LogDocument> Build(DataSource parent, HashSet<DataSourceId> ancestors, bool forceSingleLine)
         {
             if (!ancestors.Add(parent.Id)) throw new InvalidOperationException("Source groups cannot contain cycles.");
             var members = children(parent).ToArray();
             var configuration = parent.Clone();
-            result._snapshots.Add((parent, members.Select(member => member.Id).ToArray(), new(configuration.ExcludedDataSources)));
+            configuration.IsSingleLine |= forceSingleLine;
+            result._snapshots.Add((parent, members.Select(member => member.Id).ToArray(), new(configuration.ExcludedDataSources), parent.IsSingleLine));
             var sources = new List<(DataSourceId, ILogSource)>();
             foreach (var member in members)
             {
@@ -60,8 +61,8 @@ internal sealed class GroupDocument : IDisposable
                         continue;
                     }
                 }
-                else document = await Build(member, ancestors);
-                sources.Add((member.Id, document.ParsedSource));
+                else document = await Build(member, ancestors, configuration.IsSingleLine);
+                sources.Add((member.Id, configuration.IsSingleLine ? document.ParsedSource : document.EntrySource));
             }
             ancestors.Remove(parent.Id);
             var merged = new LogDocument(configuration, sources);
@@ -81,7 +82,8 @@ internal sealed class GroupDocument : IDisposable
     {
         foreach (var snapshot in _snapshots)
             if (!snapshot.Members.SequenceEqual(children(snapshot.Source).Select(member => member.Id)) ||
-                !snapshot.Excluded.SetEquals(snapshot.Source.ExcludedDataSources)) return false;
+                !snapshot.Excluded.SetEquals(snapshot.Source.ExcludedDataSources) ||
+                snapshot.SingleLine != snapshot.Source.IsSingleLine) return false;
         foreach (var lease in _leases)
         {
             if (!readers.TryAcquire(lease.Document.SourceId, out var current)) return false;

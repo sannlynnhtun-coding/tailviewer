@@ -12,11 +12,12 @@ internal sealed class SourceDocuments : IDisposable
     private readonly Dictionary<DataSourceId, Entry> _entries = new();
     private bool _disposed;
 
-    internal sealed class Entry(Task<LogDocument> opening, string path, Encoding? encoding)
+    internal sealed class Entry(Task<LogDocument> opening, string path, Encoding? encoding, bool singleLine)
     {
         public readonly Task<LogDocument> Opening = opening;
         public readonly string Path = path;
         public readonly Encoding? Encoding = encoding;
+        public readonly bool SingleLine = singleLine;
         public int References = 1;
         public bool Retired;
         public bool Released;
@@ -57,8 +58,9 @@ internal sealed class SourceDocuments : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             foreach (var (id, entry) in _entries.ToArray())
             {
-                // shortcut: raw-reader keys cover path/decoder; extend with parser settings in T043.
+                // shortcut: reader keys cover path/decoder/single-line mode; extend with custom parser settings in T043.
                 if (files.TryGetValue(id, out var file) && SamePath(entry.Path, file.File) && Equals(entry.Encoding, decoder) &&
+                    entry.SingleLine == file.IsSingleLine &&
                     !entry.Opening.IsFaulted && !entry.Opening.IsCanceled) continue;
                 _entries.Remove(id);
                 entry.Retired = true;
@@ -68,7 +70,7 @@ internal sealed class SourceDocuments : IDisposable
             foreach (var (id, file) in files)
             {
                 if (_entries.ContainsKey(id)) continue;
-                var entry = new Entry(Task.Run(() => _open(file, decoder) ?? throw new InvalidOperationException("The reader factory returned no document.")), file.File, decoder);
+                var entry = new Entry(Task.Run(() => _open(file, decoder) ?? throw new InvalidOperationException("The reader factory returned no document.")), file.File, decoder, file.IsSingleLine);
                 _entries.Add(id, entry);
                 _ = entry.Opening.ContinueWith(completed =>
                 {

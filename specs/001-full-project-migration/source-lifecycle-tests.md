@@ -1450,3 +1450,49 @@ t043-multiline-columns.log/TRX and t043-multiline-core.log/TRX. Application
 binding/menu tests and their final validation are recorded separately below.
 Known legacy NU1902 remains visible. This shared fix alone does not establish
 full custom/plugin parser or full migration completion.
+
+## Default multiline entries and Single Line source controls (T023/T043, partial)
+
+The legacy source pipeline gives continuation lines their preceding entry's
+timestamp/level unless Single Line is enabled. Aggregate views now reuse the
+existing Core MultiLineLogSource for that behavior. Each raw LogDocument creates
+its borrowed multiline view only when an aggregate actually requests it, then
+owns/disposes that view before its parsed/raw source. Ordinary raw-file preview
+still reads its existing source; opening a file alone does not start this extra
+multiline indexing worker. No alternate parser/multiline algorithm was added.
+
+Group/folder snapshots include IsSingleLine, and reader ownership keys include
+the member setting. A checked Single Line context-menu item uses the existing
+DataSource.IsSingleLine field for configured sources and live folder children;
+stale menu actions require the same live settings object. Changing a member
+while viewing its aggregate refreshes the merge without activating the child.
+A parent Single Line override propagates through nested groups/folders using
+configuration clones and leaves stored child settings unchanged. Exclusions,
+identities and existing XML field names remain intact; shipping profile/restart
+persistence is still unfinished.
+
+Two group/folder behavioral tests first failed because continuation rows were
+missing. Wiring the Core view exposed the shared parser buffer-mask issue
+recorded above. After that fix, tests verify exact original indentation/copy,
+new continuation appends, parent/member toggles and checked menu state, retained
+aggregate activation, nested parent override/reversion without mutating child
+settings, and unchanged owned file bytes. The initial diagnostic helper had a
+missing extension qualification compile error; its corrected run captured two
+merged rows without the continuation. Temporary diagnostics were removed.
+
+Final validation: modern solution 81 Archiver + 211 Avalonia = 292 passed,
+zero failures/skips, including the extended nested cases. Native folder-picker
+apply/cancel, folder-options browse apply/cancel and Ctrl+G pass 5/5; these are
+entry/dialog/shortcut checks, not native Single Line-toggle acceptance. Core full
+suite result is in the preceding section (7171 pass, five pre-existing skips).
+Evidence under ignored artifacts/migration/: t043-multiline-ui-red.log/TRX,
+-ui-focused.log/TRX (two failures/two passes before the mask fix),
+-ui-diagnostic.log (compile), -ui-diagnostic-final.log/TRX (missing continuation),
+-ui-columns-fixed.log/TRX (4/4), -modern.log/TRX and -native.log/TRX.
+
+Full custom/plugin format detection/parsing, columns/format UI, provenance and
+timestamp-offset controls, restart persistence, multiline large-file/many-source
+costs and complete performance/native/Framework acceptance remain open. Core
+multiline is a physical-line view with inherited entry metadata; it does not
+concatenate source text or alter logs. T023/T043 and full migration remain
+incomplete; no task checklist was marked complete by this slice.

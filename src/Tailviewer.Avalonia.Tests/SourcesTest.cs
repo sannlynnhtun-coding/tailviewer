@@ -367,6 +367,84 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public Task GroupKeepsContinuationLinesAndHonorsSingleLineModes() => AggregateHonorsSingleLineModes(false);
+
+    [AvaloniaTest]
+    public Task FolderKeepsContinuationLinesAndHonorsSingleLineModes() => AggregateHonorsSingleLineModes(true);
+
+    private async Task AggregateHonorsSingleLineModes(bool folderView)
+    {
+        const string header = "2026-11-19 12:00:01.000 ERROR failure";
+        const string other = "2026-11-19 12:00:02.000 INFO other";
+        const string frame = "    at original frame";
+        const string appended = "    at appended frame";
+        File.WriteAllText(_first, header + "\n" + frame);
+        File.WriteAllText(_second, other);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(folderView ? new[] { _folder } : new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var aggregate = folderView ? workspace.All.Single(source => source.LogFileFolderPath != null) :
+                workspace.GroupWith(workspace.All.Single(source => source.File == _first).Id, workspace.All.Single(source => source.File == _second).Id);
+            tree.SelectedItem = aggregate;
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 1, frame);
+            File.AppendAllText(_first, "\n" + appended);
+            await WaitUntil(() => Rows(window).ItemCount == 4);
+            await Copy(window, 2, appended);
+            var parent = (TreeViewItem)tree.ContainerFromItem(aggregate)!;
+            parent.IsExpanded = true;
+            await Toggle(aggregate, parent, true);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, header);
+            await Toggle(aggregate, parent, false);
+            await WaitUntil(() => Rows(window).ItemCount == 4);
+            var member = parent.Items.OfType<DataSource>().Single(source => source.File == _first);
+            await WaitUntil(() => parent.ContainerFromItem(member) is TreeViewItem);
+            await Toggle(member, (TreeViewItem)parent.ContainerFromItem(member)!, true);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            tree.SelectedItem.Should().BeSameAs(aggregate);
+            await Copy(window, 1, other);
+            await Toggle(member, (TreeViewItem)parent.ContainerFromItem(member)!, false);
+            await WaitUntil(() => Rows(window).ItemCount == 4);
+            await Copy(window, 1, frame);
+            var outer = workspace.AddGroup();
+            workspace.AddToGroup(aggregate.Id, outer.Id);
+            tree.SelectedItem = outer;
+            await WaitUntil(() => Rows(window).ItemCount == 4 && window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == outer.Id);
+            var outerItem = (TreeViewItem)tree.ContainerFromItem(outer)!;
+            await Toggle(outer, outerItem, true);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            aggregate.IsSingleLine.Should().BeFalse("the parent override must not rewrite child settings");
+            await Copy(window, 1, other);
+            await Toggle(outer, outerItem, false);
+            await WaitUntil(() => Rows(window).ItemCount == 4);
+            await Copy(window, 2, appended);
+            File.ReadAllText(_first).Should().Be(header + "\n" + frame + "\n" + appended);
+
+            async Task Toggle(DataSource source, TreeViewItem item, bool expected)
+            {
+                item.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+                var menu = item.ContextMenu!;
+                try
+                {
+                    await WaitUntil(() => menu.IsOpen);
+                    var toggle = menu.Items.OfType<MenuItem>().SingleOrDefault(entry => Equals(entry.Header, "Single Line"));
+                    toggle.Should().NotBeNull();
+                    toggle!.IsChecked.Should().Be(source.IsSingleLine);
+                    toggle.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    source.IsSingleLine.Should().Be(expected);
+                }
+                finally { menu.Close(); }
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public Task GroupRedetectsTimestampFormatAfterSameSizeReplacement() => GroupRedetectsTimestampFormat(false);
 
     [AvaloniaTest]
