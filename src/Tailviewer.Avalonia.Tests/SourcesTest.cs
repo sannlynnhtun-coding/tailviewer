@@ -1450,6 +1450,45 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task ActiveFileRecoversAfterExclusiveLockWithoutReopeningOrEnablingFollow()
+    {
+        var window = new MainWindow();
+        window.Show();
+        FileStream? exclusive = null;
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 1, "  original spaces  ");
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var source = (DataSource)tree.SelectedItem!;
+            var follow = window.GetVisualDescendants().OfType<CheckBox>().Single();
+            follow.IsChecked = false;
+            await WaitUntil(() =>
+            {
+                try
+                {
+                    exclusive = File.Open(_first, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                    return true;
+                }
+                catch (IOException) { return false; }
+            });
+            await WaitUntil(() => Rows(window).ItemCount == 0 && !string.IsNullOrEmpty(SourceStatus(tree, source)) &&
+                SourceStatus(tree, source) != "Loading…" && SourceStatus(tree, source) != "No log lines.");
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(source.Id);
+            follow.IsChecked.Should().BeFalse();
+            exclusive!.Dispose();
+            exclusive = null;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && string.IsNullOrEmpty(SourceStatus(tree, source)));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(source.Id);
+            follow.IsChecked.Should().BeFalse();
+            await Copy(window, 1, "  original spaces  ");
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+        }
+        finally { exclusive?.Dispose(); window.Close(); }
+    }
+
     private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
     {
         var item = (TreeViewItem)tree.ContainerFromItem(source)!;

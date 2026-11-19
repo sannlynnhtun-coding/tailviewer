@@ -651,3 +651,19 @@ file snapshot, so status and membership converge across background polling ticks
 Native folder picker open/cancel: 2 pass, no skips (t022-folder-status-native.log).
 Legacy net471 test-project build: zero errors, five existing warnings
 (t022-folder-status-legacy-build.log); legacy runtime tests were not executed.
+
+## Active-file lock/recovery contract (T022/T031)
+
+Added an owned-file headless regression for an already indexed, copyable file
+becoming exclusively locked and then accessible again without an explicit reopen.
+It verifies a visible error/empty-row transition, automatic exact-content recovery,
+stable source identity and preservation of paused follow mode. The exclusive
+handle is acquired with a bounded retry and released even on assertion failure;
+fixture contents remain unchanged. This contract passed against existing runtime
+code, so no production change or invented failing baseline was needed.
+
+Focused case: 1 pass. Full modern solution: 81 Archiver + 169 Avalonia pass,
+zero failures/skips. Evidence: ignored artifacts/migration/
+t022-active-lock-focused.log and t022-active-lock-modern.log.
+Core/native/legacy suites were not rerun for this test-only slice. T022/T031
+remain incomplete; this does not establish network-share recovery or full parity.
