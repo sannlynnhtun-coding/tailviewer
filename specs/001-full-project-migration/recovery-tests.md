@@ -156,3 +156,30 @@ T020 is complete as a test-contract task: hidden middle/identical-metadata,
 truncate/regrow, changed-BOM encoding and stale queued/in-flight result cases now
 exist and pass. T027/T028 and native/performance acceptance remain open. This
 completion does not claim full recovery implementation or US1 parity.
+## Slice 4: append during an empty scan
+
+While verifying the folder-picker slice, the existing empty/partial-line Avalonia
+case stalled at its first two-line count. A deterministic real-file gate now
+appends immediately after a stream Length check has returned zero. Before the
+fix, two scanner passes permanently indexed one line instead of two: the first
+line was omitted but the new content digest was accepted.
+
+An empty length snapshot is now completed as empty without feeding a racing
+append to the line detector. The next pass discovers and indexes all appended
+bytes from offset zero. Actual stream length also participates in the no-change
+check so bytes not yet indexed are not hidden by an earlier metadata snapshot.
+The gate uses existing Moq/manual-scheduler tooling and owned local FileStream;
+no sleep, skip or enlarged timeout makes it pass.
+
+Results: all 15 streaming recovery cases pass; the original partial-line case
+passes in isolation; full Core 7,107 pass / 0 failed / 5 unchanged existing skips;
+legacy net471 test-project build passes with 0 errors / 5 existing warnings;
+modern solution 81 Archiver + 85 Avalonia pass. Modern solution verification also
+included the pending folder-picker UI work, excluded from this Core fix commit.
+
+Evidence: artifacts/migration/t024-folder-modern.log (initial observed failure),
+t020-empty-race-red.log, t020-empty-race-focused.log,
+t020-empty-race-ui-focused.log, t020-empty-race-core-full.log,
+t020-empty-race/t020-empty-race.trx, t020-empty-race-legacy-build.log and
+t024-folder-modern-final.log. General concurrent rewrite/index/digest snapshot
+consistency remains the separate T027 issue described above.

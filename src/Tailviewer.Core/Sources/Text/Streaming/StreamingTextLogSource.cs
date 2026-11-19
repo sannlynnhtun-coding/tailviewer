@@ -298,8 +298,9 @@ namespace Tailviewer.Core
 			                                     FileAccess.Read,
 			                                     FileShare.ReadWrite | FileShare.Delete))
 			{
+				var length = stream.Length;
 				var contentChanged = !ArrayExtensions.Equals(_checkpoint, ReadCheckpoint(stream, _lastStreamPosition, cancellationToken));
-				if (!metadataChanged && !contentChanged)
+				if (!metadataChanged && !contentChanged && length == _lastStreamPosition)
 					return false;
 
 				if (contentChanged || (previousFingerprint != null &&
@@ -309,6 +310,15 @@ namespace Tailviewer.Core
 					Clear();
 				}
 				_propertiesBuffer.SetValue(Core.Properties.EmptyReason, null);
+				if (length == 0)
+				{
+					// Do not index an append that races the empty snapshot without adding its first line.
+					Clear();
+					_checkpoint = new byte[0];
+					_propertiesBuffer.SetValue(Core.Properties.PercentageProcessed, Percentage.HundredPercent);
+					SynchronizeProperties();
+					return true;
+				}
 
 				var encoding = _encoding;
 				if (_encoding.GetPreamble().Length > 0)

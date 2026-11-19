@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using Moq;
 using Tailviewer.Api;
 
 namespace Tailviewer.Core.Tests.Sources.Text.Streaming
@@ -32,6 +33,45 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             Assert.That(Directory.GetParent(Path.GetFullPath(_folder)).FullName,
                 Is.EqualTo(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
             Directory.Delete(_folder, true);
+        }
+
+        [Test]
+        public void AppendAfterTheEmptyLengthCheckCannotLoseTheFirstLine()
+        {
+            Write("");
+            var real = new Filesystem(_scheduler);
+            var filesystem = new Mock<IFilesystem>();
+            filesystem.Setup(value => value.FileExists(_path)).Returns(() => File.Exists(_path));
+            filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
+            filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                .Returns(() => new AppendAfterEmptyLengthStream(_path));
+            using (var source = new StreamingTextLogSource(filesystem.Object, _scheduler, _path,
+                       LogFileFormats.GenericText, new UTF8Encoding(false)))
+            {
+                _scheduler.Run(2);
+                Assert.That(File.ReadAllText(_path), Is.EqualTo("first\npartial"), "the owned append gate must have run");
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(2));
+                Assert.That(Read(source, 2), Is.EqualTo(new[] { "first", "partial" }));
+            }
+        }
+
+        private sealed class AppendAfterEmptyLengthStream : FileStream
+        {
+            private readonly string _path;
+            public AppendAfterEmptyLengthStream(string path) : base(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)
+            {
+                _path = path;
+            }
+
+            public override long Length
+            {
+                get
+                {
+                    var length = base.Length;
+                    if (length == 0) File.AppendAllText(_path, "first\npartial", new UTF8Encoding(false));
+                    return length;
+                }
+            }
         }
 
         [TestCase(false)]
