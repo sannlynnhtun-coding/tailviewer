@@ -585,3 +585,18 @@ cases or the five-minute tail gate. No production source changed in this slice.
 Core/modern suites were not repeated; the standalone tool builds successfully.
 Cleanup leaves no owned app/testhost processes or native fixture directories.
 Navigation p95, cold-cache and broader source/performance acceptance stay open.
+
+## Native Ctrl+G entry point
+
+The existing guarded Ctrl+A injector now shares its implementation with the
+fixed Ctrl+G chord. Both retain owned PID/focus ancestry, immediate foreground
+and held-key rechecks, atomic four-event injection and partial-send release of
+only injected keys. G joins the held-key guard. No arbitrary chord API or new
+input helper is exposed.
+
+A native case opens the actual navigator through Ctrl+G, sets line 2 through
+the accessible value pattern, invokes Go to line, copies the exact original
+Unicode/whitespace content and requires paused follow plus unchanged fixture
+bytes. Combined Ctrl+G/terminal-newline/large Ctrl+A cases pass 3/3, zero
+failures/skips (artifacts/migration/t029-native-navigation-entry.log/TRX).
+This is functional navigation entry evidence; navigation p95 is still separate.

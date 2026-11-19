@@ -139,6 +139,25 @@ public sealed partial class SourceEntryPointTest
     }
 
     [Test]
+    public void NativeGoToLineShortcutSelectsAndCopiesTheOriginalTarget()
+    {
+        var window = StartApplication();
+        var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The native log list must be accessible.");
+        WaitForNativeLineCount(window, rows, 3);
+        NativeKeyboard.GoToLine(_process!, rows);
+        var input = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Line number")), "Ctrl+G must open the native line navigator.");
+        ((ValuePattern)input.GetCurrentPattern(ValuePattern.Pattern)).SetValue("2");
+        InvokeButton(window, "Go to line");
+        CopyAndCheck(window);
+        var follow = window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox));
+        Assert.That(((TogglePattern)follow.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState, Is.EqualTo(ToggleState.Off));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
+    [Test]
     public void NativeTerminalNewlineRowRendersWithoutLoadingAndCopiesTheTrailingNewline()
     {
         File.WriteAllText(_path, "first\n" + SelectedLine + "\n");

@@ -18,13 +18,17 @@ internal static class NativeKeyboard
 
     public static bool IsForeground(Process process) => ForegroundProcessId == process.Id;
 
-    public static void SelectAll(Process process, AutomationElement list)
+    public static void SelectAll(Process process, AutomationElement list) => ControlKey(process, list, 65);
+
+    public static void GoToLine(Process process, AutomationElement list) => ControlKey(process, list, 71);
+
+    private static void ControlKey(Process process, AutomationElement list, ushort key)
     {
         if (IntPtr.Size != 8 || Marshal.SizeOf<Input>() != 40)
             throw new PlatformNotSupportedException("This native keyboard fixture requires Windows x64 INPUT layout.");
-        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 65, 91, 92 };
+        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 65, 71, 91, 92 };
         if (inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
-            throw new InvalidOperationException("Release mouse buttons, modifiers and A before the owned keyboard fixture.");
+            throw new InvalidOperationException("Release mouse buttons, modifiers, A and G before the owned keyboard fixture.");
         if (list.Current.ProcessId != process.Id) throw new InvalidOperationException("The log list is not owned by the test process.");
         list.SetFocus();
         GetWindowThreadProcessId(GetForegroundWindow(), out var foreground);
@@ -37,12 +41,12 @@ internal static class NativeKeyboard
                 GetWindowThreadProcessId(GetForegroundWindow(), out foreground);
                 if (foreground != process.Id || inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
                     throw new InvalidOperationException("Focus or input state changed before the owned chord.");
-                var sent = SendInput(4, new[] { Key(17, 0), Key(65, 0), Key(65, 2), Key(17, 2) }, 40);
+                var sent = SendInput(4, new[] { Key(17, 0), Key(key, 0), Key(key, 2), Key(17, 2) }, 40);
                 if (sent == 4) return;
                 // Release only keys whose down event this fixture actually injected.
-                if (sent >= 2) SendInput(1, new[] { Key(65, 2) }, 40);
+                if (sent >= 2) SendInput(1, new[] { Key(key, 2) }, 40);
                 if (sent >= 1) SendInput(1, new[] { Key(17, 2) }, 40);
-                throw new Win32Exception("The owned select-all chord was not fully injected.");
+                throw new Win32Exception("The owned Control chord was not fully injected.");
             }
             focused = TreeWalker.ControlViewWalker.GetParent(focused);
         }
