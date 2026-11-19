@@ -42,3 +42,29 @@ Core graph tests are supporting evidence, not a substitute for those application
 contracts. T022/T023 will supply the missing legacy business/UI integration;
 T024 covers multi-file/folder picker/drop/argument wiring. Do not mark T018 or
 US1 complete based on this file-only baseline.
+## Slice 2: workspace/folder gaps captured behaviorally
+
+Added three ordinary headless cases using the existing MainWindow and real
+settings/document APIs. No missing type/compiler placeholder or production stub
+was introduced:
+
+- Saved/reloaded selected source retains its original ID and copies the selected
+  file's actual content: passed.
+- Reopening the same canonical path must keep one selectable source-tree entry:
+  failed because the current window has no source tree.
+- A folder path must create a folder source while retaining the open file and
+  exposing its matching logs: failed because the current file-only entry point
+  rejects the directory. The later assertions pin two root entries and three
+  aggregate log entries for the owned two-file fixture; those assertions have
+  not executed yet and do not constitute folder-enumeration evidence.
+
+Executed SourcesTest result: 6 passed, 2 failed, 0 skipped (8 total).
+Evidence: ignored artifacts/migration/t018-source-contracts-red.log and
+artifacts/migration/t018/t018-source-contracts.trx. The new cases are normal
+net10.0 tests, so the ordinary Avalonia suite is currently expected to fail on
+these two missing features until source-tree/folder integration is implemented.
+The earlier 28-case passing checkpoint predates these new contracts.
+
+T018 remains unchecked: close-current/all, group UI, recursive patterns/missing
+folder handling and cycle/duplicate UI feedback still need executable contracts.
+No UI implementation, full-suite green claim or US1 completion is implied.

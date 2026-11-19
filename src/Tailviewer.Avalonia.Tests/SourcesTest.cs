@@ -34,6 +34,67 @@ public sealed class SourcesTest
     public void TearDown() => Directory.Delete(_folder, recursive: true);
 
     [AvaloniaTest]
+    public async Task ReopeningTheSameFileRetainsOneSourceTreeEntry()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await window.OpenFileAsync(_first);
+            var sources = window.GetVisualDescendants().OfType<TreeView>().SingleOrDefault();
+            sources.Should().NotBeNull("because open sources must remain selectable in a source tree");
+            sources!.ItemCount.Should().Be(1, "because reopening the same canonical path must reuse its source");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await window.OpenFileAsync(_folder);
+            window.GetVisualDescendants().OfType<TextBlock>().Should().NotContain(text =>
+                text.Text != null && text.Text.StartsWith("Cannot open file:"),
+                "because a folder path must open a folder source rather than be rejected as a file");
+            var sources = window.GetVisualDescendants().OfType<TreeView>().SingleOrDefault();
+            sources.Should().NotBeNull("because folder arguments must create a selectable folder source");
+            sources!.ItemCount.Should().Be(2, "because adding a folder must preserve the already open file");
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            File.ReadAllText(_second).Should().Be("second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task SavedSelectedSourceReopensWithItsOriginalIdentityAndContent()
+    {
+        var profile = Path.Combine(_folder, "settings.xml");
+        var first = new DataSource(_first) { Id = DataSourceId.CreateNew() };
+        var second = new DataSource(_second) { Id = DataSourceId.CreateNew() };
+        var settings = new ApplicationSettings(profile);
+        settings.DataSources.Add(first);
+        settings.DataSources.Add(second);
+        settings.DataSources.SelectedItem = second.Id;
+        settings.Save().Should().BeTrue();
+        var reopened = new ApplicationSettings(profile);
+        reopened.Restore();
+        var selected = reopened.DataSources.Single(source => source.Id == reopened.DataSources.SelectedItem);
+        selected.Id.Should().Be(second.Id);
+        selected.File.Should().Be(_second);
+        using var document = new LogDocument(selected);
+        await WaitUntil(() => { document.Refresh(); return document.Lines.Count == 1; });
+        document.SourceId.Should().Be(second.Id);
+        (await document.CopyTextAsync(new[] { 0 })).Should().Be("second");
+    }
+
+    [AvaloniaTest]
     public async Task OpeningAndSwitchingFilesCopiesOnlyTheActiveSource()
     {
         var window = new MainWindow();
