@@ -194,6 +194,68 @@ public sealed class SourceDocumentsTest
         Assert.That(await active.Document.CopyTextAsync(new[] { 0 }), Is.EqualTo("one"));
     }
 
+    [Test]
+    public async Task ManyConfiguredFilesTailIndependentlyAndReleaseTheirHandlesOnClosure()
+    {
+        var sources = Enumerable.Range(0, 40).Select(index =>
+        {
+            var source = new DataSource(Path.Combine(_folder, $"reader-{index:D2}.log")) { Id = DataSourceId.CreateNew() };
+            File.WriteAllText(source.File, $"original-{index}");
+            return source;
+        }).ToArray();
+        using var process = Process.GetCurrentProcess();
+        var cpu = process.TotalProcessorTime;
+        var clock = Stopwatch.StartNew();
+        var opens = 0;
+        using var owner = new SourceDocuments((source, encoding) =>
+        {
+            Interlocked.Increment(ref opens);
+            return new LogDocument(source, encoding);
+        });
+        var leases = new List<SourceDocuments.Lease>();
+        try
+        {
+            owner.Configure(sources, null);
+            foreach (var source in sources) leases.Add(await owner.AcquireAsync(source.Id));
+            await Task.WhenAll(leases.Select(lease => Ready(lease.Document)));
+            for (var index = 0; index < sources.Length; ++index)
+                Assert.That(await leases[index].Document.CopyTextAsync(new[] { 0 }), Is.EqualTo($"original-{index}"));
+            owner.Configure(sources, null);
+            Assert.That(opens, Is.EqualTo(sources.Length), "unchanged refresh must not open duplicate readers");
+            owner.Configure(sources.Skip(20), null);
+            for (var index = 0; index < 20; ++index) leases[index].Dispose();
+            for (var index = 20; index < sources.Length; ++index)
+                File.AppendAllText(sources[index].File, $"\ntail-{index}");
+            var tail = Stopwatch.StartNew();
+            while (tail.Elapsed < TimeSpan.FromSeconds(8))
+            {
+                foreach (var lease in leases.Skip(20)) lease.Document.Refresh();
+                if (leases.Skip(20).All(lease => lease.Document.Lines.Count == 2)) break;
+                await Task.Delay(10);
+            }
+            for (var index = 20; index < sources.Length; ++index)
+            {
+                Assert.That(leases[index].Document.Lines.Count, Is.EqualTo(2));
+                Assert.That(await leases[index].Document.CopyTextAsync(new[] { 1 }), Is.EqualTo($"tail-{index}"));
+            }
+            process.Refresh();
+            TestContext.WriteLine($"40 raw readers: elapsed={clock.Elapsed.TotalMilliseconds:F1}ms, CPU={(process.TotalProcessorTime - cpu).TotalMilliseconds:F1}ms, workingSet={process.WorkingSet64}, threads={process.Threads.Count}; in-process functional preflight, not whole-app acceptance.");
+            owner.Dispose();
+            Assert.That(await leases[^1].Document.CopyTextAsync(new[] { 1 }), Is.EqualTo("tail-39"));
+            foreach (var lease in leases) lease.Dispose();
+            foreach (var source in sources)
+            {
+                using var exclusive = new FileStream(source.File, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                Assert.That(exclusive.Length, Is.GreaterThan(0), "all owned file handles must be released");
+            }
+        }
+        finally
+        {
+            owner.Dispose();
+            foreach (var lease in leases) lease.Dispose();
+        }
+    }
+
     private static async Task Ready(LogDocument document)
     {
         var clock = Stopwatch.StartNew();

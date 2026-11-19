@@ -1133,3 +1133,25 @@ Core production code is unchanged. Per-document schedulers remain in use;
 shared scheduler lifetime and many-source CPU/memory measurements are still
 pending. Aggregate/parser sources and profile persistence are also unfinished.
 T022/T026 remain unchecked and the full migration goal remains active.
+
+## Forty-reader ownership preflight
+
+A new owned-temp-file test configures 40 distinct raw sources without selecting
+a window source, indexes and copies every original line, and refreshes the same
+configuration without duplicate factory calls. Removing/releasing 20 readers
+leaves the other 20 able to tail and copy their distinct appended lines. Closing
+the catalog preserves an issued lease; returning all leases then permits an
+exclusive read/write open of every file, proving no reader handle is retained.
+Cleanup returns every acquired lease even if an assertion fails.
+
+The focused run passed: total measured workload 1156.0ms, process CPU 1312.5ms,
+working set 94,334,976 bytes, process thread count 39. These are one in-process
+functional preflight sample including test-host overhead, not incremental
+per-reader costs, idle CPU, native UI responsiveness, a scheduler comparison or
+SC-004/005 acceptance. Per-document schedulers remain unchanged; these results
+do not by themselves justify adding shared-scheduler lifetime machinery.
+All eight reader-owner contracts pass, zero failures/skips. Evidence:
+artifacts/migration/t022-many-readers.log/TRX and
+t022-many-readers-contracts.log/TRX. No production code changed in this slice,
+so the full modern/native/Core suites were not repeated. Whole-app many-source
+profiling, parser/aggregate integration and the full migration remain pending.
