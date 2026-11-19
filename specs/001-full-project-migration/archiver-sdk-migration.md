@@ -85,10 +85,13 @@ resolves log4net 3.6.0 and SkiaSharp 3.119.4 and contains no Metrolib, PE,
 SharpRemote, PresentationCore, PresentationFramework or System.Drawing.Common
 library entries. Retained legacy log4net NU1902 warnings remain visible.
 
-Evidence: artifacts/migration/t008-current-build.log,
-artifacts/migration/t008-recheck.log and
-artifacts/migration/t008-recheck/t008-recheck.trx (ignored local artifacts).
-In-progress Core profile-import changes were preserved and excluded from this
-verification commit. These checks used the current working tree, including
-those changes; they are not a clean-checkout validation. Legacy desktop/service
-runtime integration and repository publishing remain outside this verification.
+Evidence from the latest requested recheck: artifacts/migration/t008-request-build.log,
+artifacts/migration/t008-request-tests.log and
+artifacts/migration/t008-request/t008-request.trx (ignored local artifacts).
+The build completed with zero errors and nine visible legacy advisory warnings;
+the tests passed 81/81 with no skips. A fresh inspection of the generated modern
+archive.deps.json confirmed the dependency versions and exclusions above.
+In-progress Avalonia source-navigation changes were preserved and excluded from
+this verification commit. These checks used the current working tree; they are
+not a clean-checkout validation. Legacy desktop/service runtime integration and
+repository publishing remain outside this verification.
