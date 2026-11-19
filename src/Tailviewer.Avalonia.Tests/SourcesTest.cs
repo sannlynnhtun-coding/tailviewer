@@ -1021,6 +1021,44 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task SourceMenuReorderingPreservesTheActiveDocumentAndSelection()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var selected = (DataSource)tree.SelectedItem!;
+            var initial = tree.Items.OfType<DataSource>().Select(source => source.Id).ToArray();
+            await Copy(window, 0, "second");
+            foreach (var up in new[] { true, false })
+            {
+                await WaitUntil(() => tree.ContainerFromItem(selected) is TreeViewItem item && item.ContextMenu != null);
+                var container = (TreeViewItem)tree.ContainerFromItem(selected)!;
+                var menu = container.ContextMenu!;
+                container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+                try
+                {
+                    await WaitUntil(() => menu.IsOpen);
+                    var move = menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Header, up ? "Move up" : "Move down"));
+                    move.Should().NotBeNull("because source order must be editable without reopening the log");
+                    move!.IsEnabled.Should().BeTrue();
+                    move.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                }
+                finally { menu.Close(); }
+                tree.Items.OfType<DataSource>().Select(source => source.Id).Should().Equal(up ? initial.Reverse() : initial);
+                ((DataSource)tree.SelectedItem!).Id.Should().Be(selected.Id);
+                Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+                window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+                await Copy(window, 0, "second");
+            }
+        }
+        finally { window.Close(); }
+    }
+
     private static string? SourceStatus(TreeView tree, DataSource source) =>
         (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;

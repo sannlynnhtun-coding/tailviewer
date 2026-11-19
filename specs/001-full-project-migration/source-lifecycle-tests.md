@@ -346,3 +346,30 @@ t023-dissolve-focused.log and t023-dissolve-modern.log.
 T023 remains partial for its implementation dependencies, tree drag/reordering
 and aggregate behavior. Native menu/keyboard/accessibility, full Core and the
 native entry-point matrix were not repeated for this model/menu-only change.
+
+## Same-parent source ordering slice (T023)
+
+Legacy DataSourcesViewModel.DropToArrange inserts sources before/after their
+destination. SourcesViewModel now supports before/after ordering within an
+existing root/group container using AvaloniaList.Move. The source menu exposes
+Move up / Move down, disabled at the respective boundaries. Moving the active
+source retains its current document, selected rows and paused follow state;
+moving a different source activates it through the existing source-open flow.
+
+The menu regression failed before implementation because the commands were
+absent. It now moves a selected file up/down and verifies root order, identity,
+selection/pause and original copy. Eight model cases cover root/group, both move
+directions and before/after placement, retaining parents/exclusions and the
+separate legacy Ctrl+Tab insertion order. They also validate self-target no-ops
+and ordered SourceConfiguration snapshots. An invalid-operation case rejects
+cross-parent or missing identities before mutation.
+
+Complete modern solution: 81 Archiver + 144 Avalonia pass, no failures/skips.
+Ignored evidence: artifacts/migration/t023-order-red.log,
+t023-order-focused.log and t023-order-modern.log.
+
+This is the shared ordering operation and accessible menu phase, not completion
+of legacy tree drag/drop. Cross-parent arrange/merge gestures and their cycle,
+dissolution and source-limit rules still require integration. Automatic saved
+workspace binding remains T053. Native pointer/menu/accessibility and full Core
+tests were not rerun for this UI/model-only slice; T023 stays open.

@@ -95,6 +95,19 @@ public sealed class SourcesViewModel
         _groups[groupId].Add(member);
     }
 
+    public void MoveRelative(DataSourceId id, DataSourceId targetId, bool after)
+    {
+        var source = Find(id);
+        var target = Find(targetId);
+        if (source.ParentId != target.ParentId) throw new ArgumentException("Reordering requires sources in the same parent.");
+        if (source.Id == target.Id) return;
+        var siblings = source.ParentId == DataSourceId.Empty ? Roots : _groups[source.ParentId];
+        var oldIndex = siblings.IndexOf(source);
+        var newIndex = siblings.IndexOf(target) + (after ? 1 : 0);
+        if (oldIndex < newIndex) --newIndex;
+        siblings.Move(oldIndex, newIndex);
+    }
+
     public void RenameGroup(DataSourceId id, string name)
     {
         var source = Find(id);

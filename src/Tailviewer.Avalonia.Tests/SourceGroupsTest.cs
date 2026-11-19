@@ -194,5 +194,59 @@ public sealed class SourceGroupsTest
             .Should().BeEquivalentTo(workspace.All.Select(source => source.Id));
     }
 
+    [TestCase(false, false, false)]
+    [TestCase(false, false, true)]
+    [TestCase(false, true, false)]
+    [TestCase(false, true, true)]
+    [TestCase(true, false, false)]
+    [TestCase(true, false, true)]
+    [TestCase(true, true, false)]
+    [TestCase(true, true, true)]
+    public void ReorderPreservesIdentityExclusionsAndNavigationInsertionOrder(bool grouped, bool forward, bool after)
+    {
+        var workspace = new SourcesViewModel();
+        var group = grouped ? workspace.AddGroup() : null;
+        var members = Enumerable.Range(0, 4).Select(index => File($"missing-{index}.log")).ToArray();
+        workspace.Roots.AddRange(members);
+        if (group != null)
+        {
+            foreach (var member in members) workspace.AddToGroup(member.Id, group.Id);
+            workspace.SetExcluded(members[1].Id, true);
+        }
+        var source = forward ? members[0] : members[3];
+        var target = forward ? members[2] : members[1];
+        workspace.MoveRelative(source.Id, target.Id, after);
+        var expected = forward ? (after ? new[] { 1, 2, 0, 3 } : new[] { 1, 0, 2, 3 }) :
+            (after ? new[] { 0, 1, 3, 2 } : new[] { 0, 3, 1, 2 });
+        var siblings = group == null ? workspace.Roots : workspace.GetChildren(group.Id);
+        siblings.Should().Equal(expected.Select(index => members[index]));
+        members.Should().OnlyContain(member => member.ParentId == (group == null ? DataSourceId.Empty : group.Id));
+        if (group != null) group.ExcludedDataSources.Should().Equal(members[1].Id);
+        workspace.GetAdjacentSource(members[0].Id, false)!.Id.Should().Be(members[1].Id);
+        workspace.MoveRelative(source.Id, source.Id, after);
+        siblings.Should().Equal(expected.Select(index => members[index]));
+        var settings = new DataSourceSettings();
+        settings.AddRange(workspace.All);
+        new SourceConfiguration(settings).GetMembers(group?.Id ?? DataSourceId.Empty).Select(item => item.Id)
+            .Should().Equal(expected.Select(index => members[index].Id));
+    }
+
+    [Test]
+    public void ReorderingAcrossParentsOrWithAClosedIdentityDoesNotMutateTheGraph()
+    {
+        var workspace = new SourcesViewModel();
+        var group = workspace.AddGroup();
+        var child = File("child.log");
+        var root = File("root.log");
+        workspace.Roots.AddRange(new[] { child, root });
+        workspace.AddToGroup(child.Id, group.Id);
+        workspace.SetExcluded(child.Id, true);
+        var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
+        Assert.Throws<ArgumentException>(() => workspace.MoveRelative(child.Id, root.Id, false));
+        Assert.Throws<ArgumentException>(() => workspace.MoveRelative(root.Id, DataSourceId.CreateNew(), true));
+        workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
+        group.ExcludedDataSources.Should().Equal(child.Id);
+    }
+
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }

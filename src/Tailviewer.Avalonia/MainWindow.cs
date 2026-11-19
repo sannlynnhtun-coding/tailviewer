@@ -438,6 +438,16 @@ public sealed class MainWindow : Window
         {
             menu.Items.Clear();
             if (!_workspace.Contains(source.Id)) return;
+            var siblings = (source.ParentId == DataSourceId.Empty ? _sources : _workspace.GetChildren(source.ParentId)).ToArray();
+            var index = Array.FindIndex(siblings, item => item.Id == source.Id);
+            foreach (var offset in new[] { -1, 1 })
+            {
+                var next = index + offset;
+                var move = new MenuItem { Header = offset < 0 ? "Move up" : "Move down", IsEnabled = next >= 0 && next < siblings.Length };
+                if (move.IsEnabled)
+                    move.Click += async (_, _) => await MoveSourceAsync(source, siblings[next].Id, offset > 0);
+                menu.Items.Add(move);
+            }
             if (beginRename != null)
             {
                 var rename = new MenuItem { Header = "Rename group" };
@@ -474,6 +484,21 @@ public sealed class MainWindow : Window
         // Refresh before context routing opens menus created before a group existed.
         menu.Tag = (Action)RefreshMenu;
         return menu;
+    }
+
+    private async Task MoveSourceAsync(DataSource source, DataSourceId target, bool after)
+    {
+        if (_closed) return;
+        try
+        {
+            _workspace.MoveRelative(source.Id, target, after);
+            if (_document?.SourceId == source.Id || (_sourceTree.SelectedItem as DataSource)?.Id == source.Id) SelectSource(source);
+            else await ActivateSourceAsync(source);
+        }
+        catch (Exception error) when (error is XmlException || error is ArgumentException)
+        {
+            _status.Text = _operationError = "Cannot reorder source: " + error.Message;
+        }
     }
 
     private async Task ChangeGroupAsync(DataSource source, Action change)
