@@ -846,6 +846,12 @@ public sealed class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _sourceDrag.IsDragging)
+        {
+            _sourceDrag.Clear();
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.Control or (KeyModifiers.Control | KeyModifiers.Shift))
         {
             e.Handled = true;

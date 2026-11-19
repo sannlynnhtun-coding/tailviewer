@@ -504,3 +504,41 @@ expected order or timeout. Committed diagnostics use only initial/dragged/group-
 or-other roles, not source names or clipboard contents. No speculative production
 or tree-sorting fix is claimed. The full functional suite still has the recorded
 21/22 checkpoint until a subsequent complete run supplies stronger evidence.
+
+## Complete functional recheck and keyboard-focus cancellation
+
+The subsequent complete functional native run passes 22/22, zero failures/skips
+(t023-tree-order-full.log/TRX, TestCategory!=Performance, about 2m46s). This is
+the baseline before the following production fix; it does not explain the earlier
+intermittent cancel failure or complete the five-minute Performance gate.
+
+Inspection found a separate reproducible cancellation gap: Escape was handled
+only along the tree's key route. The existing headless fixture sent an event
+directly to that tree, bypassing actual keyboard focus. A new fixture starts a
+captured tree drag, explicitly focuses the log list, sends raw headless Escape
+press/release through the window, releases the pointer and requires the original
+source graph/order. It failed because the release still created a group.
+
+The existing window tunnel handler now cancels an active tree drag on Escape,
+regardless of the focused descendant; the redundant tree-only handler is removed.
+Inactive drags leave other keyboard handlers unchanged. Existing capture cleanup,
+drop validation, files, timing and input ownership guards remain intact. The
+native cancel case now moves keyboard focus into the owned log list while the
+mouse is held, verifies focus ancestry, and then exercises the same native Escape
+and release. This strengthens the cancellation condition without a new input
+helper or a longer wait.
+
+Initial new behavior case: 1 failure (t023-escape-focus-red.log/TRX). Focused
+headless cancel/edge/hover cases: 4 pass. Final modern solution: 81 Archiver +
+177 Avalonia pass, zero failures/skips (t023-escape-focus-focused.log and
+t023-escape-focus-modern.log/TRX). Core/legacy runtime and native five-minute
+performance are outside this UI-only change; T023/US1/full migration stay open.
+
+After the fix, the strengthened native before/group/cancel, hover and edge-scroll
+cases pass 5/5, zero failures/skips (t023-escape-focus-native.log/TRX, 41 seconds).
+The cancel callback proves focus is inside the owned log list while the gesture
+is held; existing cursor/button guards and unconditional owned-input cleanup are
+unchanged. The full 22-case native suite was not repeated after this targeted
+fix, so its preceding passing result remains a baseline, not a claim of complete
+post-fix native execution. Cleanup audit finds no owned viewer/testhost processes
+or native fixture directories.

@@ -1266,6 +1266,32 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task EscapeCancelsCapturedTreeDragWhenKeyboardFocusIsInTheLogList()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            await WaitUntil(() => tree.ContainerFromItem(sources[0]) is TreeViewItem && tree.ContainerFromItem(sources[1]) is TreeViewItem);
+            var start = TreePoint(window, tree, sources[1], .5);
+            var end = TreePoint(window, tree, sources[0], .5);
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+            Rows(window).Focus().Should().BeTrue();
+            Rows(window).IsKeyboardFocusWithin.Should().BeTrue();
+            window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            window.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            window.MouseUp(end, MouseButton.Left);
+            tree.Cursor.Should().BeNull();
+            tree.Items.OfType<DataSource>().Should().Equal(sources);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task EscapeOutsideReleaseAndCloseAllCancelCapturedTreeDrags()
     {
         var window = new MainWindow();

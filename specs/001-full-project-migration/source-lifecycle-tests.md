@@ -717,3 +717,10 @@ and the full migration remain open for their remaining contracts/integration.
 The independent encoding/settings reader integration is now recorded in
 [encoding-tests.md](encoding-tests.md). Its functional checks do not close the
 open foreground-performance or shipping profile-lifecycle gates.
+
+Captured tree drags now cancel on Escape even when keyboard focus is in the log
+list. A raw-key headless regression failed with an unwanted group before the
+window-level active-drag handler was added; focused cases and the strengthened
+native pointer/hover/edge cases pass afterward. Full validation details and the
+separate native baseline are in [native entry-point tests](native-entry-point-tests.md).
+T023 remains partial for its remaining integration and acceptance scope.

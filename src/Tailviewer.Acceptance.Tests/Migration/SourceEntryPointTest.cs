@@ -429,8 +429,21 @@ public sealed partial class SourceEntryPointTest
         Assert.That(target, Is.Not.Null);
         var from = source!.Current.BoundingRectangle;
         var to = target!.Current.BoundingRectangle;
+        Action? whileHeld = action == "cancel" ? () =>
+        {
+            var rows = window.FindFirst(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.NameProperty, "Log lines"));
+            rows.SetFocus();
+            var focused = AutomationElement.FocusedElement;
+            for (var depth = 0; depth < 16 && focused != null; ++depth)
+            {
+                if (Automation.Compare(focused, rows)) return;
+                focused = TreeWalker.ControlViewWalker.GetParent(focused);
+            }
+            Assert.Fail("The owned log list must hold keyboard focus while the tree retains the drag.");
+        } : null;
         NativeOleDrag.DragWithin(_process!, new Point(from.Left + Math.Min(30, from.Width / 2), from.Top + from.Height / 2),
-            new Point(to.Left + Math.Min(30, to.Width / 2), to.Top + (action == "before" ? 1 : to.Height / 2)), action == "cancel");
+            new Point(to.Left + Math.Min(30, to.Width / 2), to.Top + (action == "before" ? 1 : to.Height / 2)), action == "cancel", whileHeld);
         var grouped = action == "group";
         var expectedFirst = action == "cancel" ? _path : other;
         var treeSnapshot = "";

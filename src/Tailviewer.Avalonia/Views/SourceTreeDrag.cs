@@ -28,6 +28,8 @@ internal sealed class SourceTreeDrag
     private DataSourceId _hoverGroup;
     private long _hoverStarted;
 
+    public bool IsDragging => _dragging;
+
     public SourceTreeDrag(TreeView tree, SourcesViewModel workspace, Func<DataSource, DataSource, bool?, Task> apply)
     {
         _tree = tree;
@@ -37,10 +39,6 @@ internal sealed class SourceTreeDrag
         tree.AddHandler(InputElement.PointerMovedEvent, Moved, RoutingStrategies.Tunnel);
         tree.AddHandler(InputElement.PointerReleasedEvent, Released, RoutingStrategies.Tunnel);
         tree.PointerCaptureLost += (_, _) => { if (_dragging && _pointer?.Captured != tree) Clear(); };
-        tree.AddHandler(InputElement.KeyDownEvent, (_, args) =>
-        {
-            if (_dragging && args.Key == Key.Escape) { Clear(); args.Handled = true; }
-        }, RoutingStrategies.Tunnel);
     }
 
     public void Clear()
