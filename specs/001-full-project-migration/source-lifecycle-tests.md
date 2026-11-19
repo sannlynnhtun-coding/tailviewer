@@ -619,3 +619,35 @@ parity; workspace disk persistence is the later T055 integration.
 Relevant native multi-file CLI/picker and secondary-instance handoff checks also
 pass 3/3 with zero skips: t022-missing-new-native.log. Full native acceptance,
 Core/legacy runtime suites and disk-profile integration were not rerun here.
+
+## Cached background folder status (T022)
+
+A regression first demonstrated ten filesystem calls for ten reads of the
+folder's Error property. FolderSources now accepts the existing shared scheduler
+and publishes cached status/membership from a 500 ms background refresh. File
+system access is outside the publication lock, so reading status cannot wait on
+that I/O. The initial probe remains in background construction at the app caller.
+All constructor callers were updated; no dependency or UI timer was added.
+
+The periodic observation also detects empty-directory disappearance/recovery,
+where file-membership change notifications alone provide no status transition.
+It notifies only when status, membership or the unfiltered count changes. Existing
+members survive transient I/O/pattern failures. Disposal stops the periodic job
+and rejects any in-flight snapshot before publication.
+
+Four new cases cover cached getter access, empty directory disappearance/recovery,
+slow-probe cached reads, and disposal during a gated probe. All 12 folder cases
+pass. Full Core suite: 7,128 pass / 0 failed / 5 existing skips. Full modern
+solution: 81 Archiver and 168 Avalonia pass / 0 failed / 0 skipped.
+Evidence under ignored artifacts/migration: t022-folder-status-red.log,
+t022-folder-status-focused.log, t022-folder-status-core-full.log and
+t022-folder-status-modern.log.
+
+T022 remains partial; inactive parser/index lifecycle is still pending. Remote
+share latency, many-folder performance and complete native accessibility were
+not measured. The existing watcher still supplies its asynchronously refreshed
+file snapshot, so status and membership converge across background polling ticks.
+
+Native folder picker open/cancel: 2 pass, no skips (t022-folder-status-native.log).
+Legacy net471 test-project build: zero errors, five existing warnings
+(t022-folder-status-legacy-build.log); legacy runtime tests were not executed.

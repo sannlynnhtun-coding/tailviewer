@@ -579,7 +579,7 @@ public sealed class MainWindow : Window
                 }
                 if (!_folders.ContainsKey(source.Id))
                 {
-                    var folder = await Task.Run(() => new FolderSources(_folderFilesystem.Value, source));
+                    var folder = await Task.Run(() => new FolderSources(_folderFilesystem.Value, _folderScheduler, source));
                     if (_closed || request != _openRequest)
                     {
                         folder.Dispose();

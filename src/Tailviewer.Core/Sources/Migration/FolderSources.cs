@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Tailviewer.Api;
 using Tailviewer.Settings;
 
@@ -16,6 +17,8 @@ namespace Tailviewer.Core
     {
         private readonly IFilesystem _filesystem;
         private readonly IFilesystemWatcher _watcher;
+        private readonly ITaskScheduler _scheduler;
+        private readonly IPeriodicTask _task;
         private readonly DataSource _settings;
         private readonly Regex _filter;
         private readonly object _sync = new object();
@@ -25,9 +28,10 @@ namespace Tailviewer.Core
         private int _unfilteredFileCount;
 
         /// <summary>Watches an existing folder configuration without changing its persisted identity.</summary>
-        public FolderSources(IFilesystem filesystem, DataSource settings)
+        public FolderSources(IFilesystem filesystem, ITaskScheduler scheduler, DataSource settings)
         {
             _filesystem = filesystem ?? throw new ArgumentNullException(nameof(filesystem));
+            _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             ArgumentNullException.ThrowIfNull(settings);
             _settings = settings.Clone();
             SourceConfiguration.Validate(new[] { _settings });
@@ -39,8 +43,8 @@ namespace Tailviewer.Core
                 RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
             _watcher = _filesystem.Watchdog.StartDirectoryWatch(_settings.LogFileFolderPath,
                 TimeSpan.FromMilliseconds(500), null, _settings.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
-            _watcher.Changed += Refresh;
             Refresh();
+            _task = scheduler.StartPeriodic(Refresh, TimeSpan.FromMilliseconds(500), "Folder source status");
         }
 
         /// <summary>Notifies consumers when folder membership or discovery status changes.</summary>
@@ -63,21 +67,24 @@ namespace Tailviewer.Core
         {
             get
             {
-                lock (_sync) return !_filesystem.DirectoryExists(_settings.LogFileFolderPath)
-                    ? "Folder is unavailable." : _error;
+                lock (_sync) return _error;
             }
         }
 
         private void Refresh()
         {
-            lock (_sync)
+            DataSource[] sources = Array.Empty<DataSource>();
+            string error = null;
+            var count = 0;
+            // Filesystem calls stay outside the publication lock so cached UI reads cannot block on I/O.
+            try
             {
-                if (_disposed) return;
-                try
+                if (!_filesystem.DirectoryExists(_settings.LogFileFolderPath)) error = "Folder is unavailable.";
+                else
                 {
                     var files = _watcher.Files.ToArray();
-                    _unfilteredFileCount = files.Length;
-                    _sources = files.Where(file => _filter.IsMatch(file.Name))
+                    count = files.Length;
+                    sources = files.Where(file => _filter.IsMatch(file.Name))
                         .OrderBy(file => file.FullPath, StringComparer.Ordinal).Select(file =>
                         {
                             var path = Path.GetFullPath(file.FullPath);
@@ -90,11 +97,20 @@ namespace Tailviewer.Core
                                 FollowTail = _settings.FollowTail
                             };
                         }).ToArray();
-                    _error = null;
                 }
-                catch (RegexMatchTimeoutException) { _error = "Folder pattern took too long to evaluate."; }
-                catch (Exception failure) when (failure is IOException || failure is UnauthorizedAccessException)
-                { _error = "Folder could not be read."; }
+            }
+            catch (RegexMatchTimeoutException) { sources = null; error = "Folder pattern took too long to evaluate."; }
+            catch (Exception failure) when (failure is IOException || failure is UnauthorizedAccessException)
+            { sources = null; error = "Folder could not be read."; }
+            lock (_sync)
+            {
+                if (_disposed) return;
+                if (sources == null) { sources = _sources; count = _unfilteredFileCount; }
+                if (_error == error && _unfilteredFileCount == count &&
+                    _sources.Select(source => source.File).SequenceEqual(sources.Select(source => source.File))) return;
+                _sources = sources;
+                _unfilteredFileCount = count;
+                _error = error;
             }
             Changed?.Invoke();
         }
@@ -107,7 +123,7 @@ namespace Tailviewer.Core
                 if (_disposed) return;
                 _disposed = true;
             }
-            _watcher.Changed -= Refresh;
+            _scheduler.StopPeriodic(_task);
             _watcher.Dispose();
         }
     }
