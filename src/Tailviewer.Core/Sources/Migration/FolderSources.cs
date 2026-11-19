@@ -20,7 +20,7 @@ namespace Tailviewer.Core
         private readonly ITaskScheduler _scheduler;
         private readonly IPeriodicTask _task;
         private readonly DataSource _settings;
-        private readonly Regex _filter;
+        private readonly Func<string, bool> _matchesFile;
         private readonly object _sync = new object();
         private DataSource[] _sources = Array.Empty<DataSource>();
         private bool _disposed;
@@ -37,10 +37,19 @@ namespace Tailviewer.Core
             SourceConfiguration.Validate(new[] { _settings });
             _settings.LogFileFolderPath = Path.GetFullPath(_settings.LogFileFolderPath);
             var patterns = (_settings.LogFileSearchPattern ?? "").Split(';')
-                .Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim());
-            // Preserve legacy case-sensitive, unanchored '*' matching; '?' stays literal.
-            _filter = new Regex(string.Join("|", patterns.Select(value => Regex.Escape(value).Replace("\\*", ".*?"))),
-                RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+                .Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).ToArray();
+            if (patterns.Length > 0 && patterns.All(pattern => pattern.StartsWith("ext:", StringComparison.Ordinal)))
+            {
+                var extensions = patterns.Select(pattern => pattern.Substring(4)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                _matchesFile = name => extensions.Contains("*") || extensions.Contains(Path.GetExtension(name));
+            }
+            else
+            {
+                // Preserve legacy case-sensitive, unanchored '*' matching; '?' stays literal.
+                var filter = new Regex(string.Join("|", patterns.Select(value => Regex.Escape(value).Replace("\\*", ".*?"))),
+                    RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+                _matchesFile = filter.IsMatch;
+            }
             _watcher = _filesystem.Watchdog.StartDirectoryWatch(_settings.LogFileFolderPath,
                 TimeSpan.FromMilliseconds(500), null, _settings.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
             Refresh();
@@ -84,7 +93,7 @@ namespace Tailviewer.Core
                 {
                     var files = _watcher.Files.ToArray();
                     count = files.Length;
-                    sources = files.Where(file => _filter.IsMatch(file.Name))
+                    sources = files.Where(file => _matchesFile(file.Name))
                         .OrderBy(file => file.FullPath, StringComparer.Ordinal).Select(file =>
                         {
                             var path = Path.GetFullPath(file.FullPath);

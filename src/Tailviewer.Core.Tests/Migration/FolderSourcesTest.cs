@@ -57,12 +57,16 @@ namespace Tailviewer.Core.Tests.Migration
             }
         }
 
+        [TestCase("ext:.log;ext:.txt", "upper.LOG", true)]
+        [TestCase("ext:.log", "one.log.bak", false)]
+        [TestCase("ext:.log;ext:.txt", "lower.txt", true)]
+        [TestCase("ext:*", "no-extension", true)]
         [TestCase("*.log", "one.log.bak", true)]
         [TestCase("*.log", "upper.LOG", false)]
         [TestCase("?.log", "a.log", false)]
         [TestCase("*.txt|*.log", "one.txt", false)]
         [TestCase("", "one.bin", true)]
-        public async Task PatternRulesPreserveLegacyCaseAndUnanchoredMatching(string pattern, string name, bool matches)
+        public async Task PatternRulesSupportExactExtensionsAndPreserveLegacyMatching(string pattern, string name, bool matches)
         {
             File.WriteAllText(Path.Combine(_folder, name), "owned");
             using (var source = new FolderSources(_filesystem, _scheduler, Settings(pattern, false)))
