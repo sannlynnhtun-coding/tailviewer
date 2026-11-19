@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text;
+using System;
 
 // ReSharper disable once CheckNamespace
 namespace Tailviewer.Core
@@ -13,15 +14,18 @@ namespace Tailviewer.Core
 		private readonly byte[] _pattern;
 		private readonly byte[] _buffer;
 		private readonly long _endOffset;
+		private readonly Action<byte[], int> _observe;
 		private long _bufferOffset;
 		private int _bufferPos;
 		private int _bufferLength;
 		private int _numMatchedInSequence;
 
-		public LineOffsetDetector(Stream stream, Encoding encoding, int bufferSize = 4096, long endOffset = long.MaxValue)
+		public LineOffsetDetector(Stream stream, Encoding encoding, int bufferSize = 4096, long endOffset = long.MaxValue,
+		                          Action<byte[], int> observe = null)
 		{
 			_stream = stream;
 			_endOffset = endOffset;
+			_observe = observe;
 			_pattern = encoding.GetBytes("\n");
 			//var pattern = encoding.GetBytes("\n");
 			//if (pattern.Length > 1)
@@ -76,6 +80,7 @@ namespace Tailviewer.Core
 			_bufferOffset = _stream.Position;
 			_bufferLength = _bufferOffset >= _endOffset ? 0 :
 				_stream.Read(_buffer, 0, (int)System.Math.Min(_buffer.Length, _endOffset - _bufferOffset));
+			if (_bufferLength > 0) _observe?.Invoke(_buffer, _bufferLength);
 			_bufferPos = 0;
 		}
 	}

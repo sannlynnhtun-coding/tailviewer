@@ -352,3 +352,50 @@ t027-concurrent-final-modern.log, t027-concurrent-final-legacy-build.log and
 t027-concurrent-final-native.log. Earlier green full-run counts predate the
 retained-prefix regression; final figures above supersede them. No assertion
 was weakened and no skip or warning suppression was added.
+
+## Observed-byte checkpoint validation (T027)
+
+Two ABA fixtures first failed despite the pre/post digests agreeing: a temporary
+newline rewrite left three rows for a restored four-row file, and a temporary
+UTF-16 BOM swap left one row. Both fixtures restore exact bytes, length and write
+time before the post-scan audit and prove that their read/write gates ran.
+
+Checkpoints now come from the same byte buffers consumed by the offset detector.
+A second rolling digest of those observed bytes validates the prefix belonging
+to retained indices during incremental append. The entire observed digest is
+compared with the current bounded prefix before publication, and that observed
+digest becomes the checkpoint. Independent pre-scan/post-retained reads are no
+longer used as the evidence for what the detector actually saw.
+
+BOM detection uses a bounded four-byte snapshot, and the bytes subsequently
+observed for hashing must agree with that encoding snapshot. First-line BOM
+skipping uses the same snapshot rather than a separate file read. Short prefix
+reads are handled without assuming one Read fills the buffer. Existing UTF-8,
+UTF-16/32 BOM/replacement, short leading-newline, append and stale-read tests
+remain in the focused run. SHA-256 is reused from the BCL; no new dependency,
+persistent unbounded buffer or file-write operation was added to production.
+
+Focused streaming/offset fixtures: 102 pass / zero failures or skips. Evidence
+under ignored artifacts/migration: t027-observed-bytes-red.log and
+t027-observed-bytes-focused.log. This supersedes the preceding ABA shortcut for
+these source paths; it does not claim an OS-level atomic file read or establish
+representative latency under large/changing workloads. T027 remains open for
+1 GiB/multi-source and five-minute append performance/recovery acceptance.
+
+Final validation: Core 7,140 pass / zero failures / five existing skips; modern
+solution 81 Archiver + 169 Avalonia pass / zero failures or skips; targeted native
+Unicode CLI/picker 3 pass / zero failures or skips. Legacy net471 test-project
+build passes with zero errors and five existing warnings; legacy runtime tests
+were not executed. The original modern run stopped before its Avalonia result;
+no test process remained, so only unfinished checks were resumed. The completed
+Core run was retained rather than repeated.
+
+Final evidence under ignored artifacts/migration: t027-observed-bytes-core-full.log,
+t027-observed-bytes/t027-observed-bytes.trx,
+t027-observed-bytes-modern-resumed.log, t027-observed-bytes-legacy-build.log and
+t027-observed-bytes-native.log. Synthetic benchmark stdout from that full Core
+run: 1 MiB initial 20.16 ms, idle audits 1.41-1.48 ms, recovery 17.04 ms;
+100 MiB initial 690.85 ms, idle audits 150.51-175.95 ms, recovery 639.81 ms.
+Same local i7-13700H test environment as the preceding sample; uncontrolled
+cache/background load means this is not an apples-to-apples speed comparison or
+a performance acceptance gate. No assertion was weakened or skip added.

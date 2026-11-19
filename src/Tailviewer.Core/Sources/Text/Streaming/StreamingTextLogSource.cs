@@ -311,7 +311,6 @@ namespace Tailviewer.Core
 				var contentChanged = !ArrayExtensions.Equals(_checkpoint, indexedCheckpoint);
 				if (!metadataChanged && !contentChanged && length == _lastStreamPosition)
 					return false;
-				var beforeScan = length == _lastStreamPosition ? indexedCheckpoint : ReadCheckpoint(stream, length, cancellationToken);
 
 				if (contentChanged || (previousFingerprint != null &&
 				    (previousFingerprint.Size >= currentFingerprint.Size || previousFingerprint.Created != currentFingerprint.Created)))
@@ -331,11 +330,11 @@ namespace Tailviewer.Core
 				}
 
 				var retainedLength = _lastStreamPosition;
+				var encodingPrefix = ReadEncodingPrefix(stream, length);
 				var encoding = _encoding;
 				if (_encoding.GetPreamble().Length > 0)
 				{
-					stream.Position = 0;
-					using (var reader = CreateReader(stream, leaveOpen: true))
+					using (var reader = CreateReader(new MemoryStream(encodingPrefix), leaveOpen: false))
 					{
 						reader.Peek();
 						encoding = reader.CurrentEncoding;
@@ -345,11 +344,42 @@ namespace Tailviewer.Core
 				stream.Position = startOffset;
 				if (startOffset == 0)
 				{
-					AddFirstLineIfNecessary(stream, encoding);
+					var preamble = encoding.GetPreamble();
+					var firstLineOffset = encodingPrefix.Take(preamble.Length).SequenceEqual(preamble) ? preamble.Length : 0;
+					stream.Position = firstLineOffset;
+					AddFirstLineIfNecessary(firstLineOffset);
 				}
 
+				using var observedHash = SHA256.Create();
+				using var retainedHash = SHA256.Create();
+				long observedLength = 0;
+				var encodingChanged = false;
+				void Observe(byte[] bytes, int count)
+				{
+					for (var i = 0; i < count && observedLength + i < encodingPrefix.Length; ++i)
+						if (bytes[i] != encodingPrefix[(int)observedLength + i]) encodingChanged = true;
+					observedHash.TransformBlock(bytes, 0, count, bytes, 0);
+					var retainedCount = (int)Math.Max(0, Math.Min(count, retainedLength - observedLength));
+					if (retainedCount > 0) retainedHash.TransformBlock(bytes, 0, retainedCount, bytes, 0);
+					observedLength += count;
+				}
+				var scanStart = stream.Position;
+				stream.Position = 0;
+				while (stream.Position < scanStart)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					var read = stream.Read(_checkpointBuffer, 0, (int)Math.Min(_checkpointBuffer.Length, scanStart - stream.Position));
+					if (read == 0) break;
+					Observe(_checkpointBuffer, read);
+				}
+				if (observedLength != scanStart)
+				{
+					Clear();
+					_checkpoint = new byte[0];
+					return true;
+				}
 				// Bound the pass so continuous appends do not invalidate its already observed prefix.
-				var detector = new LineOffsetDetector(stream, encoding, endOffset: length);
+				var detector = new LineOffsetDetector(stream, encoding, endOffset: length, observe: Observe);
 				var buffer = new FixedSizeList<long>(1000);
 
 				long lineOffset;
@@ -366,11 +396,12 @@ namespace Tailviewer.Core
 				}
 
 				var scanEnd = stream.Position;
-				// shortcut: digest bracketing cannot detect an ABA rewrite during the scan; observed-byte validation remains T027.
+				observedHash.TransformFinalBlock(new byte[0], 0, 0);
+				retainedHash.TransformFinalBlock(new byte[0], 0, 0);
 				var afterScan = ReadCheckpoint(stream, length, cancellationToken);
-				var retainedPrefixChanged = retainedLength > 0 && !ArrayExtensions.Equals(indexedCheckpoint,
-					retainedLength == length ? afterScan : ReadCheckpoint(stream, retainedLength, cancellationToken));
-				if (scanEnd != length || stream.Length < length || retainedPrefixChanged || !ArrayExtensions.Equals(beforeScan, afterScan))
+				var retainedPrefixChanged = retainedLength > 0 && !ArrayExtensions.Equals(indexedCheckpoint, retainedHash.Hash);
+				if (scanEnd != length || observedLength != length || stream.Length < length || encodingChanged ||
+				    retainedPrefixChanged || !ArrayExtensions.Equals(observedHash.Hash, afterScan))
 				{
 					Clear();
 					_checkpoint = new byte[0];
@@ -378,7 +409,7 @@ namespace Tailviewer.Core
 				}
 				AddLines(buffer, Percentage.HundredPercent, startOffset);
 				_lastStreamPosition = scanEnd;
-				_checkpoint = afterScan;
+				_checkpoint = observedHash.Hash;
 			}
 
 			if (Log.IsDebugEnabled)
@@ -410,26 +441,23 @@ namespace Tailviewer.Core
 			}
 		}
 
-		private void AddFirstLineIfNecessary(Stream stream, Encoding encoding)
+		private static byte[] ReadEncodingPrefix(Stream stream, long length)
 		{
-			if (stream.Length <= 0)
-				return;
-
-			// As far as we're concerned, the first line starts right after the preamble, which
-			// might be an offset of anything in between 0 and 4 bytes.
-			var preamble = encoding.GetPreamble();
-			var firstLineOffset = 0;
-			if (preamble.Length > 0)
+			var prefix = new byte[(int)Math.Min(4, length)];
+			stream.Position = 0;
+			var count = 0;
+			while (count < prefix.Length)
 			{
-				var buffer = new byte[preamble.Length];
-				var bytesRead = stream.Read(buffer, 0, buffer.Length);
-				if (bytesRead >= buffer.Length && ArrayExtensions.Equals(preamble, buffer))
-				{
-					firstLineOffset = preamble.Length;
-				}
+				var read = stream.Read(prefix, count, prefix.Length - count);
+				if (read == 0) break;
+				count += read;
 			}
+			if (count != prefix.Length) Array.Resize(ref prefix, count);
+			return prefix;
+		}
 
-			stream.Position = firstLineOffset;
+		private void AddFirstLineIfNecessary(int firstLineOffset)
+		{
 			lock (_index)
 			{
 				if (_index.Count > 0)

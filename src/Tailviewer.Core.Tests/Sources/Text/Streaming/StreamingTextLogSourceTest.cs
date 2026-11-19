@@ -92,16 +92,63 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
         {
             private readonly Action _change;
             private readonly Action<int, int> _beforeRead;
-            public ChangeAfterOffsetReadStream(string path, Action change, Action<int, int> beforeRead = null)
+            private readonly Action<int, int> _afterRead;
+            public ChangeAfterOffsetReadStream(string path, Action change, Action<int, int> beforeRead = null, Action<int, int> afterRead = null)
                 : base(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1)
-            { _change = change; _beforeRead = beforeRead; }
+            { _change = change; _beforeRead = beforeRead; _afterRead = afterRead; }
 
             public override int Read(byte[] buffer, int offset, int count)
             {
                 _beforeRead?.Invoke(buffer.Length, count);
                 var read = base.Read(buffer, offset, count);
+                _afterRead?.Invoke(buffer.Length, read);
                 if (buffer.Length == 4096 && read > 0) _change();
                 return read;
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TemporaryContentOrBomRewriteCannotLeaveAnIndexForRestoredBytes(bool bom)
+        {
+            const string text = "head\nold\nmiddle\ntail";
+            var encoding = bom ? Encoding.Unicode : new UTF8Encoding(false);
+            var original = encoding.GetPreamble().Concat(encoding.GetBytes(text)).ToArray();
+            var alternate = bom ? (byte[])original.Clone() : Encoding.UTF8.GetBytes("head\nnew-middle\ntail");
+            if (bom) { alternate[0] = 0xfe; alternate[1] = 0xff; }
+            File.WriteAllBytes(_path, original);
+            var timestamp = File.GetLastWriteTimeUtc(_path);
+            var changed = false;
+            var restored = false;
+            var real = new Filesystem(_scheduler);
+            var fingerprint = FileFingerprint.FromFile(real, _path);
+            var filesystem = new Mock<IFilesystem>();
+            filesystem.Setup(value => value.FileExists(_path)).Returns(() => File.Exists(_path));
+            filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
+            bool IsGatedRead(int size) => bom ? size == 1024 || size == 4 : size == 4096;
+            filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                .Returns(() => new ChangeAfterOffsetReadStream(_path, () => { }, (size, count) =>
+                {
+                    if (changed || !IsGatedRead(size)) return;
+                    File.WriteAllBytes(_path, alternate);
+                    File.SetLastWriteTimeUtc(_path, timestamp);
+                    changed = true;
+                }, (size, read) =>
+                {
+                    if (!changed || restored || !IsGatedRead(size) || read == 0) return;
+                    File.WriteAllBytes(_path, original);
+                    File.SetLastWriteTimeUtc(_path, timestamp);
+                    restored = true;
+                }));
+            using (var source = new StreamingTextLogSource(filesystem.Object, _scheduler, _path,
+                       LogFileFormats.GenericText, bom ? Encoding.UTF8 : encoding))
+            {
+                _scheduler.Run(3);
+                Assert.That(changed && restored, Is.True);
+                Assert.That(FileFingerprint.FromFile(real, _path), Is.EqualTo(fingerprint));
+                Assert.That(File.ReadAllBytes(_path), Is.EqualTo(original));
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(4));
+                Assert.That(Read(source, 4), Is.EqualTo(text.Split('\n')));
             }
         }
 
