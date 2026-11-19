@@ -2310,8 +2310,8 @@ public sealed class SourcesTest
             var sources = tree.Items.OfType<DataSource>().ToArray();
             await WaitUntil(() => tree.ContainerFromItem(sources[0]) is TreeViewItem && tree.ContainerFromItem(sources[1]) is TreeViewItem);
             var start = TreePoint(window, tree, sources[0], .5);
-            var end = TreePoint(window, tree, sources[1], .95);
             window.MouseDown(start, MouseButton.Left);
+            var end = TreePoint(window, tree, sources[1], .95);
             window.MouseMove(end, RawInputModifiers.LeftMouseButton);
             window.MouseUp(end, MouseButton.Left);
             await WaitUntil(() => tree.Items.OfType<DataSource>().First().Id == sources[1].Id && Rows(window).ItemCount == 2);
@@ -2691,8 +2691,11 @@ public sealed class SourcesTest
 
     private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
     {
+        window.UpdateLayout();
         var item = (TreeViewItem)tree.ContainerFromItem(source)!;
         var row = item.GetVisualDescendants().OfType<SourcesView>().First();
+        row.Bounds.Width.Should().BeGreaterThan(0);
+        row.Bounds.Height.Should().BeGreaterThan(0);
         return row.TranslatePoint(new Point(Math.Min(40, row.Bounds.Width / 2), row.Bounds.Height * height), window)!.Value;
     }
 

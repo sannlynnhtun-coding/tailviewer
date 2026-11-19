@@ -1707,3 +1707,16 @@ artifacts/migration/t045-tail-state.log, t045-elapsed-tail-state-diagnostic.log/
 t026-merged-pending-invalidation-red.log/TRX, -green.log/TRX (typed expectation
 correction), -fixed.log/TRX, t026-merge-index-diagnostic.log/TRX and
 t045-elapsed-core-final.log/TRX. Full migration and T026/T046 remain open.
+
+## Headless source-drag geometry calibration (T022, partial)
+
+The next full run passed the corrected merge journey but exposed the existing
+row-edge reorder fixture. Its coordinate helper read bounds without arranging
+the current row layout, and captured the target before the press could change
+selection/layout. The fixture now arranges layout, asserts positive row bounds
+and captures the target after pressing the source. No production drag handler,
+drop-zone threshold or eight-second convergence assertion changed. Eleven
+focused pointer/merge/elapsed checks pass. Evidence: ignored
+artifacts/migration/t045-elapsed-modern-final.log/TRX (row-edge failure) and
+t045-elapsed-pointer-focused.log/TRX. This headless calibration does not replace
+the still-pending complete native source-drag acceptance matrix.
