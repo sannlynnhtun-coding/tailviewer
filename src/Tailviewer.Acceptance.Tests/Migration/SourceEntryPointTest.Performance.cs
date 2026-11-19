@@ -61,9 +61,63 @@ public sealed partial class SourceEntryPointTest
         _process.Refresh();
         var peakBytes = _process.PeakWorkingSet64;
         Report(new { complete_index_ms = clock.Elapsed.TotalMilliseconds, app_peak_working_set_bytes = peakBytes });
+        MeasureNativeNavigation(window, rows, records, Report);
         Assert.That(pageMs, Is.LessThanOrEqualTo(sizeMiB == 100 ? 3000 : 10000), "The visible page must meet the reference first-page budget.");
         if (sizeMiB == 1024)
             Assert.That(peakBytes, Is.LessThan(1024L * 1024 * 1024), "The complete viewer process must peak below 1 GiB through indexing.");
+    }
+
+    private void MeasureNativeNavigation(AutomationElement window, AutomationElement rows, int records, Action<object> report)
+    {
+        // Cover both ends and midpoint before a fixed spread across the file.
+        var targets = new[] { 1, records, records / 2 }.Concat(Enumerable.Range(1, 27)
+            .Select(index => 1 + (int)(index * 2654435761L % records))).ToArray();
+        var delays = new List<double>(targets.Length);
+        var content = new string('x', FixedWidthLogWriter.RecordWidth - 1);
+        foreach (var target in targets)
+        {
+            var preparing = Stopwatch.StartNew();
+            NativeKeyboard.GoToLine(_process!, rows);
+            var input = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.NameProperty, "Line number")), "Ctrl+G must expose the line navigator.");
+            ((ValuePattern)input.GetCurrentPattern(ValuePattern.Pattern)).SetValue(target.ToString(CultureInfo.CurrentCulture));
+            var go = WaitFor(() => window.FindFirst(TreeScope.Descendants, new AndCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                new PropertyCondition(AutomationElement.NameProperty, "Go to line"),
+                new PropertyCondition(AutomationElement.IsEnabledProperty, true))), "The navigation submit button must be accessible.");
+            var invoke = (InvokePattern)go.GetCurrentPattern(InvokePattern.Pattern);
+            var prepareMs = preparing.Elapsed.TotalMilliseconds;
+            var expected = $"{target,7}  {content}";
+            var resolved = false;
+            var timer = Stopwatch.StartNew();
+            try
+            {
+                invoke.Invoke();
+                WaitFor(() =>
+                {
+                    Assert.That(NativeKeyboard.IsForeground(_process!), Is.True, "Navigation samples require the owned foreground viewer.");
+                    return rows.FindFirst(TreeScope.Descendants, new AndCondition(
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+                        new PropertyCondition(AutomationElement.NameProperty, expected),
+                        new PropertyCondition(AutomationElement.IsOffscreenProperty, false)));
+                }, "Navigation must reveal the exact requested line number and content.", pollMilliseconds: 10);
+                resolved = true;
+            }
+            finally
+            {
+                var elapsed = timer.Elapsed.TotalMilliseconds;
+                delays.Add(elapsed);
+                report(new { navigation_target_line = target, navigation_ms = elapsed, preparation_ms = prepareMs, resolved });
+            }
+        }
+        delays.Sort();
+        var p95 = delays[(int)Math.Ceiling(delays.Count * .95) - 1];
+        report(new { navigation_samples = delays.Count, navigation_p95_ms = p95, navigation_max_ms = delays[^1], observer_poll_ms = 10 });
+        var follow = window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox));
+        Assert.That(((TogglePattern)follow.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState, Is.EqualTo(ToggleState.Off));
+        Assert.That(delays.Count, Is.EqualTo(30));
+        Assert.That(p95, Is.LessThanOrEqualTo(200), "Native navigation must meet the 200 ms p95 budget.");
     }
 
     [Test]

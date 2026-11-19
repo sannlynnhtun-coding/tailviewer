@@ -657,7 +657,7 @@ public sealed partial class SourceEntryPointTest
         ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
     }
 
-    private static AutomationElement WaitFor(Func<AutomationElement?> query, string message, int timeoutSeconds = 10)
+    private static AutomationElement WaitFor(Func<AutomationElement?> query, string message, int timeoutSeconds = 10, int pollMilliseconds = 50)
     {
         var timer = Stopwatch.StartNew();
         while (timer.Elapsed < TimeSpan.FromSeconds(timeoutSeconds))
@@ -665,7 +665,7 @@ public sealed partial class SourceEntryPointTest
             try { if (query() is { } element) return element; }
             catch (ElementNotAvailableException) { }
             catch (COMException) { }
-            Thread.Sleep(50);
+            Thread.Sleep(pollMilliseconds);
         }
         Assert.Fail(message);
         throw new InvalidOperationException(message);

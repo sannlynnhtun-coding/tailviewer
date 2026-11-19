@@ -90,4 +90,15 @@ First-page budgets are 3/10 seconds respectively. Complete indexing has a separa
 through that checkpoint must stay below 1 GiB for the 1 GiB file. No forced GC
 or process priority override is used. Numeric JSONL measurements are attached
 to NUnit results. This measures UIA-visible data rather than pixel presentation;
-native navigation p95, cold-cache and wider workload matrices remain separate.
+during-index interactions and wider workload matrices remain separate.
+
+The same six cases now submit 30 deterministic go-to-line requests after complete
+indexing, including the first/last/middle records and a fixed spread of other
+targets. They use guarded Ctrl+G and the actual accessible input/button. Each
+sample times Invoke-to-exact-visible-target at 10 ms observer polling, and all
+samples plus separate dialog/value/automation preparation time are attached.
+Nearest-rank submit p95 must be at most 200 ms. Discovery of the submit control
+is outside that clock; its cost remains in preparation_ms.
+
+This is a **post-index** navigation preflight. SC-005 also requires scroll,
+navigation and pause responsiveness **during indexing**, which remains open.

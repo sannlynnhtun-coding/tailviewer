@@ -600,3 +600,13 @@ Unicode/whitespace content and requires paused follow plus unchanged fixture
 bytes. Combined Ctrl+G/terminal-newline/large Ctrl+A cases pass 3/3, zero
 failures/skips (artifacts/migration/t029-native-navigation-entry.log/TRX).
 This is functional navigation entry evidence; navigation p95 is still separate.
+
+The subsequent six large-file cases each add 30 post-index navigation submits.
+The calibrated submit-to-observed-target p95 is 51.4822–97.6476 ms across all six
+runs, with all 180 samples retained. Preparation time is separate, and one full
+automated round-trip p95 reaches 222.178 ms. Initial timing included whole-window
+button discovery and failed one run; both that failed result and the calibrated
+6/6 passing result remain in [recovery evidence](recovery-tests.md). No production
+optimization is claimed. SC-005's DURING-indexing interaction scope remains open;
+this post-index preflight does not establish scroll/pause/indexing latency.
+Core/modern/full native suites were not repeated for these fixture-only changes.

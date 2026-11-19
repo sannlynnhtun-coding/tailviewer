@@ -637,3 +637,47 @@ This proves the recorded UIA first-page and indexing-memory preflight on one
 host, not pixel presentation, native navigation latency, cold-cache behavior or
 all configurations. The broader source/recovery matrix, navigation p95 and
 prerequisite integration remain open. T027/US1/P13/full migration stay open.
+
+## Native post-index navigation submit preflight
+
+The six large-file cases now each execute 30 deterministic targets after full
+indexing: first/last/middle plus a fixed multiplicative spread across the file.
+The actual Ctrl+G shortcut opens the navigator, its value pattern sets the target,
+and its Go button submits. Observation requires the exact line number/content
+to be non-offscreen, with foreground ownership retained. Every sample is logged,
+including elapsed/unresolved state if a query fails; no slow sample is dropped.
+Navigation must leave follow off. Preparation and submission are timed separately.
+
+The initial clock included a whole-window automation search inside InvokeButton;
+that run finishes 5 pass / 1 failure, with 100 MiB run 3 submit-plus-discovery p95
+346.4139 ms. The calibrated clock resolves the submit button/pattern before
+starting, then includes Invoke and target observation. The preparation cost is
+retained separately per sample, and observer polling is explicitly 10 ms without
+changing the existing 50 ms default for other native checks. The 200 ms budget
+and all 30 targets remain unchanged. No production optimization is claimed.
+
+Calibrated results: six cases pass, zero failures/skips, 180 total samples:
+
+| Post-index measurement | 100 MiB runs 1 / 2 / 3 | 1 GiB runs 1 / 2 / 3 |
+|---|---|---|
+| Submit-to-observed-target p95 | 64.0065 / 59.7327 / 51.4822 ms | 97.6476 / 62.5042 / 66.6044 ms |
+| Submit-to-observed-target maximum | 71.4524 / 71.4601 / 62.8229 ms | 98.1288 / 64.8912 / 71.0439 ms |
+| Full automated round-trip p95, including preparation | 127.6794 / 117.0763 / 148.7227 ms | 222.1780 / 166.7910 / 175.2253 ms |
+
+Round-trip values are derived by adding preparation_ms and navigation_ms per
+sample before applying nearest-rank p95. They are reported, not presented as a
+200-ms full-workflow pass; one reaches 222.178 ms. These are client/observer
+measurements, not pixel presentation timestamps or proof of a production speedup.
+
+Evidence: artifacts/migration/t029-native-navigation-performance.log/TRX retains
+the failed initial run; t029-native-navigation-calibrated.log/TRX retains all six
+calibrated cases and attached JSONL files. First-page/index-memory assertions
+remain in the same cases. Production code is unchanged. The preceding native
+Ctrl+G/Ctrl+A functional prerequisite passes 3/3 in t029-native-navigation-entry.
+
+SC-005 specifically requires interactions DURING indexing. These samples begin
+AFTER indexing, so they support navigation functionality/performance but do not
+close that interaction requirement. During-index scroll/navigation/pause samples,
+broader recovery/format workloads and prerequisite integration remain open.
+Cold-cache results are not collected; the planned warm-cache runs are the current
+reference recipe. T027/T029, US1/P13 and the full migration remain open.
