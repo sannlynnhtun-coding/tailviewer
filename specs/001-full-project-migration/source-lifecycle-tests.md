@@ -1663,3 +1663,20 @@ Final evidence: artifacts/migration/t045-delta-modern-final.log/TRX and
 t045-delta-native-final.log/TRX, with six attached native-large-file JSONL
 reports. Checks used the combined working tree; the formatter, aggregate
 ownership fix and delta display are delivered as separate logical commits.
+
+## Borrowed metadata view foundation for elapsed time (T043/T045, partial)
+
+FileLogSourceFactory.CreateMetadataView reuses the existing property and column
+adorners, borrowing its parsed input. Disposal now detaches the property
+adorner's listener without closing that input. Source notifications are accepted
+immediately while the existing worker retains its 100ms cadence; otherwise a
+quiet two-line in-memory source never delivered its initial data to the new
+view. Tests captured both failures before their corresponding fixes and verify
+the earliest parsed timestamp, derived elapsed values and continued input access
+after view disposal. No new subtraction or metadata-scanning algorithm was added.
+
+Focused metadata/parser checks pass 32/32. Full Core passes 7,173 with zero
+failures and five existing skips. Evidence: ignored artifacts/migration/
+t045-elapsed-metadata-red.log/TRX, -green.log/TRX (quiet-source failure),
+-fixed.log/TRX and -core.log/TRX. This is a factory/lifetime foundation; elapsed
+UI and the full migration are not completed by this commit.

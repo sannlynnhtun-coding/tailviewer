@@ -91,7 +91,7 @@ namespace Tailviewer.Core
 			const int bufferSize = 1000;
 			_buffer = new LogBufferArray(bufferSize, _requiredColumns);
 
-			_source.AddListener(this, maximumWaitTime, bufferSize);
+			_source.AddListener(this, TimeSpan.Zero, bufferSize);
 			StartTask();
 		}
 
@@ -292,6 +292,11 @@ namespace Tailviewer.Core
 		}
 
 		#region Implementation of ILogSourceListener
+
+		protected override void DisposeAdditional()
+		{
+			_source.RemoveListener(this);
+		}
 
 		public void OnLogFileModified(ILogSource logSource, LogSourceModification modification)
 		{

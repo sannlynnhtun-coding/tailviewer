@@ -57,6 +57,15 @@ namespace Tailviewer.Core.Tests.Sources.Adorner
 		}
 
 		[Test]
+		public void DisposingMetadataViewDetachesItsListenerWithoutClosingTheBorrowedSource()
+		{
+			var adorner = new LogSourcePropertyAdorner(_scheduler, _source.Object, TimeSpan.Zero);
+			adorner.Dispose();
+			_source.Verify(source => source.RemoveListener(adorner), Times.Once);
+			_source.Verify(source => source.Dispose(), Times.Never);
+		}
+
+		[Test]
 		public void TestConstruction()
 		{
 			var adorner = new LogSourcePropertyAdorner(_scheduler, _source.Object, TimeSpan.Zero);

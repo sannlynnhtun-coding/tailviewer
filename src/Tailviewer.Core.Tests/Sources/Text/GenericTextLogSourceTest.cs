@@ -11,6 +11,23 @@ namespace Tailviewer.Core.Tests.Sources.Text
     public sealed class GenericTextLogSourceTest
     {
         [Test]
+        public void MetadataViewUsesTheEarliestParsedTimestampAndLeavesItsInputOpen()
+        {
+            using var raw = new InMemoryLogSource();
+            raw.AddEntry("2026-11-20 12:00:03.000 INFO later", LevelFlags.None);
+            raw.AddEntry("2026-11-20 12:00:01.000 INFO earlier", LevelFlags.None);
+            using var parsed = FileLogSourceFactory.ParseText(raw);
+            var scheduler = new ManualTaskScheduler();
+            using var metadata = FileLogSourceFactory.CreateMetadataView(scheduler, parsed);
+            scheduler.Run(4);
+            Assert.That(metadata.GetProperty(Core.Properties.StartTimestamp), Is.EqualTo(new DateTime(2026, 11, 20, 12, 0, 1)));
+            Assert.That(metadata.GetColumn(new LogSourceSection(0, 2), Core.Columns.ElapsedTime),
+                Is.EqualTo(new TimeSpan?[] { TimeSpan.FromSeconds(2), TimeSpan.Zero }));
+            metadata.Dispose();
+            Assert.That(parsed.GetColumn(new LogSourceSection(0, 1), Core.Columns.RawContent)[0], Does.EndWith("INFO later"));
+        }
+
+        [Test]
         public void MultilineParserViewRetainsInheritedTimestampWhenEntriesAreReadTogether()
         {
             using var raw = new InMemoryLogSource();

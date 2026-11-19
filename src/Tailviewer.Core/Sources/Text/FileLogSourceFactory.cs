@@ -11,6 +11,12 @@ namespace Tailviewer.Core
 	/// </summary>
 	public static class FileLogSourceFactory
 	{
+		/// <summary>Creates a metadata/derived-column view; the caller retains ownership of the input source.</summary>
+		public static ILogSource CreateMetadataView(ITaskScheduler scheduler, ILogSource source)
+		{
+			return new LogSourceColumnAdorner(new LogSourcePropertyAdorner(scheduler, source, TimeSpan.FromMilliseconds(100)));
+		}
+
 		/// <summary>Creates a multiline view; the caller retains ownership of the input source.</summary>
 		public static ILogSource CreateMultiLineView(ITaskScheduler scheduler, ILogSource source)
 		{
