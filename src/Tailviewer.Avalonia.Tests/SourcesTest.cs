@@ -825,6 +825,76 @@ public sealed class SourcesTest
         }
         finally { window.Close(); }
     }
+    [AvaloniaTest]
+    public async Task SourceTreeShowsEmptyGroupFolderAndFileStatesAndClearsAfterAppend()
+    {
+        var empty = Path.Combine(_folder, "empty.log");
+        File.WriteAllText(empty, "");
+        var watched = Path.Combine(_folder, "empty-folder");
+        Directory.CreateDirectory(watched);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var group = (DataSource)tree.SelectedItem!;
+            await WaitUntil(() => SourceStatus(tree, group) == "No sources in this group.");
+            await window.OpenFileAsync(watched);
+            var folder = (DataSource)tree.SelectedItem!;
+            await WaitUntil(() => SourceStatus(tree, folder) == "No matching files.");
+            Directory.Delete(watched);
+            await WaitUntil(() => SourceStatus(tree, folder) == "Folder is unavailable.");
+            Directory.CreateDirectory(watched);
+            await WaitUntil(() => SourceStatus(tree, folder) == "No matching files.");
+            await window.OpenFileAsync(empty);
+            var file = (DataSource)tree.SelectedItem!;
+            await WaitUntil(() => SourceStatus(tree, file) == "No log lines.");
+            File.AppendAllText(empty, "arrived");
+            await WaitUntil(() => Rows(window).ItemCount == 1 && string.IsNullOrEmpty(SourceStatus(tree, file)));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
+            await Copy(window, 0, "arrived");
+            File.Delete(empty);
+            await WaitUntil(() => Rows(window).ItemCount == 0 && !string.IsNullOrEmpty(SourceStatus(tree, file)) &&
+                SourceStatus(tree, file) != "No log lines." && SourceStatus(tree, file) != "Loading…");
+            File.WriteAllText(empty, "recovered");
+            await WaitUntil(() => Rows(window).ItemCount == 1 && string.IsNullOrEmpty(SourceStatus(tree, file)));
+            await Copy(window, 0, "recovered");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task MissingConfiguredTreeItemKeepsItsErrorAndIdentityUntilSuccessfulRetry()
+    {
+        var path = Path.Combine(_folder, "later-tree.log");
+        var missing = new DataSource(path) { Id = DataSourceId.CreateNew() };
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            ((SourcesViewModel)window.DataContext!).Roots.Add(missing);
+            tree.SelectedItem = missing;
+            await WaitUntil(() => SourceStatus(tree, missing)?.StartsWith("Cannot open file: ") == true);
+            tree.ItemCount.Should().Be(2);
+            missing.File.Should().Be(path);
+            await Copy(window, 0, "first");
+            File.WriteAllText(path, "available");
+            tree.SelectedItem = first;
+            tree.SelectedItem = missing;
+            await WaitUntil(() => Rows(window).ItemCount == 1 && string.IsNullOrEmpty(SourceStatus(tree, missing)));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(missing.Id);
+            await Copy(window, 0, "available");
+        }
+        finally { window.Close(); }
+    }
+    private static string? SourceStatus(TreeView tree, DataSource source) =>
+        (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
+            .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;
     private static Button Command(MainWindow window, string name)
     {
         var button = window.GetVisualDescendants().OfType<Button>()

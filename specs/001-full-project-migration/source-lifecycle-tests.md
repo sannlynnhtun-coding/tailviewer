@@ -294,3 +294,30 @@ t023-rename-focused.log and t023-rename-modern.log. T023 remains open for its
 remaining dependency/group behavior requirements; timestamp-aware aggregation
 remains US2. No native editor/accessibility acceptance or full Core rerun was
 performed for this UI/model-only slice; automatic workspace persistence is T053.
+## Source tree state presentation slice (T022)
+
+SourcesView now presents a separate automation-named Source status beneath each
+heading. Existing UI refresh and folder discovery supply empty-group, empty-folder,
+unavailable-folder, active-file loading/empty/read-error and configured-open-error
+states. Empty/error text clears after append or successful recovery; failed
+configured opens retain their ID/path and the prior copyable document. Loading
+markers are fenced by the existing open-request lifecycle and cleared on group
+activation, cancellation and close. Closing sources/all or removing watched
+children releases retained status entries.
+
+A behavior regression failed first at the missing empty-group tree state. It
+now verifies empty file/group/folder states, folder disappearance/recovery,
+append, active file deletion/recovery and original copy. A second case verifies
+an unresolved configured tree item, retained error/identity and successful retry.
+Full modern suite: 81 Archiver + 95 Avalonia pass, zero failures/skips. After the
+second test was added, both focused recovery cases pass (production unchanged).
+Evidence: ignored artifacts/migration/t022-states-red.log,
+t022-states-focused.log, t022-states-modern.log and t022-states-recovery.log.
+
+T022 remains partial: inactive files retain the last observed status until
+reopened (documented shortcut); the later multi-document/parser pipeline must
+monitor them. Initial new-path opens still publish configured tree items only
+after successful construction. The transient loading marker is wired to actual
+Core processing progress but was not timing-asserted in this slice. Native
+screen-reader/layout and representative many-folder performance acceptance were
+not executed. No full Core rerun was needed for these UI-only changes.

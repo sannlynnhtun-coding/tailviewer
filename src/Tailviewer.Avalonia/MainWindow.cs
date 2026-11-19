@@ -52,6 +52,9 @@ public sealed class MainWindow : Window
     private bool _closed;
     private bool _changingSourceSelection;
     private long _openRequest;
+    // shortcut: inactive file states retain their last observation until reopened; monitor all documents with US2.
+    private readonly Dictionary<DataSourceId, string?> _sourceStates = new();
+    private DataSourceId _openingSource;
 
     public MainWindow(string? fileName = null)
     {
@@ -142,7 +145,7 @@ public sealed class MainWindow : Window
                 var item = label.FindAncestorOfType<TreeViewItem>();
                 if (item != null) item.ContextMenu = label.ContextMenu;
             };
-            return content;
+            return new SourcesView(source, content);
         }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : _workspace.GetChildren(source.Id));
         _sourceTree.ContainerPrepared += (_, args) =>
         {
@@ -232,6 +235,7 @@ public sealed class MainWindow : Window
             if (_document?.SourceId == source.Id && _sourceTree.SelectedItem is DataSource current && current.Id == source.Id)
             {
                 ++_openRequest;
+                _openingSource = DataSourceId.Empty;
                 _open.IsEnabled = true;
                 UpdateCloseCommands();
             }
@@ -274,11 +278,12 @@ public sealed class MainWindow : Window
         AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
-        _timer.Tick += (_, _) => RefreshDocument();
+        _timer.Tick += (_, _) => { RefreshDocument(); RefreshSourceStates(); };
         Closed += (_, _) =>
         {
             _closed = true;
             ++_openRequest;
+            _openingSource = DataSourceId.Empty;
             _timer.Stop();
             _document?.Dispose();
             _navigation.BindDocument(null);
@@ -376,6 +381,7 @@ public sealed class MainWindow : Window
             return;
         }
         ++_openRequest;
+        _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
         SaveFollowState();
         ClearDocument();
@@ -447,6 +453,7 @@ public sealed class MainWindow : Window
     private async Task OpenSourceAsync(string fileName, DataSource? selected)
     {
         var request = ++_openRequest;
+        _openingSource = selected?.Id ?? DataSourceId.Empty;
         _open.IsEnabled = false;
         UpdateCloseCommands();
         try
@@ -525,12 +532,16 @@ public sealed class MainWindow : Window
         catch (Exception ex)
         {
             if (!_closed && request == _openRequest)
+            {
                 _status.Text = _operationError = $"Cannot open file: {ex.Message}";
+                if (selected != null) _sourceStates[selected.Id] = _operationError;
+            }
         }
         finally
         {
             if (request == _openRequest)
             {
+                _openingSource = DataSourceId.Empty;
                 _open.IsEnabled = !_closed;
                 UpdateCloseCommands();
             }
@@ -572,13 +583,16 @@ public sealed class MainWindow : Window
     {
         if (_closed || _sourceTree.SelectedItem is not DataSource source || !_workspace.Contains(source.Id)) return;
         ++_openRequest;
+        _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
         SaveFollowState();
         ClearDocument();
         SelectSource(null);
         if (_folders.Remove(source.Id, out var folder)) folder.Dispose();
-        _folderChildren.Remove(source.Id);
+        if (_folderChildren.Remove(source.Id, out var children))
+            foreach (var child in children) _sourceStates.Remove(child.Id);
         _workspace.Remove(source.Id);
+        _sourceStates.Remove(source.Id);
         UpdateCloseCommands();
         if (_sources.Count > 0)
         {
@@ -592,6 +606,7 @@ public sealed class MainWindow : Window
     {
         if (_closed) return;
         ++_openRequest;
+        _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;
         ClearDocument();
         SelectSource(null);
@@ -599,6 +614,7 @@ public sealed class MainWindow : Window
         _folders.Clear();
         _folderChildren.Clear();
         _workspace.Clear();
+        _sourceStates.Clear();
         UpdateCloseCommands();
     }
 
@@ -623,6 +639,25 @@ public sealed class MainWindow : Window
         _status.Text = _operationError ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
     }
 
+    private void RefreshSourceStates()
+    {
+        if (_closed) return;
+        if (_document != null && _document.SourceId != _openingSource)
+            _sourceStates[_document.SourceId] = _document.Error ?? (_document.IsLoading ? "Loading…" :
+                _document.Lines.Count == 0 ? "No log lines." : null);
+        foreach (var view in _sourceTree.GetVisualDescendants().OfType<SourcesView>())
+        {
+            var source = view.Source;
+            var status = _sourceStates.GetValueOrDefault(source.Id);
+            if (source.Id == _openingSource) status = "Loading…";
+            else if (_folders.TryGetValue(source.Id, out var folder))
+                status = folder.Error ?? (_folderChildren[source.Id].Count == 0 ? "No matching files." : null);
+            else if (SourcesViewModel.IsGroup(source))
+                status = _workspace.GetChildren(source.Id).Any() ? null : "No sources in this group.";
+            view.UpdateStatus(status);
+        }
+    }
+
     private void SaveFollowState()
     {
         if (_document == null) return;
@@ -636,7 +671,11 @@ public sealed class MainWindow : Window
         if (_closed || !_folders.TryGetValue(id, out var folder) || !_folderChildren.TryGetValue(id, out var children)) return;
         var desired = folder.Sources;
         var ids = desired.Select(source => source.Id).ToHashSet();
-        foreach (var removed in children.Where(source => !ids.Contains(source.Id)).ToArray()) children.Remove(removed);
+        foreach (var removed in children.Where(source => !ids.Contains(source.Id)).ToArray())
+        {
+            children.Remove(removed);
+            _sourceStates.Remove(removed.Id);
+        }
         var existing = children.ToDictionary(source => source.Id);
         for (var index = 0; index < desired.Count; ++index)
         {

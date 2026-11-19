@@ -27,6 +27,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     public long Revision => _configuration.GetGeneration(SourceId);
     // shortcut: one integer per indexed line, use a lazy IList if index memory becomes a bottleneck.
     public AvaloniaList<int> Lines { get; } = new();
+    public bool IsLoading => _source.GetProperty(Core.Properties.PercentageProcessed) < Percentage.HundredPercent;
     public string? Error => _source.GetProperty(Core.Properties.EmptyReason)?.Explanation ?? _readError;
 
     public LogDocument(string fileName)
