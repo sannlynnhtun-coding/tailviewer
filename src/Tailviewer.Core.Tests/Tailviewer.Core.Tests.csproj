@@ -12,6 +12,10 @@
     <OutputPath>../../bin/</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
+  <!-- shortcut: T013's executed red import contracts stay opt-in until T014 completes conversion. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0' And '$(ProfileImportContracts)' == 'true'">
+    <DefineConstants>$(DefineConstants);PROFILE_IMPORT_CONTRACTS</DefineConstants>
+  </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <Compile Include="../Tailviewer.Tests/Settings/ApplicationSettingsTest.cs" Link="Migration/LegacyApplicationSettingsTest.cs" />
     <None Include="../Tailviewer.Tests/Settings/settings_no_file_guid.xml" Link="Settings/settings_no_file_guid.xml" CopyToOutputDirectory="PreserveNewest" />

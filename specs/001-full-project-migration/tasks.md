@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T012 complete. Profile models and bounded/validated single-rename persistence verified; T013 import/backup contract tests are next. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T013 complete. Import contracts executed (14 pass, two behavioral failures); T014 conversion remains in progress. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -59,7 +59,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Tests / contract checks
 
-- [ ] T013 Add original/backup hash, repeated import/conflict/cancel/duplicate identity tests in `src/Tailviewer.Core.Tests/Migration/ProfileImportTest.cs`; enforce "Copy and validate backup before saving destination" and "On conflict require keep/replace choice, retain current valid target if cancelled." Model constraint: "Copy and validate backup before saving destination. On conflict require keep/replace choice, retain current valid target if cancelled. No backup success claim before existence/hash checks.". **Depends**: T012.
+- [X] T013 Add original/backup hash, repeated import/conflict/cancel/duplicate identity tests in `src/Tailviewer.Core.Tests/Migration/ProfileImportTest.cs`; enforce "Copy and validate backup before saving destination" and "On conflict require keep/replace choice, retain current valid target if cancelled." Model constraint: "Copy and validate backup before saving destination. On conflict require keep/replace choice, retain current valid target if cancelled. No backup success claim before existence/hash checks.". **Depends**: T012.
 
 ### Implementation / verification
 
