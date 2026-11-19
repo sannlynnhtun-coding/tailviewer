@@ -47,13 +47,13 @@ public sealed class MainWindow : Window
     private readonly Dictionary<DataSourceId, AvaloniaList<DataSource>> _folderChildren = new();
     private readonly DefaultTaskScheduler _folderScheduler = new();
     private readonly Lazy<IFilesystem> _folderFilesystem;
+    private readonly FileSourceStates _fileSourceStates;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private LogDocument? _document;
     private string? _operationError;
     private bool _closed;
     private bool _changingSourceSelection;
     private long _openRequest;
-    // shortcut: inactive file states retain their last observation until reopened; monitor all documents with US2.
     private readonly Dictionary<DataSourceId, string?> _sourceStates = new();
     private DataSourceId _openingSource;
     private readonly Queue<string[]> _handoffs = new();
@@ -75,6 +75,7 @@ public sealed class MainWindow : Window
         _textSelection.Failed += message => _status.Text = _operationError = message;
         ToolTip.SetTip(_rows, "Alt+drag or Alt+Shift+arrows to select text; Shift/Ctrl+click to select whole lines; Escape clears text selection.");
         _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
+        _fileSourceStates = new FileSourceStates(_folderFilesystem.Value, _folderScheduler);
         _quickNavigation = new QuickNavigationView(_workspace);
         DataContext = _workspace;
         Title = "Tailviewer — Avalonia prototype";
@@ -307,6 +308,7 @@ public sealed class MainWindow : Window
             _textSelection.BindDocument(null);
             _quickNavigation.Dismiss();
             foreach (var folder in _folders.Values) folder.Dispose();
+            _fileSourceStates.Dispose();
             _folderScheduler.Dispose();
             logo.Dispose();
         };
@@ -690,6 +692,7 @@ public sealed class MainWindow : Window
         if (_folderChildren.Remove(source.Id, out var children))
             foreach (var child in children) _sourceStates.Remove(child.Id);
         _workspace.Remove(source.Id);
+        _fileSourceStates.SetSources(_workspace.All);
         _sourceStates.Remove(source.Id);
         UpdateCloseCommands();
         if (_sources.Count > 0)
@@ -714,6 +717,7 @@ public sealed class MainWindow : Window
         _folders.Clear();
         _folderChildren.Clear();
         _workspace.Clear();
+        _fileSourceStates.SetSources(_workspace.All);
         _sourceStates.Clear();
         UpdateCloseCommands();
     }
@@ -742,6 +746,7 @@ public sealed class MainWindow : Window
     private void RefreshSourceStates()
     {
         if (_closed) return;
+        _fileSourceStates.SetSources(_workspace.All);
         if (_document != null && _document.SourceId != _openingSource)
             _sourceStates[_document.SourceId] = _document.Error ?? (_document.IsLoading ? "Loading…" :
                 _document.Lines.Count == 0 ? "No log lines." : null);
@@ -754,6 +759,8 @@ public sealed class MainWindow : Window
                 status = folder.Error ?? (_folderChildren[source.Id].Count == 0 ? "No matching files." : null);
             else if (SourcesViewModel.IsGroup(source))
                 status = _workspace.GetChildren(source.Id).Any() ? null : "No sources in this group.";
+            else if (source.File != null && source.Id != _document?.SourceId && _fileSourceStates.TryGetStatus(source.Id, out var observed))
+                status = observed;
             view.UpdateStatus(status);
         }
     }

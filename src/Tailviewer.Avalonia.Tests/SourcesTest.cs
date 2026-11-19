@@ -1388,6 +1388,34 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task InactiveFileAvailabilityRecoversWithoutSwitchingTheActiveDocument()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var sources = tree.Items.OfType<DataSource>().ToArray();
+            await Copy(window, 0, "second");
+            File.Delete(_first);
+            await WaitUntil(() => SourceStatus(tree, sources[0]) == "File is unavailable.");
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(sources[1].Id);
+            await Copy(window, 0, "second");
+            File.WriteAllText(_first, "");
+            await WaitUntil(() => SourceStatus(tree, sources[0]) == "No log lines.");
+            File.AppendAllText(_first, "returned");
+            await WaitUntil(() => string.IsNullOrEmpty(SourceStatus(tree, sources[0])));
+            tree.Items.OfType<DataSource>().Select(source => source.Id).Should().Equal(sources.Select(source => source.Id));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(sources[1].Id);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
     private static Point TreePoint(MainWindow window, TreeView tree, DataSource source, double height)
     {
         var item = (TreeViewItem)tree.ContainerFromItem(source)!;

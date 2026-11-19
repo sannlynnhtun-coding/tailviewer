@@ -557,3 +557,37 @@ DPI recorded as 168. Native fixture additions and detailed evidence are committe
 separately in native-entry-point-tests.md. Native mixed-monitor DPI, edge-scroll/
 hover gesture coverage and the full accessibility matrix remain open; T023 and
 the full migration are not complete.
+
+## Inactive configured-file availability (T022)
+
+A new regression first failed because deleting an inactive configured file never
+updated its tree status. The shared Core FileSourceStates job now probes read
+access and length every 500 ms without reading contents. The UI only reads cached
+results. Missing, inaccessible and empty states recover without switching the
+active document, changing source IDs/order or losing the current selection/copy.
+Configured group members are included through the workspace's complete source set.
+
+Configuration generations reject results after close, path replacement or disposal;
+probe handles are released on every observation. Four deterministic Core cases
+cover missing/empty/locked/recovered files and paused in-flight probes during
+close, dispose and reconfiguration. The headless UI regression verifies inactive
+missing -> empty -> ready recovery while the second source remains selected.
+
+Checks: Core 7,124 pass / 0 failed / 5 existing skips; modern solution 81 Archiver
+and 167 Avalonia pass / 0 failed / 0 skipped on the final full run. An earlier
+full run had one character-selection clipboard timeout; that case and the new
+regression passed together in isolation, followed by the full green run. No
+assertions were weakened or timeouts increased.
+
+Evidence under ignored artifacts/migration: t022-inactive-red.log,
+t022-inactive-core-full.log, t022-inactive-modern.log,
+t022-inactive-recheck.log and t022-inactive-modern-recheck.log.
+
+This supersedes the earlier cached-only inactive availability limitation, but
+T022 remains partial. Inactive parser/index errors and content indexing still
+need the shared reader lifecycle; this probe does not claim to implement it.
+Folder-derived children retain their existing discovery lifecycle. Native
+accessibility, many-source performance and remote-share latency were not checked.
+
+Legacy net471 test-project build also passes with zero errors and five existing
+warnings; legacy tests were not executed. Log: t022-inactive-legacy-build.log.
