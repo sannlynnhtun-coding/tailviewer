@@ -164,7 +164,9 @@ internal static class NativeOleDrag
 
         void Check(ScreenPoint point)
         {
-            if (!OwnsPoint(process.Id, point)) throw new InvalidOperationException("The owned drag point is occluded.");
+            GetWindowThreadProcessId(WindowFromPhysicalPoint(point), out var owner);
+            if (owner != process.Id)
+                throw new InvalidOperationException($"The owned drag point ({point.X}, {point.Y}) is occluded (expected PID {process.Id}, actual PID {owner}).");
         }
         void Move(ScreenPoint point)
         {

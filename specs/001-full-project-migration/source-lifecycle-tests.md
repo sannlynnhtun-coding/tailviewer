@@ -1085,3 +1085,19 @@ and many-source performance remain the next implementation work. The current
 shipping window still uses its retained-document cache. Core/native/performance
 suites were not repeated because their callers and Core production code did not
 change. T022/T026 and full migration remain incomplete.
+
+## Native pointer diagnostics during background-reader integration
+
+The t022-background-reader-native run passed three cases (folder-options
+browse apply/cancel and Ctrl+G), but all five tree drag cases stopped at the
+pre-input owned-point guard. A focused hover rerun with point/PID diagnostics
+reported target (436,855), expected owned PID 22456, actual PID 12116; a process
+lookup identified PID 12116 as ChatGPT. The guard remains enforced and no
+foreign-window input was sent. This is evidence of desktop occlusion, not a
+passing drag regression result or proof that production geometry is correct.
+
+The native helper now reports the rejected point and expected/actual PIDs
+without capturing window titles, clipboard contents or logs. Evidence:
+artifacts/migration/t022-background-reader-native.log/TRX and
+artifacts/migration/t022-background-reader-pointer-diagnostic.log/TRX.
+The five drag cases still require an unobstructed-desktop rerun.
