@@ -186,6 +186,8 @@ public sealed class PrototypeTest
             await window.OpenFileAsync(_path);
             var list = window.GetVisualDescendants().OfType<ListBox>().Single();
             await WaitUntil(() => list.ItemCount == 20000);
+            // The source count can update before headless layout realizes any rows.
+            window.UpdateLayout();
             window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked = false;
             list.ScrollIntoView(15000);
             await WaitUntil(() => list.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains("line-15000") == true));
