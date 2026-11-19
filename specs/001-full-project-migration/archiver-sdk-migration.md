@@ -95,3 +95,18 @@ In-progress Avalonia source-navigation changes were preserved and excluded from
 this verification commit. These checks used the current working tree; they are
 not a clean-checkout validation. Legacy desktop/service runtime integration and
 repository publishing remain outside this verification.
+### Latest T008 verification
+
+Repeated the requested Archiver-only checks on 2026-11-19. Both SDK-style
+production targets (net452 and net10.0) build with zero errors and six visible
+legacy NU1902 warnings. All 81 net10.0 Archiver tests pass with zero skips.
+The generated modern dependency manifest resolves log4net 3.6.0 and SkiaSharp
+3.119.4; no WPF, Metrolib, SharpRemote, PE or System.Drawing.Common library
+entries were found. No additional migration code was needed.
+
+Evidence: ignored artifacts/migration/t008-current-build.log,
+artifacts/migration/t008-current-tests.log and
+artifacts/migration/t008-current/t008-current.trx. Checks used the working tree;
+three pending Core/native-acceptance edits were preserved and excluded from this
+commit. This check did not rerun legacy desktop/service runtime integration or
+repository publishing.
