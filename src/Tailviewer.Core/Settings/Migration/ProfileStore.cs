@@ -16,6 +16,15 @@ namespace Tailviewer.Settings
 
         internal static void Write(string path, Action<XmlWriter> serialize, Action<XDocument> validate, bool allowReplace = true)
         {
+            ProfileBundleStore.WithLock(path, () =>
+            {
+                WriteCore(path, serialize, validate, allowReplace);
+                return true;
+            });
+        }
+
+        internal static void WriteCore(string path, Action<XmlWriter> serialize, Action<XDocument> validate, bool allowReplace = true)
+        {
             ArgumentNullException.ThrowIfNull(serialize);
             ArgumentNullException.ThrowIfNull(validate);
             path = Path.GetFullPath(path);
@@ -60,7 +69,7 @@ namespace Tailviewer.Settings
                     if (stream.Length > MaxFileBytes) throw new XmlException("Profile exceeds the file-size limit.");
                     stream.Flush(true);
                 }
-                validate(Read(candidate));
+                validate(ReadCore(candidate));
                 // ReplaceFile can remove the destination on native error 1176; publish with one rename instead.
                 File.Move(candidate, path, overwrite: replacing);
                 ownsCandidate = false;
@@ -100,6 +109,11 @@ namespace Tailviewer.Settings
         }
 
         internal static XDocument Read(string path)
+        {
+            return ProfileBundleStore.WithLock(path, () => ReadCore(path));
+        }
+
+        internal static XDocument ReadCore(string path)
         {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
             {

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Tailviewer.Settings
 {
@@ -32,6 +33,8 @@ namespace Tailviewer.Settings
                 var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
                 if (string.Equals(sourceFolder, Path.GetDirectoryName(targetFile), comparison) ||
                     string.Equals(targetFile, targetBookmarks, comparison) ||
+                    string.Equals(Path.GetFileName(targetFile), ".tailviewer-import.xml", comparison) ||
+                    Directory.Exists(targetFile) || Directory.Exists(targetBookmarks) ||
                     string.Equals(sourceFile, targetFile, comparison) ||
                     backupFolder.StartsWith(Path.TrimEndingDirectorySeparator(sourceFolder) + Path.DirectorySeparatorChar, comparison) ||
                     string.Equals(sourceFolder, backupFolder, comparison))
@@ -83,6 +86,7 @@ namespace Tailviewer.Settings
                         if (file.Length != bytes.Length) return Result(ProfileImportStatus.Failed, error);
                         backupHash = Convert.ToHexString(await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false));
                         if (backupHash != sourceHash) return Result(ProfileImportStatus.Failed, error);
+                        var bookmarkDocument = new XDocument(new XElement("xml"));
                         if (bookmarks != null)
                         {
                             var bookmarkBackup = Path.Combine(backupDirectory, "bookmarks.xml");
@@ -94,24 +98,15 @@ namespace Tailviewer.Settings
                                     return Result(ProfileImportStatus.Failed, error);
                                 verifiedBackup = backup;
                                 error = "InvalidBookmarks";
-                                Bookmarks.Bookmarks.FromDocument(targetBookmarks, ProfileStore.Read(bookmarkBackup));
+                                bookmarkDocument = ProfileStore.Read(bookmarkBackup);
+                                Bookmarks.Bookmarks.FromDocument(targetBookmarks, bookmarkDocument);
                             }
-                            // shortcut: publication waits for a recoverable bundle transaction in T014.
-                            return Result(ProfileImportStatus.Failed, "DependentSettingsNotSupported");
                         }
                         verifiedBackup = backup;
                         error = "InvalidProfile";
                         var document = ProfileStore.Read(backup);
-                        var sources = document.Root.Element("datasources")?.Elements("datasource").ToList();
-                        if (sources != null)
-                            for (var index = 0; index < sources.Count; ++index)
-                                if (sources[index].Attribute("id") == null)
-                                {
-                                    // The immutable backup and source position make retries reproducible.
-                                    var identity = SHA256.HashData(Encoding.UTF8.GetBytes(
-                                        "Tailviewer/legacy-source/" + sourceHash + "/" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-                                    sources[index].SetAttributeValue("id", new Guid(identity.AsSpan(0, 16)));
-                                }
+                        AssignMissingIds(document, "datasources", "datasource", "legacy-source", sourceHash);
+                        AssignMissingIds(document, "quickfilters", "quickfilter", "legacy-filter", sourceHash);
                         var model = ApplicationSettings.FromDocument(targetFile, document);
                         if (model.DataSources.GroupBy(item => item.Id).Any(group => group.Count() > 1) ||
                             model.QuickFilters.GroupBy(item => item.Id).Any(group => group.Count() > 1))
@@ -120,11 +115,9 @@ namespace Tailviewer.Settings
                         if ((File.Exists(targetFile) || File.Exists(targetBookmarks)) && choice == ProfileImportChoice.RequireChoice)
                             return Result(ProfileImportStatus.Conflict);
                         error = "PublishFailed";
-                        ProfileStore.Write(targetFile, writer => model.BuildDocument().Save(writer), candidate =>
-                        {
-                            ApplicationSettings.FromDocument(targetFile, candidate);
-                            cancellationToken.ThrowIfCancellationRequested();
-                        }, allowReplace: choice == ProfileImportChoice.ReplaceExisting);
+                        if (!ProfileBundleStore.Publish(targetFile, model.BuildDocument(), bookmarkDocument,
+                            choice == ProfileImportChoice.ReplaceExisting, cancellationToken))
+                            return Result(ProfileImportStatus.Conflict);
                         return Result(ProfileImportStatus.Imported);
                     }
                 }
@@ -137,7 +130,21 @@ namespace Tailviewer.Settings
             }
         }
 
-        private static void RejectLinks(string path)
+        private static void AssignMissingIds(XDocument document, string container, string item, string domain, string sourceHash)
+        {
+            var elements = document.Root.Element(container)?.Elements(item).ToList();
+            if (elements == null) return;
+            for (var index = 0; index < elements.Count; ++index)
+                if (elements[index].Attribute("id") == null)
+                {
+                    // The immutable backup, identity domain and position make retries reproducible.
+                    var identity = SHA256.HashData(Encoding.UTF8.GetBytes("Tailviewer/" + domain + "/" + sourceHash + "/" +
+                        index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                    elements[index].SetAttributeValue("id", new Guid(identity.AsSpan(0, 16)));
+                }
+        }
+
+        internal static void RejectLinks(string path)
         {
             if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
                 throw new IOException("Use a resolved profile path.");

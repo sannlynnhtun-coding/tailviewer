@@ -189,16 +189,18 @@ namespace Tailviewer.Core.Tests.Migration
         public void ConcurrentWritersPublishWholeValidatedDocuments()
         {
             using (var ready = new CountdownEvent(2))
+            using (var validated = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
                 var tasks = new[] { "first", "second" }.Select(value => Task.Run(() =>
                 {
                     try
                     {
+                        ready.Signal();
                         ProfileStore.Write(_path, writer => WriteValue(writer, value), document =>
                         {
                             Assert.That((string)document.Root.Attribute("value"), Is.EqualTo(value));
-                            ready.Signal();
+                            validated.Set();
                             if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
                         });
                         return true;
@@ -208,14 +210,16 @@ namespace Tailviewer.Core.Tests.Migration
                 try
                 {
                     Assert.That(ready.Wait(TimeSpan.FromSeconds(5)), Is.True);
-                    Assert.That((string)ProfileStore.Read(_path).Root.Attribute("value"), Is.EqualTo("old"));
+                    Assert.That(validated.Wait(TimeSpan.FromSeconds(5)), Is.True);
+                    // Observe disk directly while the first writer owns the folder mutex.
+                    Assert.That((string)ProfileStore.ReadCore(_path).Root.Attribute("value"), Is.EqualTo("old"));
                 }
                 finally
                 {
                     release.Set();
                     Assert.That(Task.WaitAll(tasks, TimeSpan.FromSeconds(5)), Is.True);
                 }
-                Assert.That(tasks.Any(task => task.Result), Is.True);
+                Assert.That(tasks.All(task => task.Result), Is.True);
                 Assert.That((string)ProfileStore.Read(_path).Root.Attribute("value"), Is.AnyOf("first", "second"));
                 Assert.That(Directory.GetFiles(_folder), Has.Length.EqualTo(2));
             }

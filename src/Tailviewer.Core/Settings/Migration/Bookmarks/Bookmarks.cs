@@ -129,14 +129,13 @@ namespace Tailviewer.Settings.Bookmarks
 		/// <summary>Restores the persisted bookmark collection.</summary>
 		public void Restore()
 		{
-			if (!File.Exists(_fileName))
-				return;
-
 			try
 			{
 #if NET10_0_OR_GREATER
+				if (!ProfileBundleStore.WithLock(_fileName, () => File.Exists(_fileName))) return;
 				RestoreDocument(ProfileStore.Read(_fileName));
 #else
+				if (!File.Exists(_fileName)) return;
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
 				{

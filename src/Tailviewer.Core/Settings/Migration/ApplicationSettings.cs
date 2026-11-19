@@ -224,14 +224,13 @@ namespace Tailviewer.Settings
 		public void Restore(out bool neededPatching)
 		{
 			neededPatching = false;
-			if (!File.Exists(_fileName))
-				return;
-
 			try
 			{
 #if NET10_0_OR_GREATER
+				if (!ProfileBundleStore.WithLock(_fileName, () => File.Exists(_fileName))) return;
 				RestoreDocument(ProfileStore.Read(_fileName), out neededPatching);
 #else
+				if (!File.Exists(_fileName)) return;
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
 				{

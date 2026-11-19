@@ -4,12 +4,26 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Linq;
+using System.Threading;
 using Tailviewer.Settings;
 
 internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        if (args.Length == 3 && args[0] == "bundle-child")
+        {
+            ProfileBundleStore.Publish(args[1], XDocument.Parse("<xml value='new'/>"),
+                XDocument.Parse("<xml value='new'/>"), true, CancellationToken.None,
+                index =>
+                {
+                    if (index == 0 && args[2] == "partial") Pause("partial");
+                    if (index == 1 && args[2] == "uncommitted") Pause("uncommitted");
+                });
+            if (args[2] == "committed") Pause("committed");
+            return 0;
+        }
         if (args.Length == 3 && args[0] == "child")
         {
             ProfileStore.Write(args[1], writer => WriteValue(writer, "new"), document =>
@@ -67,6 +81,7 @@ internal static class Program
                     }
                 }
             }
+            await CheckBundleInterruption(folder);
             return 0;
         }
         finally
@@ -76,7 +91,53 @@ internal static class Program
         }
     }
 
-    private static string ReadValue(string path) => (string)ProfileStore.Read(path).Root.Attribute("value");
+    private static async Task CheckBundleInterruption(string parent)
+    {
+        foreach (var phase in new[] { "partial", "uncommitted", "committed" })
+        {
+            var folder = Path.Combine(parent, phase);
+            Directory.CreateDirectory(folder);
+            var settings = Path.Combine(folder, "settings.xml");
+            var bookmarks = Path.Combine(folder, "bookmarks.xml");
+            File.WriteAllText(settings, "<xml value='old'/>");
+            File.WriteAllText(bookmarks, "<xml value='old'/>");
+            var start = new ProcessStartInfo("dotnet")
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var argument in new[] { Assembly.GetExecutingAssembly().Location, "bundle-child", settings, phase })
+                start.ArgumentList.Add(argument);
+            using (var child = Process.Start(start) ?? throw new IOException("Could not start owned bundle child."))
+            {
+                try
+                {
+                    var signal = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                    Check(signal == phase, "Bundle child did not reach the required publication boundary.");
+                    Check(ReadValue(settings) == "new", "First member was not published.");
+                    Check(ReadValue(bookmarks) == (phase == "partial" ? "old" : "new"), "Unexpected second member.");
+                    child.Kill(entireProcessTree: true);
+                    await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                    var expected = phase == "committed" ? "new" : "old";
+                    Check((string)ProfileStore.Read(settings).Root.Attribute("value") == expected, "Settings recovery failed.");
+                    Check((string)ProfileStore.Read(bookmarks).Root.Attribute("value") == expected, "Bookmark recovery failed.");
+                    Check(!File.Exists(Path.Combine(folder, ".tailviewer-import.xml")), "Undo journal was not retired.");
+                    Console.WriteLine("PASS: terminated bundle " + phase + "; both members recovered consistently.");
+                }
+                finally
+                {
+                    if (!child.HasExited)
+                    {
+                        child.Kill(entireProcessTree: true);
+                        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                    }
+                }
+            }
+        }
+    }
+
+    // Observe physical files while the child deliberately holds the production folder lock.
+    private static string ReadValue(string path) => (string)ProfileStore.ReadCore(path).Root.Attribute("value");
     private static void Pause(string signal)
     {
         Console.WriteLine(signal);

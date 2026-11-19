@@ -1,4 +1,4 @@
-#if NET10_0_OR_GREATER && PROFILE_IMPORT_CONTRACTS
+#if NET10_0_OR_GREATER
 using System;
 using System.IO;
 using System.Linq;
@@ -249,6 +249,29 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public async Task RepeatedImportAssignsStableDistinctIdentitiesToLegacyFiltersWithoutIds()
+        {
+            var xml = XDocument.Load(_source);
+            var filters = xml.Root.Element("quickfilters");
+            for (var index = 0; index < 2; ++index)
+            {
+                var missing = new XElement(filters.Element("quickfilter"));
+                missing.Attribute("id").Remove();
+                filters.Add(missing);
+            }
+            xml.Save(_source);
+            Assert.That((await Import()).Status, Is.EqualTo(ProfileImportStatus.Imported));
+            var first = new ApplicationSettings(_target);
+            first.Restore();
+            Assert.That((await Import(ProfileImportChoice.ReplaceExisting)).Status, Is.EqualTo(ProfileImportStatus.Imported));
+            var second = new ApplicationSettings(_target);
+            second.Restore();
+            Assert.That(second.QuickFilters.Select(item => item.Id), Is.EqualTo(first.QuickFilters.Select(item => item.Id)));
+            Assert.That(second.QuickFilters.Select(item => item.Id).Distinct().Count(), Is.EqualTo(3));
+            Assert.That(second.QuickFilters[0].Id.Value.ToString(), Is.EqualTo(FilterId));
+        }
+
+        [Test]
         public async Task InvalidBookmarksKeepVerifiedRawBundleAndCurrentTarget()
         {
             var before = CreateTarget();
@@ -272,6 +295,7 @@ namespace Tailviewer.Core.Tests.Migration
                 "<xml><bookmark datasource='" + SourceId + "' index='17'/></xml>");
             var first = await Import(ProfileImportChoice.ReplaceExisting);
             Assert.That(first.HasVerifiedBackup, Is.True);
+            before = File.ReadAllBytes(_target);
             var backup = Path.Combine(Path.GetDirectoryName(first.BackupFile), "bookmarks.xml");
             var bytes = File.ReadAllBytes(backup);
             bytes[0] ^= 1;
@@ -285,20 +309,154 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public async Task ReplacingWithProfileWithoutBookmarksClearsPreviousBookmarkSnapshot()
+        {
+            CreateTarget();
+            var targetBookmarks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(targetBookmarks, "<xml><bookmark datasource='" + SourceId + "' index='17'/></xml>");
+            Assert.That((await Import(ProfileImportChoice.ReplaceExisting)).Status, Is.EqualTo(ProfileImportStatus.Imported));
+            var marks = new BookmarkCollection(targetBookmarks);
+            marks.Restore();
+            Assert.That(marks.Count, Is.Zero);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task LockedSecondDestinationRollsBackTheWholeBundle(bool existingSettings)
+        {
+            byte[] before = existingSettings ? CreateTarget() : null;
+            Directory.CreateDirectory(Path.GetDirectoryName(_target));
+            var targetBookmarks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(targetBookmarks, "<xml current='keep'/>");
+            var originalBookmarks = File.ReadAllBytes(targetBookmarks);
+            using (var held = new FileStream(targetBookmarks, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var result = await Import(ProfileImportChoice.ReplaceExisting);
+                Assert.That(result.Status, Is.EqualTo(ProfileImportStatus.Failed));
+                Assert.That(result.ErrorCode, Is.EqualTo("PublishFailed"));
+                Assert.That(File.Exists(_target), Is.EqualTo(existingSettings));
+                if (existingSettings) Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+                Assert.That(File.ReadAllBytes(targetBookmarks), Is.EqualTo(originalBookmarks));
+            }
+            Assert.That((await Import(ProfileImportChoice.ReplaceExisting)).Status, Is.EqualTo(ProfileImportStatus.Imported));
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        public void CancellationBeforeCommitRestoresBothOriginalByteSnapshots(int cancelAfterMember)
+        {
+            var before = CreateTarget();
+            var marks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(marks, "<xml previous='keep'/>");
+            var oldMarks = File.ReadAllBytes(marks);
+            using (var cancellation = new CancellationTokenSource())
+                Assert.Throws<OperationCanceledException>(() => ProfileBundleStore.Publish(_target,
+                    XDocument.Parse("<xml><logviewer fontsize='18'/></xml>"), XDocument.Parse("<xml/>"), true,
+                    cancellation.Token, index => { if (index == cancelAfterMember) cancellation.Cancel(); }));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+            Assert.That(File.ReadAllBytes(marks), Is.EqualTo(oldMarks));
+        }
+
+        [Test]
+        public void InterruptedBundleIsRolledBackBeforeReadingEitherMember()
+        {
+            var before = CreateTarget();
+            var marks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(marks, "<xml previous='keep'/>");
+            var oldMarks = File.ReadAllBytes(marks);
+            CreateInterruptedBundle(marks);
+            var restored = new ApplicationSettings(_target);
+            restored.Restore();
+            Assert.That(restored.LogViewer.FontSize, Is.EqualTo(27));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+            Assert.That(File.ReadAllBytes(marks), Is.EqualTo(oldMarks));
+            Assert.That(File.Exists(Path.Combine(Path.GetDirectoryName(_target), ".tailviewer-import.xml")), Is.False);
+        }
+
+        [Test]
+        [TestCase("stage")]
+        [TestCase("target")]
+        [TestCase("hash")]
+        [TestCase("duplicate")]
+        public void InvalidRecoveryJournalDoesNotChangeEitherMember(string defect)
+        {
+            CreateTarget();
+            var marks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(marks, "<xml previous='keep'/>");
+            CreateInterruptedBundle(marks);
+            var journalPath = Path.Combine(Path.GetDirectoryName(_target), ".tailviewer-import.xml");
+            var journal = XDocument.Load(journalPath);
+            if (defect == "stage") journal.Root.SetAttributeValue("stage", "../outside");
+            if (defect == "target") journal.Root.Element("file").SetAttributeValue("name", "../settings.xml");
+            if (defect == "hash") journal.Root.Element("file").SetAttributeValue("after", "invalid");
+            if (defect == "duplicate") journal.Root.Add(new XElement(journal.Root.Element("file")));
+            journal.Save(journalPath);
+            var before = File.ReadAllBytes(_target);
+            var beforeMarks = File.ReadAllBytes(marks);
+            Assert.Throws<System.Xml.XmlException>(() => ProfileStore.Read(_target));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+            Assert.That(File.ReadAllBytes(marks), Is.EqualTo(beforeMarks));
+        }
+
+        [Test]
+        public void CorruptUndoCopyBlocksRecoveryWithoutChangingEitherMember()
+        {
+            CreateTarget();
+            var marks = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            File.WriteAllText(marks, "<xml previous='keep'/>");
+            var stage = CreateInterruptedBundle(marks);
+            File.WriteAllText(Path.Combine(stage, "1.before"), "corrupt");
+            var current = File.ReadAllBytes(_target);
+            var currentMarks = File.ReadAllBytes(marks);
+            Assert.Throws<IOException>(() => ProfileStore.Read(_target));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(current));
+            Assert.That(File.ReadAllBytes(marks), Is.EqualTo(currentMarks));
+        }
+
+        private string CreateInterruptedBundle(string marks)
+        {
+            var folder = Path.GetDirectoryName(_target);
+            var stageName = "." + Guid.NewGuid().ToString("N") + ".import";
+            var stage = Path.Combine(folder, stageName);
+            Directory.CreateDirectory(stage);
+            File.Copy(_target, Path.Combine(stage, "0.before"));
+            File.Copy(marks, Path.Combine(stage, "1.before"));
+            var settingsBefore = Hash(File.ReadAllBytes(_target));
+            var bookmarksBefore = Hash(File.ReadAllBytes(marks));
+            File.WriteAllText(_target, "<xml><logviewer fontsize='18'/></xml>");
+            new XDocument(new XElement("xml", new XAttribute("stage", stageName),
+                new XElement("file", new XAttribute("name", Path.GetFileName(_target)),
+                    new XAttribute("before", settingsBefore), new XAttribute("after", Hash(File.ReadAllBytes(_target)))),
+                new XElement("file", new XAttribute("name", "bookmarks.xml"),
+                    new XAttribute("before", bookmarksBefore), new XAttribute("after", Hash(File.ReadAllBytes(marks))))))
+                .Save(Path.Combine(folder, ".tailviewer-import.xml"));
+            return stage;
+        }
+
+        [Test]
         public async Task DependentBookmarksAreBackedUpAndRepeatedImportsDoNotDuplicateThem()
         {
             var sourceBookmarks = Path.Combine(Path.GetDirectoryName(_source), "bookmarks.xml");
-            File.WriteAllText(sourceBookmarks, "<xml future='keep'><bookmark datasource='" + SourceId + "' index='17' label='keep'/></xml>");
+            File.WriteAllText(sourceBookmarks, "<?future keep?><xml future='keep'><bookmark datasource='" + SourceId + "' index='17' label='keep'/></xml>");
             var original = File.ReadAllBytes(sourceBookmarks);
             var first = await Import();
             Assert.That(first.Status, Is.EqualTo(ProfileImportStatus.Imported));
             var backup = Path.Combine(Path.GetDirectoryName(first.BackupFile), "bookmarks.xml");
             Assert.That(Hash(File.ReadAllBytes(backup)), Is.EqualTo(Hash(original)));
             Assert.That((await Import(ProfileImportChoice.ReplaceExisting)).Status, Is.EqualTo(ProfileImportStatus.Imported));
-            var marks = new BookmarkCollection(Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml"));
-            marks.Restore();
-            Assert.That(marks.Count, Is.EqualTo(1));
-            Assert.That(marks[0].DataSourceId.Value.ToString(), Is.EqualTo(SourceId));
+            var path = Path.Combine(Path.GetDirectoryName(_target), "bookmarks.xml");
+            for (var restart = 0; restart < 2; ++restart)
+            {
+                var marks = new BookmarkCollection(path);
+                marks.Restore();
+                Assert.That(marks.Count, Is.EqualTo(1));
+                Assert.That(marks[0].DataSourceId.Value.ToString(), Is.EqualTo(SourceId));
+                Assert.That(marks.Save(), Is.True);
+                var persisted = XDocument.Load(path);
+                Assert.That((string)persisted.Root.Attribute("future"), Is.EqualTo("keep"));
+                Assert.That((string)persisted.Root.Element("bookmark").Attribute("label"), Is.EqualTo("keep"));
+                Assert.That(persisted.Nodes().OfType<XProcessingInstruction>().Single().Data, Is.EqualTo("keep"));
+            }
             Assert.That(File.ReadAllBytes(sourceBookmarks), Is.EqualTo(original));
         }
 
