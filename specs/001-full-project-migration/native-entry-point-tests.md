@@ -462,3 +462,34 @@ before keyboard/copy. Retain t027-large-copy-regression.log/TRX as a failing
 combined checkpoint; it is not a fully green native suite. Cleanup audit finds
 no owned viewer/testhost processes or native fixture directories. Production
 sources were unchanged, so Core/modern/legacy suites were not repeated here.
+
+## Logical log row identity in native UIA fixtures
+
+The recurring small EOF observation timeout was diagnosed rather than accepted
+as a permanent Loading failure. Temporary diagnostics on a failing run showed
+that UIA's third ListItem contained the first logical line (`1  first`), with no
+COM error. Virtualized peer enumeration order differs from logical line order;
+reacquiring the same ordinal alone (the earlier fixture repair) was insufficient.
+The diagnostic evidence remains in t027-eof-diagnostic.log/TRX; its recorded
+eof_labels and observation_hresult fields contain only synthetic fixture data.
+
+The EOF test now keeps the three-realized-row assertion, then searches the live
+log list for the resolved line-3 text instead of treating peer index 2 as line 3.
+The shared SelectSecondLine helper similarly locates the displayed line-2 prefix
+within its owning list item instead of selecting peer index 1. Existing original
+Unicode/trailing-newline copy, fixture bytes and ten-second timeout assertions
+are retained. No production code or foreground/input ownership guard changed.
+
+Focused EOF/large-copy/system-codepage/Unicode CLI cases pass 5/5, zero
+failures/skips (t027-peer-identity.log/TRX). This supersedes the preceding failing
+five-case checkpoint; earlier failed logs remain available. The five-minute
+Performance gate is separate and remains open.
+
+The complete functional native run (`TestCategory!=Performance`) finishes with
+21 pass / 1 failure / zero skips. EOF, both CLI copies, large copy/pause, picker,
+OLE, handoff and the other completed cases pass; the pointer-tree `cancel` case
+fails its root/member ordering observation. Evidence:
+t027-peer-identity-full.log/TRX (22 cases, about three minutes). This is a failing
+overall checkpoint, not a full native acceptance pass. The remaining tree-order
+observation is being diagnosed separately from log-row identity. Core/modern
+suites were not repeated for this fixture-only change.

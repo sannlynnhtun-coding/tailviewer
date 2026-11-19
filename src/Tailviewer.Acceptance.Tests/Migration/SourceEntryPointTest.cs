@@ -145,21 +145,15 @@ public sealed partial class SourceEntryPointTest
         var window = StartApplication();
         var rows = WaitFor(() => window.FindFirst(TreeScope.Descendants,
             new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The log list must be accessible.");
-        var last = WaitFor(() =>
-        {
-            var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
-            return items.Count == 3 ? items[2] : null;
-        }, "The complete terminal newline must have its indexed EOF row.");
         WaitFor(() =>
         {
-            // Reacquire the realized row after asynchronous page updates replace its peer.
             var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
-            if (items.Count != 3) return null;
-            last = items[2];
-            return last.FindAll(TreeScope.Descendants,
+            return items.Count == 3 ? rows : null;
+        }, "The complete terminal newline must have its indexed EOF row.");
+        // Virtualized peer enumeration order can differ from logical line order.
+        WaitFor(() => rows.FindAll(TreeScope.Descendants,
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
-                .Any(text => text.Current.Name.Trim() == "3") ? last : null;
-        },
+            .Any(text => text.Current.Name.Trim() == "3") ? rows : null,
             "The EOF row must render its line number without a permanent Loading label.");
         NativeKeyboard.SelectAll(_process!, rows);
         CopyAndCheck(window, string.Join(Environment.NewLine, "first", SelectedLine, ""));
@@ -597,7 +591,10 @@ public sealed partial class SourceEntryPointTest
         var item = WaitFor(() =>
         {
             var items = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
-            return items.Count >= 3 ? items[1] : null;
+            if (items.Count < 3) return null;
+            return items.Cast<AutomationElement>().FirstOrDefault(row => row.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .Any(text => text.Current.Name.TrimStart().StartsWith("2  ", StringComparison.Ordinal)));
         }, "The owned three-line file must become readable.");
         ((SelectionItemPattern)item.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
     }
