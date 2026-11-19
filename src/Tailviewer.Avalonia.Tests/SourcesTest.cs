@@ -51,6 +51,34 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task SelectingAnEarlierSourceRetainsItsIdentityAndPausedFollowState()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = (DataSource)tree.SelectedItem!;
+            await Copy(window, 0, "first");
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            tree.ItemCount.Should().Be(2);
+            tree.SelectedItem = first;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains("first.log"));
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(first.Id);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 1, "  original spaces  ");
+            await window.OpenFileAsync(Path.Combine(_folder, ".", "first.log"));
+            tree.ItemCount.Should().Be(2);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(first.Id);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs()
     {
         var window = new MainWindow();

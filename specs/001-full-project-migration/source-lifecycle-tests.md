@@ -68,3 +68,31 @@ The earlier 28-case passing checkpoint predates these new contracts.
 T018 remains unchecked: close-current/all, group UI, recursive patterns/missing
 folder handling and cycle/duplicate UI feedback still need executable contracts.
 No UI implementation, full-suite green claim or US1 completion is implied.
+## Slice 3: selectable file sources implemented
+
+The first implementation slice now supplies the source tree used by the existing
+red file contract. It binds existing DataSource models, retains file identities
+by canonical full path (Windows case-insensitive comparison), and lets users
+select previously opened files. Reopening a normalized equivalent path reuses
+the entry/ID. Labels retain full-path tooltips/accessibility names. Switching
+reuses the configured ID through LogDocument and disposes the previous document.
+The existing FollowTail field preserves the paused/following choice when returning
+to a source; new-file initial follow behavior is unchanged.
+
+A new actual-tree selection test checks return to the earlier file, correct
+original copied text, stable ID, normalized-path duplicate avoidance and retained
+pause state. No property assertion was weakened and no test was skipped.
+
+Executed final full Avalonia suite: 31 passed, one failed, zero skipped (32 total).
+TRX confirms the only remaining failure is
+OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs. The earlier missing-tree
+failure now passes. Evidence: artifacts/migration/t018-file-tree-full.log and
+t018/t018-file-tree.trx, ignored local artifacts.
+
+This is a test-first vertical file slice of T018/T022, not completion of either
+task. The list is currently file-only and retained in the running window; saved
+workspace binding, folder/group enumeration and controls, loading/error tree
+states, close-current/all, stale open-request ordering and complete per-source
+selection/position persistence remain their assigned tasks. The expected folder
+failure remains ordinary and visible in the suite. No native desktop/clipboard
+acceptance or full Core rerun was performed for this UI-only change.
