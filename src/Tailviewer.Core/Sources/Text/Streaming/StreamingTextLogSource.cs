@@ -6,6 +6,7 @@ using System.Diagnostics.Contracts;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,6 +57,7 @@ namespace Tailviewer.Core
 		private long _lastLineOffsetStreamPosition;
 		private long _lastStreamPosition;
 		private byte[] _checkpoint = new byte[0];
+		private readonly byte[] _checkpointBuffer = new byte[BufferSize];
 		private long _generation;
 
 		private const int BufferSize = 4096 * 4;
@@ -296,7 +298,7 @@ namespace Tailviewer.Core
 			                                     FileAccess.Read,
 			                                     FileShare.ReadWrite | FileShare.Delete))
 			{
-				var contentChanged = !ArrayExtensions.Equals(_checkpoint, ReadCheckpoint(stream, _lastStreamPosition));
+				var contentChanged = !ArrayExtensions.Equals(_checkpoint, ReadCheckpoint(stream, _lastStreamPosition, cancellationToken));
 				if (!metadataChanged && !contentChanged)
 					return false;
 
@@ -343,7 +345,8 @@ namespace Tailviewer.Core
 
 				AddLines(buffer, Percentage.HundredPercent, startOffset);
 				_lastStreamPosition = stream.Position;
-				_checkpoint = ReadCheckpoint(stream, _lastStreamPosition);
+				// shortcut: index and digest use separate reads; concurrent-rewrite snapshot consistency remains T027.
+				_checkpoint = ReadCheckpoint(stream, _lastStreamPosition, cancellationToken);
 			}
 
 			if (Log.IsDebugEnabled)
@@ -355,16 +358,23 @@ namespace Tailviewer.Core
 			return true;
 		}
 
-		// shortcut: bounded probes can miss edits outside sampled regions; hash all previously read bytes if arbitrary rewrites must be detected.
-		private byte[] ReadCheckpoint(Stream stream, long length)
+		// All indexed bytes must be checked: identical metadata and end samples can hide middle rewrites.
+		private byte[] ReadCheckpoint(Stream stream, long length, CancellationToken cancellationToken)
 		{
-			var count = (int)Math.Min(4096, length);
-			using (var reader = new BinaryReader(stream, _encoding, leaveOpen: true))
+			if (length == 0) return new byte[0];
+			stream.Position = 0;
+			using (var hash = SHA256.Create())
 			{
-				stream.Position = 0;
-				var prefix = reader.ReadBytes(count);
-				stream.Position = length - count;
-				return prefix.Concat(reader.ReadBytes(count)).ToArray();
+				while (length > 0)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					var read = stream.Read(_checkpointBuffer, 0, (int)Math.Min(length, _checkpointBuffer.Length));
+					if (read == 0) break;
+					hash.TransformBlock(_checkpointBuffer, 0, read, _checkpointBuffer, 0);
+					length -= read;
+				}
+				hash.TransformFinalBlock(new byte[0], 0, 0);
+				return hash.Hash;
 			}
 		}
 

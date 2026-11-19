@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -31,6 +32,77 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             Assert.That(Directory.GetParent(Path.GetFullPath(_folder)).FullName,
                 Is.EqualTo(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
             Directory.Delete(_folder, true);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MiddleOnlySameSizeRewriteReindexesEvenWithIdenticalMetadata(bool preserveMetadata)
+        {
+            var prefix = new string('h', 8192);
+            var suffix = new string('t', 8192);
+            var original = prefix + "\nold\nmiddle\n" + suffix;
+            var replacement = prefix + "\nnew-middle\n" + suffix;
+            Assert.That(Encoding.UTF8.GetByteCount(replacement), Is.EqualTo(Encoding.UTF8.GetByteCount(original)));
+            Write(original);
+            using (var source = Open())
+            {
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 4), Is.EqualTo(new[] { prefix, "old", "middle", suffix }));
+                var filesystem = new Filesystem(_scheduler);
+                var before = FileFingerprint.FromFile(filesystem, _path);
+                Write(replacement);
+                File.SetLastWriteTimeUtc(_path, preserveMetadata ? before.LastModified : before.LastModified.AddSeconds(1));
+                if (preserveMetadata)
+                    Assert.That(FileFingerprint.FromFile(filesystem, _path), Is.EqualTo(before),
+                        "the hidden rewrite fixture must retain size, path and creation/write timestamps");
+                _scheduler.RunOnce();
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(3));
+                Assert.That(Read(source, 3), Is.EqualTo(new[] { prefix, "new-middle", suffix }));
+                File.AppendAllText(_path, "\ncontinued", new UTF8Encoding(false));
+                _scheduler.RunOnce();
+                Assert.That(Read(source, 4), Is.EqualTo(new[] { prefix, "new-middle", suffix, "continued" }));
+            }
+        }
+
+        [TestCase(1)]
+        [TestCase(100)]
+        public void LargeHiddenRewriteReportsAuditCostAndCorrectOffsets(int sizeMiB)
+        {
+            var block = Enumerable.Repeat((byte)'a', 1024 * 1024).ToArray();
+            using (var output = File.Create(_path))
+                for (var i = 0; i < sizeMiB; ++i) output.Write(block, 0, block.Length);
+            var fingerprint = FileFingerprint.FromFile(new Filesystem(_scheduler), _path);
+            using (var source = Open())
+            {
+                var timer = Stopwatch.StartNew();
+                _scheduler.RunOnce();
+                var initial = timer.Elapsed.TotalMilliseconds;
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(1));
+                var idle = new double[3];
+                for (var i = 0; i < idle.Length; ++i)
+                {
+                    timer.Restart();
+                    _scheduler.RunOnce();
+                    idle[i] = timer.Elapsed.TotalMilliseconds;
+                }
+                var middle = fingerprint.Size / 2;
+                using (var output = new FileStream(_path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    output.Position = middle;
+                    output.WriteByte((byte)'\n');
+                    output.Flush(true);
+                }
+                File.SetLastWriteTimeUtc(_path, fingerprint.LastModified);
+                Assert.That(FileFingerprint.FromFile(new Filesystem(_scheduler), _path), Is.EqualTo(fingerprint));
+                timer.Restart();
+                _scheduler.RunOnce();
+                var recovery = timer.Elapsed.TotalMilliseconds;
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(2));
+                Assert.That(source.GetColumn(new LogSourceSection(0, 2), StreamingTextLogSource.LineOffsetInBytes),
+                    Is.EqualTo(new[] { 0L, middle + 1 }));
+                TestContext.WriteLine("MiB={0}; initial_ms={1:F2}; idle_audits_ms={2}; recovery_ms={3:F2}",
+                    sizeMiB, initial, string.Join(",", idle.Select(value => value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))), recovery);
+            }
         }
 
         [TestCase(false)]

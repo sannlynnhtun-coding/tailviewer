@@ -107,3 +107,52 @@ T020 remains open for middle-only same-size rewrites with indistinguishable
 metadata. Its detection/performance issue above is unchanged. Automatic detection
 of arbitrary BOM-less encoding changes, manual persisted encoding selection,
 full recovery performance and native desktop acceptance are not proven here.
+## Slice 3: hidden middle rewrites and T020 completion
+
+The equal-size fixture moves a newline in the unsampled middle while keeping the
+first/last 8 KiB unchanged. It explicitly restores the original last-write time
+and asserts FileFingerprint equality (path, size, creation/write times) before
+scanning. The changed-metadata control passed; the hidden-metadata variant failed
+with four stale indexed rows instead of the expected three.
+
+Content checkpoints now hash all previously indexed bytes with the built-in
+SHA-256 implementation. A reusable 16 KiB buffer bounds audit memory; cancellation
+is checked between chunks. Appended bytes are excluded from the old-prefix check,
+so normal append still extends the index rather than resetting it. No dependency,
+configuration option, ignored case or scan interval was added. The old bounded-
+probe shortcut is removed; this is deliberately a linear full-content audit.
+
+Two additional real-file fixtures (1 and 100 MiB) replace a middle byte with a
+newline while retaining equal metadata, verify exact resulting byte offsets and
+report initial scan, three idle audits and recovery cost. These fixtures contain
+one very long line, not the representative multiline application acceptance log.
+
+Measured on Windows x64 / SDK 10.0.302, Intel Core i7-13700H (14 cores / 20 logical
+processors), 31.71 GiB RAM, owned temporary files on C: NTFS. Drive media was not
+verified. The synthetic file was just written and audits were sequential/warm:
+
+| Size | Initial scan + digest (ms) | Three idle audits (ms) | Hidden rewrite/reindex (ms) |
+|---|---:|---|---:|
+| 1 MiB | 11.91 | 1.44, 1.03, 0.99 | 8.82 |
+| 100 MiB | 226.08 | 85.28, 80.45, 75.44 | 288.20 |
+
+Full-content polling increases I/O/CPU linearly with file size and source count.
+A 100 ms scheduling delay follows each scan; this is not a fixed-duration audit.
+These results do not prove the 1 GiB, five-minute append, UI latency or universal
+three-second recovery targets. T027/T120 must measure representative workloads
+and record filesystem/throughput limits; the original acceptance thresholds are
+unchanged. Indexing and digesting currently use separate reads: snapshot
+consistency under a concurrent rewrite is a known remaining T027 issue, also
+marked in code. No atomic filesystem snapshot guarantee is claimed.
+
+Executed checks: full Core 7,106 pass / 0 failed / 5 unchanged existing skips;
+legacy net471 test project build 0 errors / 5 existing warnings; modern solution
+81 Archiver + 82 Avalonia pass / 0 failures/skips. Evidence under ignored
+artifacts/migration: t020-middle-red.log, t020-middle-focused.log,
+t020-middle-cost.log, t020-middle-core-full.log, t020-middle/t020-middle.trx,
+t020-middle-legacy-build.log and t020-middle-modern-solution.log.
+
+T020 is complete as a test-contract task: hidden middle/identical-metadata,
+truncate/regrow, changed-BOM encoding and stale queued/in-flight result cases now
+exist and pass. T027/T028 and native/performance acceptance remain open. This
+completion does not claim full recovery implementation or US1 parity.
