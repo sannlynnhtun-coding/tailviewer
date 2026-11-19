@@ -31,8 +31,9 @@ blocking, duplicate sections, wrong roots, candidate failure, snapshot cloning,
 scalar/level extensions, document nodes and clearing owned records. Eight
 original ApplicationSettingsTest cases also run against the modern model.
 
-Atomic/crash-safe persistence and bounded parser acceptance remain T012. These
-passing behavior cases do not establish that separate storage gate.
+T012 now verifies bounded parsing and same-directory single-rename publication
+separately; see [profile store evidence](profile-store-migration.md). These eight
+behavior cases alone do not establish that storage gate.
 
 ## Reproduce
 
@@ -54,4 +55,4 @@ Final baseline evidence: `artifacts/migration/profile-probe/run-79b44d08be4f48f4
 
 ## Remaining owning-task checks
 
-The failed-write case exercises OS-denied writes plus a leftover malformed candidate. It does not simulate power loss between flush and replacement. T012 must additionally exercise bounded/DTD-disabled reads, validation failure and replacement interruption at its actual atomic-save boundary, with the previous file retained. T011 adds typed/proxy/DPAPI/color port coverage; T013/T014 cover original backup hashes and import conflicts. No user-data migration or production settings change happens in T010.
+The failed-write case exercises OS-denied writes plus a leftover malformed candidate. It does not simulate power loss between flush and replacement. T012 separately added bounded/DTD-disabled reads, validation failures, safe native sharing/metadata behavior and owned-process interruption before/after publication; see the profile-store evidence. Physical power loss is not simulated. T011 adds typed/proxy/DPAPI/color port coverage; T013/T014 cover original backup hashes and import conflicts. No user-data migration or production settings change happens in T010.

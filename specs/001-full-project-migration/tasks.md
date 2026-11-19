@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T011 complete. UI-neutral settings/models and modern profile contracts verified; T012 in progress: shared bounded XML reads pass; validated atomic writes remain. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T012 complete. Profile models and bounded/validated single-rename persistence verified; T013 import/backup contract tests are next. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -54,8 +54,8 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Implementation / verification
 
-- [X] T011 Port existing `src/Tailviewer/Settings/` UI-independent XML models/helpers into `src/Tailviewer.Core/Settings/Migration/`, preserving serialized names/defaults, plugin raw data and proxy/DPAPI CurrentUser encrypted password/salt (retain raw data and request re-entry if unavailable, never log plaintext); remove WPF color/Metrolib serializers at the boundary with primitive-value round-trip fixtures and UI conversion adapters; update callers/tests without introducing duplicate models. **Depends**: T010. **Evidence**: [settings model migration](settings-model-migration.md), slices 1-11; storage safety remains T012.
-- [ ] T012 Implement separate modern path, bounded XML read, temporary validated save and same-volume atomic replacement in `src/Tailviewer.Core/Settings/Migration/ProfileStore.cs`; keep last valid profile on failure. **Depends**: T011.
+- [X] T011 Port existing `src/Tailviewer/Settings/` UI-independent XML models/helpers into `src/Tailviewer.Core/Settings/Migration/`, preserving serialized names/defaults, plugin raw data and proxy/DPAPI CurrentUser encrypted password/salt (retain raw data and request re-entry if unavailable, never log plaintext); remove WPF color/Metrolib serializers at the boundary with primitive-value round-trip fixtures and UI conversion adapters; update callers/tests without introducing duplicate models. **Depends**: T010. **Evidence**: [settings model migration](settings-model-migration.md), slices 1-11; storage safety is verified separately in T012.
+- [X] T012 Implement separate modern path, bounded XML read, temporary validated save and same-volume atomic replacement in `src/Tailviewer.Core/Settings/Migration/ProfileStore.cs`; keep last valid profile on failure. **Depends**: T011. **Evidence**: [profile store migration](profile-store-migration.md), including native failure rationale, metadata and abrupt-process interruption checks.
 
 ### Tests / contract checks
 

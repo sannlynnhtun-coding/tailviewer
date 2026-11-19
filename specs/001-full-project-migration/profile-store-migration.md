@@ -129,3 +129,77 @@ its failure and subsequent explicit retry behavior are retained in these logs.
 References: [ReplaceFileW failure states](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew),
 [MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw),
 [CopyFileW metadata behavior](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-copyfilew).
+
+
+## Slice 4 / final T012 acceptance
+
+The checked-in profile-store console probe calls the production helper under
+Core's existing signed Tailviewer friend identity. It launches only owned,
+hidden child processes and terminates them after flushed/validated staging or
+after publication returns. Both cases preserve a readable committed destination
+and permit a later save. Recovery does not load or remove the abandoned candidate.
+Only the GUID temporary directory created by the parent is cleaned, after a
+resolved-path parent check. No real profile, credential, log or EFS key is touched.
+
+Final executed results (Windows x64, SDK 10.0.302, NTFS for both the probe volume
+and the default LocalApplicationData volume):
+
+| Gate | Result |
+|---|---|
+| Profile/bookmark/persistence selection | 69 passed, no failures/skips |
+| Full Core suite, after single-rename/metadata/race changes | 7031 passed / 0 failed / 5 pre-existing skips (7036 total) |
+| Modern solution | 81 Archiver + 22 Avalonia = 103 passed, no failures/skips |
+| Abrupt owned-process termination | Before and after publication both PASS; later saves succeed |
+| Expanded legacy source/API compile | Pass; legacy log4net warnings remain visible |
+| Signed profile/editor source probe | Eight profile and five editor cases pass |
+
+T012 is complete: isolated modern paths, bounded/DTD-disabled/depth-checked
+reads, owned private same-volume staging, output bounds/flush/model validation,
+metadata-preserving single-rename publication and failure/retry behavior are
+executed. The legacy target deliberately retains its original writer until its
+host is retired; none of these results claim full old desktop/service integration.
+
+No journal, new package, broad visibility exception, destination truncation,
+backup guessing or foreign-file cleanup was added. Import original/backup hashes,
+explicit conflict choices and transactional conversion remain T013/T014. Modern
+UI persistence/rebinding belongs to the owning workspace/settings story.
+Physical power loss, EFS keys/encryption lifecycle, filesystem device failure,
+network filesystems and non-Windows platforms are not verified by this task.
+
+Reproduce the abrupt-termination check using the command in
+probes/profile-store/README.md. Final logs: artifacts/migration/
+t012-rename-core-final.log, t012-rename-solution-final.log,
+t012-rename-interruption-final.log, t012-rename-source-probe-final.log.
+
+
+## Final staging privacy hardening
+
+CopyFile can reset a destination file's inherited ACL during metadata copying.
+The final store therefore creates an owner-only private staging subdirectory,
+with its DACL supplied at directory creation on Windows, before copying any
+profile bytes. Candidate data stays inside that restricted directory while the
+original file's DACL is applied and before new serialization starts. The final
+metadata case asserts the candidate DACL and protected owner-only staging rules
+inside the serializer callback as well as the published file's DACL, alternate
+stream and creation time. This closes the transient broad-ACL window in a naive
+metadata-copy approach. No encryption keys/certificates are created by the tests.
+
+Staging remains on the destination volume, in a direct child of its directory;
+this supersedes earlier checkpoint wording that the candidate file itself was
+in the destination directory. Cleanup removes only the owned candidate and its
+empty staging directory, never recursively sweeps profile data. Expected cleanup
+IO/permission failures may leave a private orphan; they do not turn an already
+committed valid rename into a reported save failure. Crash leftovers are ignored.
+
+The staging-permission transition's failed metadata assertion is retained in
+artifacts/migration/t012-staging-acl-verified.log; the final owner-only directory
+case passes in t012-private-stage-verified.log. Final closeout logs follow below.
+
+Final private-staging closeout: full Core **7031 passed / 0 failed / 5 existing
+skips**, modern solution **103 passed**, abrupt-termination probe **2 PASS**,
+legacy source/API compile **PASS**, source runner **8 profile + 5 editor PASS**.
+Logs: artifacts/migration/t012-private-stage-core-final.log,
+t012-private-stage-solution-final.log, t012-private-stage-interruption-final.log,
+t012-private-stage-legacy-final.log, t012-private-stage-source-probe-final.log.
+Latest signed source-runner directory:
+artifacts/migration/profile-probe/run-3ccd59ce644f4fd1b33996d67d1334fd.
