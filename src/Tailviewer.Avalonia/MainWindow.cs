@@ -55,6 +55,9 @@ public sealed class MainWindow : Window
     // shortcut: inactive file states retain their last observation until reopened; monitor all documents with US2.
     private readonly Dictionary<DataSourceId, string?> _sourceStates = new();
     private DataSourceId _openingSource;
+    private readonly Queue<string[]> _handoffs = new();
+    private bool _handlingHandoffs;
+    private Task _handoffProcessing = Task.CompletedTask;
 
     public MainWindow(string? fileName = null)
     {
@@ -282,6 +285,7 @@ public sealed class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            _handoffs.Clear();
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
             _timer.Stop();
@@ -322,6 +326,35 @@ public sealed class MainWindow : Window
     }
 
     public Task OpenFileAsync(string fileName) => OpenSourceAsync(fileName, null);
+
+    internal Task AcceptHandoff(string[] paths, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_closed) throw new OperationCanceledException("The Tailviewer window is closing.");
+        if (_handoffs.Count >= 16) throw new IOException("Tailviewer is busy. Retry after the pending source requests finish.");
+        _handoffs.Enqueue(paths);
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        if (!_handlingHandoffs) _handoffProcessing = ProcessHandoffsAsync();
+        return _handoffProcessing;
+    }
+
+    private async Task ProcessHandoffsAsync()
+    {
+        _handlingHandoffs = true;
+        try
+        {
+            while (!_closed && _handoffs.TryDequeue(out var paths)) await OpenFilesAsync(paths);
+        }
+        catch (Exception error) { ReportHandoffError(error.Message); }
+        finally { _handlingHandoffs = false; }
+    }
+
+    internal void ReportHandoffError(string message)
+    {
+        if (!_closed) _status.Text = _operationError = "Cannot receive source requests: " + message;
+    }
 
     private void OnDragOver(object? sender, DragEventArgs args)
     {
@@ -605,6 +638,7 @@ public sealed class MainWindow : Window
     private void CloseAllSources()
     {
         if (_closed) return;
+        _handoffs.Clear();
         ++_openRequest;
         _openingSource = DataSourceId.Empty;
         _open.IsEnabled = true;

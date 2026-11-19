@@ -892,6 +892,67 @@ public sealed class SourcesTest
         }
         finally { window.Close(); }
     }
+    [AvaloniaTest]
+    public async Task HandoffRequestsOpenInOrderAndBringToFrontPreservesTheActiveSelection()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            _ = window.AcceptHandoff(new[] { _first }, CancellationToken.None);
+            await window.AcceptHandoff(new[] { _second }, CancellationToken.None);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            await WaitUntil(() => tree.ItemCount == 2 && ((DataSource?)tree.SelectedItem)?.File == _second &&
+                Rows(window).ItemCount == 1 && Command(window, "Open folder").IsEnabled);
+            await Copy(window, 0, "second");
+            var selected = (DataSource)tree.SelectedItem!;
+            window.WindowState = WindowState.Minimized;
+            await window.AcceptHandoff(Array.Empty<string>(), CancellationToken.None);
+            window.WindowState.Should().Be(WindowState.Normal);
+            ((DataSource)tree.SelectedItem!).Id.Should().Be(selected.Id);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(0);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await Copy(window, 0, "second");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CancelledAndClosedHandoffsDoNotModifyTheWorkspace()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            Assert.Throws<OperationCanceledException>(() => window.AcceptHandoff(new[] { _second }, cancelled.Token));
+            ((SourcesViewModel)window.DataContext!).All.Should().ContainSingle().Which.File.Should().Be(_first);
+            await Copy(window, 0, "first");
+        }
+        finally { window.Close(); }
+        Assert.Throws<OperationCanceledException>(() => window.AcceptHandoff(new[] { _second }, CancellationToken.None));
+    }
+
+    [AvaloniaTest]
+    public async Task CloseAllCancelsQueuedHandoffsWithoutResurrectingSources()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var pending = window.AcceptHandoff(new[] { _first }, CancellationToken.None);
+            _ = window.AcceptHandoff(new[] { _second }, CancellationToken.None);
+            Command(window, "Close all sources").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await pending;
+            ((SourcesViewModel)window.DataContext!).All.Should().BeEmpty();
+            Rows(window).ItemCount.Should().Be(0);
+        }
+        finally { window.Close(); }
+    }
+
     private static string? SourceStatus(TreeView tree, DataSource source) =>
         (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;

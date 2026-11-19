@@ -100,3 +100,35 @@ recovery and cross-user/session isolation acceptance remain unproven. The Unix
 username/session-zero naming fallback is explicitly a later-milestone shortcut,
 not Linux/macOS single-instance support. No unrelated process is enumerated or
 killed by this ownership helper.
+
+## Slice 4: desktop startup and bounded UI intake
+
+The shipping synchronous STA entry point now holds the ownership lease for the
+whole desktop lifetime. Secondary launches send their arguments with a
+five-second deadline and exit zero after acknowledgement. Failure presents a
+small connection-error window and exits one when closed; it does not kill or
+replace the primary. The primary starts its pipe after initial arguments have
+finished opening. Exit cancels the listener; Main observes its completion before
+releasing the mutex. Listener faults are surfaced through the existing status UI.
+
+UI dispatch checks cancellation before accepting work into a queue of at most
+16 pending requests. Acknowledgement means accepted by that queue, not that all
+files finished opening. Requests use the existing ordered OpenFilesAsync flow;
+empty requests restore/activate the window without resetting rows/selection.
+Close all and window shutdown clear queued requests. Accepted requests persist
+after connection completion; acknowledgement loss is delivery-uncertain rather
+than an exactly-once guarantee. Existing configured-path deduplication remains
+the source identity boundary.
+
+Three headless cases verify ordered source requests, empty-request restore with
+selection/pause/copy preservation, cancellation/closed-window rejection and
+close-all cleanup after actually awaiting the in-flight queue task. Complete
+modern suite: 81 Archiver + 129 Avalonia pass, no failures/skips. Evidence:
+artifacts/migration/t025-startup-build.log, t025-startup-focused.log and
+t025-startup-modern.log. Native test additions were checked in the working tree
+and are committed separately with their results.
+
+T025 remains open for real-process crash/timeout behavior, off-screen/hidden
+window handling and the remaining source-task dependencies. No full Core rerun
+was performed because shared Core code did not change. This is an unreleased
+working-tree application change; published alpha artifacts are unchanged.
