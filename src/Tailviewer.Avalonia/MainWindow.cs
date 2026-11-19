@@ -359,6 +359,16 @@ public sealed class MainWindow : Window
             menu.Items.Add(add);
             if (source.ParentId != DataSourceId.Empty)
             {
+                var parent = _workspace.All.Single(item => item.Id == source.ParentId);
+                var excluded = parent.ExcludedDataSources.Contains(source.Id);
+                var toggle = new MenuItem { Header = excluded ? "Include in group" : "Exclude from group" };
+                toggle.Click += (_, _) =>
+                {
+                    if (_closed || !_workspace.Contains(source.Id)) return;
+                    try { _workspace.SetExcluded(source.Id, !excluded); }
+                    catch (ArgumentException error) { _status.Text = _operationError = "Cannot change group: " + error.Message; }
+                };
+                menu.Items.Add(toggle);
                 var remove = new MenuItem { Header = "Remove from group" };
                 remove.Click += async (_, _) => await ChangeGroupAsync(source, () => _workspace.Ungroup(source.Id));
                 menu.Items.Add(remove);

@@ -732,6 +732,53 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task GroupMemberCanBeExcludedAndIncludedWithoutClosingItsLog()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var file = (DataSource)tree.SelectedItem!;
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var group = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, file, group);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            foreach (var exclude in new[] { true, false })
+            {
+                var parent = (TreeViewItem)tree.ContainerFromItem(group)!;
+                await WaitUntil(() => parent.ContainerFromItem(file) is TreeViewItem item && item.ContextMenu != null);
+                var container = (TreeViewItem)parent.ContainerFromItem(file)!;
+                var menu = container.ContextMenu!;
+                container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+                try
+                {
+                    await WaitUntil(() => menu.IsOpen);
+                    var command = menu.Items.OfType<MenuItem>().SingleOrDefault(item =>
+                        Equals(item.Header, exclude ? "Exclude from group" : "Include in group"));
+                    command.Should().NotBeNull("because group exclusion must be reversible through the source menu");
+                    command!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    group.ExcludedDataSources.Contains(file.Id).Should().Be(exclude);
+                    var profilePath = Path.Combine(_folder, "exclusion-profile.xml");
+                    var profile = new ApplicationSettings(profilePath);
+                    foreach (var item in ((SourcesViewModel)window.DataContext!).All) profile.DataSources.Add(item.Clone());
+                    profile.Save().Should().BeTrue();
+                    var restored = new ApplicationSettings(profilePath);
+                    restored.Restore();
+                    restored.DataSources.Single(item => item.Id == group.Id).ExcludedDataSources.Contains(file.Id).Should().Be(exclude);
+                    ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
+                    file.ParentId.Should().Be(group.Id);
+                    await Copy(window, 1, "  original spaces  ");
+                }
+                finally { menu.Close(); }
+            }
+            File.ReadAllText(_first).Should().Be("first\n  original spaces  ");
+        }
+        finally { window.Close(); }
+    }
     private static Button Command(MainWindow window, string name)
     {
         var button = window.GetVisualDescendants().OfType<Button>()

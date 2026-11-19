@@ -246,3 +246,29 @@ menu diagnostic/failed checkpoints remain evidence; no timeout/assertion was
 weakened or failed case skipped. Native pointer/keyboard/clipboard acceptance,
 full Core rerun, rename/include-exclude UI, drag reorder/automatic group dissolution,
 loading/error source adapters and actual saved-workspace UI binding remain pending.
+## Group inclusion/exclusion command slice
+
+The source context menu now exposes Exclude from group / Include in group for
+configured group members. SourcesViewModel validates current membership before
+updating the existing parent ExcludedDataSources set. Repeated exclusion is
+idempotent; ungrouped/closed identities are rejected without mutating settings.
+Changing exclusion does not reopen the selected document or remove source/file
+identities. Existing ungroup cleanup and promotion rules still apply.
+
+A headless UI regression failed first because the command was absent. It now
+excludes/includes through the real menu, verifies selected identity and original
+whitespace copy, and saves/restores both states using ApplicationSettings in its
+owned temporary directory. A model case covers idempotence, clone preservation,
+ungroup cleanup and invalid/closed members.
+
+Verification: complete modern solution 81 Archiver + 92 Avalonia pass, no skips;
+after adding disk round-trip assertions, focused source-group/UI cases 11 pass.
+Evidence: ignored artifacts/migration/t023-exclusion-red.log,
+t023-exclusion-focused.log, t023-exclusion-modern.log and
+t023-exclusion-persistence.log. No dependencies or timeouts were added.
+
+T023 remains partial: rename, remaining group behavior and its implementation
+dependencies are open. Group timestamp-aware aggregate rendering is still US2;
+this slice preserves exclusion configuration but does not claim merged-output
+filtering. Native menu/keyboard accessibility and full Core tests were not rerun
+for this UI/model-only change. Automatic workspace persistence remains T053.

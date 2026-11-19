@@ -114,5 +114,26 @@ public sealed class SourceGroupsTest
         workspace.GetChildren(second.Id).Should().BeEmpty();
     }
 
+    [Test]
+    public void ExclusionIsIdempotentAndCannotTargetAnUngroupedOrClosedSource()
+    {
+        var workspace = new SourcesViewModel();
+        var group = workspace.AddGroup();
+        var file = File("missing.log");
+        workspace.Roots.Add(file);
+        Assert.Throws<ArgumentException>(() => workspace.SetExcluded(file.Id, true));
+        group.ExcludedDataSources.Should().BeEmpty();
+        workspace.AddToGroup(file.Id, group.Id);
+        workspace.SetExcluded(file.Id, true);
+        workspace.SetExcluded(file.Id, true);
+        group.Clone().ExcludedDataSources.Should().Equal(file.Id);
+        workspace.GetChildren(group.Id).Should().Equal(file);
+        workspace.Ungroup(file.Id);
+        group.ExcludedDataSources.Should().BeEmpty();
+        Assert.Throws<ArgumentException>(() => workspace.SetExcluded(file.Id, false));
+        workspace.Remove(file.Id);
+        Assert.Throws<ArgumentException>(() => workspace.SetExcluded(file.Id, true));
+        group.ExcludedDataSources.Should().BeEmpty();
+    }
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }

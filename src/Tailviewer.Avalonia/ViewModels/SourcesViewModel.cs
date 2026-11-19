@@ -95,6 +95,15 @@ public sealed class SourcesViewModel
         _groups[groupId].Add(member);
     }
 
+    public void SetExcluded(DataSourceId memberId, bool excluded)
+    {
+        var member = Find(memberId);
+        var parent = Find(member.ParentId);
+        if (!_groups.TryGetValue(parent.Id, out var children) || !children.Contains(member))
+            throw new ArgumentException("The source is not a group member.");
+        if (excluded) parent.ExcludedDataSources.Add(member.Id);
+        else parent.ExcludedDataSources.Remove(member.Id);
+    }
     public void Ungroup(DataSourceId memberId)
     {
         var member = Find(memberId);
