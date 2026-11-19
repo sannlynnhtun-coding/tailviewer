@@ -377,10 +377,8 @@ internal sealed class ObservabilityView : UserControl, IDisposable
                         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
                             FileShare.ReadWrite | FileShare.Delete, 65536, FileOptions.SequentialScan | FileOptions.Asynchronous);
                         using var reader = new StreamReader(stream, encoding ?? Encoding.UTF8, encoding == null);
-                        long line = 0;
-                        while (await reader.ReadLineAsync(token) is { } text)
+                        await foreach (var log in ObservedLog.ReadAsync(reader, path, token))
                         {
-                            var log = ObservedLog.Parse(path, ++line, text);
                             if (!query(log) || cutoff is { } limit && (log.Timestamp is not { } ts || ts < limit)) continue;
                             foreach (var field in FacetFields)
                             {

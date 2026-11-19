@@ -93,6 +93,26 @@ public sealed class PrototypeTest
     }
 
     [Test]
+    public async Task DashboardParsesOffsetAndMultilineRollingLogs()
+    {
+        const string text = """
+            2026-10-30 10:00:00.123 +06:30 [ERR] Request failed
+            System.InvalidOperationException: synthetic error
+               at Example.Handler()
+            2026-10-30 10:00:01.456 +06:30 [INF] Request finished
+            """;
+        using var reader = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes(text)));
+        var logs = new List<ObservedLog>();
+        await foreach (var log in ObservedLog.ReadAsync(reader, "MOBBankAPI-log-2026-10-30-10-00-AM.log", CancellationToken.None))
+            logs.Add(log);
+
+        logs.Select(log => log.Line).Should().Equal(1, 4);
+        logs.Select(log => log.Level).Should().Equal("ERROR", "INFO");
+        logs[0].Timestamp!.Value.UtcDateTime.Should().Be(new DateTime(2026, 10, 30, 3, 30, 0, 123, DateTimeKind.Utc));
+        ObservabilityView.CreateQuery("level:ERROR service:MOBBankAPI synthetic", false)(logs[0]).Should().BeTrue();
+        logs[0].Message.Should().EndWith("   at Example.Handler()");
+    }
+    [Test]
     public void DashboardParsesStructuredFieldsAndKeepsMalformedJsonSearchable()
     {
         var structured = ObservedLog.Parse("app.log", 1,
