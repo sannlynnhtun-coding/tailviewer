@@ -14,7 +14,7 @@ all rewritten offsets plus the merged record. The raw index's terminal EOF
 position is checked separately from the complete record count.
 
 JSON output includes Core first-page readiness, indexing/recovery time and the
-process lifetime peak working set sampled after indexing. Nonzero exit means
+process lifetime peak working set sampled after indexing, plus process CPU time and allocation deltas. Nonzero exit means
 incorrect contents, timeout, insufficient reference hardware/disk space or an
 exceeded budget. The fixture is removed on exit. No user log/profile is opened.
 
@@ -24,6 +24,6 @@ Record SSD/storage details and background load separately. This preflight is
 deliberately outside the routine solution; it adds no skip to functional suites.
 The five-minute live-tail workload and native UI gates remain required.
 
-The first measured run fails the 1 GiB three-second recovery budget; see
+The first measured run failed the 1 GiB three-second recovery budget. Later optimized standalone runs pass this Core preflight; earlier failures and timing variability are retained in
 `specs/001-full-project-migration/recovery-tests.md`. Do not lower the threshold
 or present its other measurements as a complete performance acceptance pass.

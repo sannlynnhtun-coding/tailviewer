@@ -464,3 +464,66 @@ artifacts/migration/t027-perf-scan.json. The relevant allocation finding is the
 per-offset LogEntry construction in AddLines (list/dictionary/boxed value),
 not those absent string patterns. Benchmark evidence remains necessary; static
 inspection alone is not evidence that the three-second recovery gate passes.
+
+## Batched offset indexing and snapshot-checkpoint audit (T027)
+
+The measured hot insertion loop built a LogEntry/list/dictionary/boxed value for
+every offset. A new 20,000-record allocation contract first failed at 9,199,528
+bytes against its 4 MiB ceiling. It now uses the corrected typed bulk append;
+all offsets, including EOF, remain verified. Initial focused allocation after
+bulk insertion was 537,040 bytes. The scanner's first-entry helper remains for
+one entry per source; no per-row abstraction or dependency was added.
+
+The single-byte LF path uses BCL Array.IndexOf; UTF-16/32 keep their existing
+aligned matching. The observed-byte checkpoint already identifies indexed bytes,
+so a redundant independent post-scan full digest read was removed. Every indexed
+byte is still checked by the next full SHA-256 audit; an observed retained-prefix
+mismatch, decoder-prefix mismatch, short/truncated pass or reset invalidates the
+generation. ABA tests still converge. The retained-prefix fixture now gates the
+actual observed-prefix read, rather than the retired pre-scan full digest read.
+Audit/scan buffers are bounded at 64/16 KiB. Digest strength, byte coverage, performance thresholds and stale-publication fences are retained; the eager post-read comparison is replaced by next-pass auditing against the observed checkpoint.
+
+Intermediate runs remain evidence, not hidden failures: bulk-only recovery
+5.01-5.12 s; single-byte fast path 3.84-4.21 s; snapshot checkpoint 3.14-3.93 s;
+buffer-change run 3.75/4.90/17.97 s. The last run's wall-time outlier and varying
+CPU/wall deltas show that background load/launch conditions were uncontrolled.
+These numbers are not an isolated causal comparison of each optimization.
+Logs: t027-bulk-index-records.log, t027-vector-index-records.log,
+t027-index-snapshot-records.log and t027-batched-index-records.log.
+
+An isolated BCL hash probe measured SHA-256 at 712-775 ms/GiB and SHA-512 at
+2,476-2,649 ms/GiB on this host; SHA-256 was retained. Eight owned-process stack
+samples found offset scanning and checkpoint/observed hashing; these are limited
+stack observations, not statistically sampled CPU percentages. The diagnostic
+process contained only synthetic fixtures and no heap dump was taken. Its timed
+results are excluded from acceptance. Ignored evidence: t027-hash-speed.log,
+t027-profile-stack-*.log and t027-profile.out.log.
+
+A subsequent unprofiled standalone apphost run (Start-Process -WindowStyle Hidden,
+no priority/affinity override, same built binaries) exited 0. All original and
+rewritten offsets and merged content pass in every run:
+
+| Core measurement | 100 MiB, three runs | 1 GiB, three runs |
+|---|---|---|
+| First decoded records | 176.71 / 13.59 / 16.38 ms | 23.00 / 12.18 / 41.70 ms |
+| Complete indexing | 295.32 / 123.42 / 142.32 ms | 1,152.86 / 1,540.96 / 1,523.32 ms |
+| Hidden-rewrite recovery | 253.40 / 189.69 / 247.92 ms | 2,153.50 / 2,385.29 / 2,039.96 ms |
+| Process lifetime peak working set after indexing | 64,016,384 / 94,093,312 / 114,302,976 bytes | 249,303,040 / 527,978,496 / 856,424,448 bytes |
+
+Final workload logs: t027-batched-final.out.log and t027-batched-final.err.log.
+This is a passing Core preflight on the recorded host, not proof of stable native
+UI/application-memory latency under all load. T027 remains open for five-minute
+live tail, broader recovery/performance coverage and prerequisite integration;
+P13 still requires rendered UI/navigation/memory acceptance.
+
+Final functional validation of the combined prerequisite/performance changes:
+Core 7,145 pass / zero failures / five existing skips; modern solution
+81 Archiver + 169 Avalonia pass / zero failures or skips; targeted native Unicode
+CLI/picker 3 pass / zero failures or skips. Legacy net471 test-project build
+passes with zero errors and five existing warnings; legacy runtime was not run.
+Final 20,000-record allocation contract reports 548,832 bytes (about 94% below
+the recorded failing baseline), with every expected offset checked. Logs under
+ignored artifacts/migration: t027-bulk-final-core.log,
+t027-bulk-final/t027-bulk-final.trx, t027-bulk-final-modern.log,
+t027-bulk-final-legacy.log and t027-bulk-final-native.log. No owned performance
+fixture directories remained. No performance threshold or assertion was weakened.

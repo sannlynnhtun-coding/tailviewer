@@ -42,6 +42,21 @@ namespace Tailviewer.Core
 		/// <returns></returns>
 		public long FindNextLineOffset()
 		{
+			if (_pattern.Length == 1)
+			{
+				while (true)
+				{
+					FillBufferIfNecessary();
+					if (_bufferLength == 0) return -1;
+					var next = Array.IndexOf(_buffer, _pattern[0], _bufferPos, _bufferLength - _bufferPos);
+					if (next >= 0)
+					{
+						_bufferPos = next + 1;
+						return _bufferOffset + _bufferPos;
+					}
+					_bufferPos = _bufferLength;
+				}
+			}
 			do
 			{
 				FillBufferIfNecessary();

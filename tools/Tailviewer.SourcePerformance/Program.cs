@@ -54,6 +54,8 @@ async Task Measure(string path, int sizeMiB, int records, int run)
 {
     using var scheduler = new DefaultTaskScheduler();
     using var process = Process.GetCurrentProcess();
+    var allocatedStart = GC.GetTotalAllocatedBytes(false);
+    var cpuStart = process.TotalProcessorTime.TotalMilliseconds;
     var timer = Stopwatch.StartNew();
     using var source = new StreamingTextLogSourceFactory(new Filesystem(scheduler), scheduler).OpenRead(path);
     await Until(() => source.GetProperty(SourceProperties.LogEntryCount) >= 32, TimeSpan.FromSeconds(120));
@@ -67,6 +69,8 @@ async Task Measure(string path, int sizeMiB, int records, int run)
     var indexedMs = timer.Elapsed.TotalMilliseconds;
     process.Refresh();
     var peakBytes = process.PeakWorkingSet64;
+    var indexAllocated = GC.GetTotalAllocatedBytes(false) - allocatedStart;
+    var indexCpuMs = process.TotalProcessorTime.TotalMilliseconds - cpuStart;
     VerifyOffsets(source, records + 1, index => (long)index * 128);
 
     var timestamp = File.GetLastWriteTimeUtc(path);
@@ -81,10 +85,15 @@ async Task Measure(string path, int sizeMiB, int records, int run)
             output.Flush(true);
         }
         File.SetLastWriteTimeUtc(path, timestamp);
+        allocatedStart = GC.GetTotalAllocatedBytes(false);
+        cpuStart = process.TotalProcessorTime.TotalMilliseconds;
         timer.Restart();
         await Until(() => source.GetProperty(SourceProperties.LogEntryCount) == records &&
             source.GetProperty(SourceProperties.PercentageProcessed) == Percentage.HundredPercent, TimeSpan.FromSeconds(120));
         var recoveryMs = timer.Elapsed.TotalMilliseconds;
+        var recoveryAllocated = GC.GetTotalAllocatedBytes(false) - allocatedStart;
+        process.Refresh();
+        var recoveryCpuMs = process.TotalProcessorTime.TotalMilliseconds - cpuStart;
         VerifyOffsets(source, records, index => (long)(index <= removedLine ? index : index + 1) * 128);
         var merged = source.GetColumn(new LogSourceSection(removedLine, 1), Columns.RawContent,
             new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2)));
@@ -93,6 +102,8 @@ async Task Measure(string path, int sizeMiB, int records, int run)
         {
             size_mib = sizeMiB, records, run, core_first_page_ms = firstPageMs,
             complete_index_ms = indexedMs, process_peak_working_set_bytes = peakBytes,
+            indexing_allocated_bytes = indexAllocated, indexing_cpu_ms = indexCpuMs,
+            recovery_allocated_bytes = recoveryAllocated, recovery_cpu_ms = recoveryCpuMs,
             hidden_rewrite_ms = recoveryMs, all_offsets_verified = true
         }));
         if (firstPageMs > (sizeMiB == 100 ? 3000 : 10000)) failures.Add($"{sizeMiB} MiB run {run}: Core first page exceeds its budget.");

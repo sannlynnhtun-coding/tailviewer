@@ -102,7 +102,7 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
                 _beforeRead?.Invoke(buffer.Length, count);
                 var read = base.Read(buffer, offset, count);
                 _afterRead?.Invoke(buffer.Length, read);
-                if (buffer.Length == 4096 && read > 0) _change();
+                if (buffer.Length == 16384 && read > 0) _change();
                 return read;
             }
         }
@@ -125,7 +125,7 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             var filesystem = new Mock<IFilesystem>();
             filesystem.Setup(value => value.FileExists(_path)).Returns(() => File.Exists(_path));
             filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
-            bool IsGatedRead(int size) => bom ? size == 1024 || size == 4 : size == 4096;
+            bool IsGatedRead(int size) => bom ? size == 1024 || size == 4 : size == 16384;
             filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 .Returns(() => new ChangeAfterOffsetReadStream(_path, () => { }, (size, count) =>
                 {
@@ -166,7 +166,7 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 .Returns(() => new ChangeAfterOffsetReadStream(_path, () => { }, (size, count) =>
                 {
-                    if (rewritten || size != 16384 || count != replacement.Length) return;
+                    if (rewritten || size != 65536 || count != original.LastIndexOf('\n') + 1) return;
                     rewritten = true;
                     var timestamp = File.GetLastWriteTimeUtc(_path);
                     Write(replacement);
@@ -545,6 +545,25 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
 
         private StreamingTextLogSource Open(Encoding encoding = null) => new StreamingTextLogSource(new Filesystem(_scheduler),
             _scheduler, _path, LogFileFormats.GenericText, encoding ?? new UTF8Encoding(false));
+
+#if NET10_0_OR_GREATER
+        [Test]
+        public void IndexingManyShortLinesKeepsAllocationsBelowPerEntryObjectConstruction()
+        {
+            Write(string.Concat(Enumerable.Repeat("x\n", 20000)));
+            using (var source = Open())
+            {
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                _scheduler.RunOnce();
+                var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                TestContext.WriteLine("Indexed 20,000 complete records; scanner allocated {0} bytes.", allocated);
+                Assert.That(source.GetProperty(Core.Properties.LogEntryCount), Is.EqualTo(20001));
+                Assert.That(allocated, Is.LessThan(4 * 1024 * 1024), "offset indexing must not allocate a LogEntry object graph per row");
+                Assert.That(source.GetColumn(new LogSourceSection(0, 20001), StreamingTextLogSource.LineOffsetInBytes),
+                    Is.EqualTo(Enumerable.Range(0, 20001).Select(index => (long)index * 2)));
+            }
+        }
+#endif
 
         private void Write(string text) => File.WriteAllText(_path, text, new UTF8Encoding(false));
 

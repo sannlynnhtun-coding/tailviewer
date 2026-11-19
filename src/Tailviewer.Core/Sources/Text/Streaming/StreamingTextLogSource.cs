@@ -60,7 +60,7 @@ namespace Tailviewer.Core
 		private readonly byte[] _checkpointBuffer = new byte[BufferSize];
 		private long _generation;
 
-		private const int BufferSize = 4096 * 4;
+		private const int BufferSize = 64 * 1024;
 
 		static StreamingTextLogSource()
 		{
@@ -379,7 +379,7 @@ namespace Tailviewer.Core
 					return true;
 				}
 				// Bound the pass so continuous appends do not invalidate its already observed prefix.
-				var detector = new LineOffsetDetector(stream, encoding, endOffset: length, observe: Observe);
+				var detector = new LineOffsetDetector(stream, encoding, bufferSize: 16 * 1024, endOffset: length, observe: Observe);
 				var buffer = new FixedSizeList<long>(1000);
 
 				long lineOffset;
@@ -398,10 +398,9 @@ namespace Tailviewer.Core
 				var scanEnd = stream.Position;
 				observedHash.TransformFinalBlock(new byte[0], 0, 0);
 				retainedHash.TransformFinalBlock(new byte[0], 0, 0);
-				var afterScan = ReadCheckpoint(stream, length, cancellationToken);
 				var retainedPrefixChanged = retainedLength > 0 && !ArrayExtensions.Equals(indexedCheckpoint, retainedHash.Hash);
 				if (scanEnd != length || observedLength != length || stream.Length < length || encodingChanged ||
-				    retainedPrefixChanged || !ArrayExtensions.Equals(observedHash.Hash, afterScan))
+				    retainedPrefixChanged)
 				{
 					Clear();
 					_checkpoint = new byte[0];
@@ -409,6 +408,7 @@ namespace Tailviewer.Core
 				}
 				AddLines(buffer, Percentage.HundredPercent, startOffset);
 				_lastStreamPosition = scanEnd;
+				// The checkpoint describes indexed bytes; the next audit detects writes after this snapshot.
 				_checkpoint = observedHash.Hash;
 			}
 
@@ -484,16 +484,7 @@ namespace Tailviewer.Core
 
 				if (buffer.Count > 0)
 				{
-					//if (buffer.Buffer[0] != lastLineOffsetStreamPosition)
-					//{
-					//	var lastLineIndex = _index.Count - 1;
-					//	lineIndexToInvalidate = lastLineIndex;
-					//}
-
-					for (int i = 0; i < buffer.Count; ++i)
-					{
-						_index.Add(CreateLogEntry(buffer.Buffer[i]));
-					}
+					_index.AddRange(LineOffsetInBytes, buffer.Buffer, buffer.Count);
 
 					_lastLineOffsetStreamPosition = buffer.Buffer[buffer.Count -1 ];
 
