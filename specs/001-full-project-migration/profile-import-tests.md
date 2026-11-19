@@ -47,3 +47,23 @@ unchanged existing IDs and repeated import equality. Default Migration regressio
 suite passes 138 tests. Logs: artifacts/migration/t014-stable-identities.log and
 artifacts/migration/t014-stable-migration-regression.log. T014 stays unchecked;
 the temporary contract opt-in guard remains until bundle conversion is complete.
+## T014 slice 2 — verified dependent bookmark backups
+
+The importer now locks both original inputs against writes/deletion, bounds each
+input, and creates a bundle-keyed private backup directory when bookmarks exist.
+The key includes both source hashes, so a changed bookmark file cannot reuse an
+unrelated prior bundle. Both reopened copies must match before verified backup
+is reported. Corrupt existing copies remain untouched. The existing bookmark
+parser validates the copied XML; malformed bookmarks retain their verified raw
+backup and leave the current target unchanged.
+
+Executed import contracts: 18 pass, one dependent bundle publication failure
+remains (19 total). Added malformed-bookmark and corrupt-bookmark-backup cases.
+Default Migration regressions: 138 passed. Logs are ignored artifacts/migration/
+t014-bundle-backup.log and t014-bundle-backup-regression.log.
+
+Publication deliberately still returns DependentSettingsNotSupported for valid
+bundles until recoverable multi-file publication is implemented. T014 is not
+complete, and the contract guard remains. Existing result hashes describe the
+selected settings file; bundle verification additionally checks bookmarks before
+setting BackupFile. No bundle metadata result/API or UI is claimed complete.

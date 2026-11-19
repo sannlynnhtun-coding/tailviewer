@@ -39,27 +39,37 @@ namespace Tailviewer.Settings
                 RejectLinks(backupFolder);
                 if (choice == ProfileImportChoice.KeepExisting) return Result(ProfileImportStatus.Kept);
                 if (File.Exists(targetFile) && choice == ProfileImportChoice.RequireChoice) return Result(ProfileImportStatus.Conflict);
-                // shortcut: reject dependent settings until T014 provides bundle conversion/publication.
-                if (File.Exists(Path.Combine(sourceFolder, "bookmarks.xml")))
-                    return Result(ProfileImportStatus.Failed, "DependentSettingsNotSupported");
+                var sourceBookmarks = Path.Combine(sourceFolder, "bookmarks.xml");
+                RejectLinks(sourceBookmarks);
                 error = "SourceReadFailed";
                 // Hold the original against in-place writes and rename/delete aliases until publication completes.
                 using (var source = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read,
                     4096, FileOptions.Asynchronous | FileOptions.SequentialScan))
+                using (var bookmarks = File.Exists(sourceBookmarks)
+                    ? new FileStream(sourceBookmarks, FileMode.Open, FileAccess.Read, FileShare.Read,
+                        4096, FileOptions.Asynchronous | FileOptions.SequentialScan) : null)
                 {
                     if (source.Length > ProfileStore.MaxFileBytes) return Result(ProfileImportStatus.Failed, "SourceTooLarge");
                     var bytes = new byte[checked((int)source.Length)];
                     await source.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
                     sourceHash = Convert.ToHexString(SHA256.HashData(bytes));
+                    string bookmarkHash = null;
+                    if (bookmarks != null)
+                    {
+                        if (bookmarks.Length > ProfileStore.MaxFileBytes) return Result(ProfileImportStatus.Failed, "SourceTooLarge");
+                        bookmarkHash = Convert.ToHexString(await SHA256.HashDataAsync(bookmarks, cancellationToken).ConfigureAwait(false));
+                    }
                     error = "BackupFailed";
                     Directory.CreateDirectory(backupFolder);
-                    var backupDirectory = Path.Combine(backupFolder, sourceHash);
+                    var backupDirectory = Path.Combine(backupFolder, bookmarkHash == null ? sourceHash :
+                        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sourceHash + "/" + bookmarkHash))));
                     var backup = Path.Combine(backupDirectory, "settings.xml");
                     RejectLinks(backupDirectory);
                     if (!Directory.Exists(backupDirectory))
                     {
                         ProfileStore.CreatePrivateDirectory(backupDirectory);
                         File.Copy(sourceFile, backup, overwrite: false);
+                        if (bookmarks != null) File.Copy(sourceBookmarks, Path.Combine(backupDirectory, "bookmarks.xml"), overwrite: false);
                     }
                     // Existing backup bytes are immutable: verify/reuse or fail, never overwrite them.
                     cancellationToken.ThrowIfCancellationRequested();
@@ -69,6 +79,22 @@ namespace Tailviewer.Settings
                         if (file.Length != bytes.Length) return Result(ProfileImportStatus.Failed, error);
                         backupHash = Convert.ToHexString(await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false));
                         if (backupHash != sourceHash) return Result(ProfileImportStatus.Failed, error);
+                        if (bookmarks != null)
+                        {
+                            var bookmarkBackup = Path.Combine(backupDirectory, "bookmarks.xml");
+                            RejectLinks(bookmarkBackup);
+                            using (var copy = new FileStream(bookmarkBackup, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            {
+                                if (copy.Length != bookmarks.Length ||
+                                    Convert.ToHexString(await SHA256.HashDataAsync(copy, cancellationToken).ConfigureAwait(false)) != bookmarkHash)
+                                    return Result(ProfileImportStatus.Failed, error);
+                                verifiedBackup = backup;
+                                error = "InvalidBookmarks";
+                                Bookmarks.Bookmarks.FromDocument(targetFile, ProfileStore.Read(bookmarkBackup));
+                            }
+                            // shortcut: publication waits for a recoverable bundle transaction in T014.
+                            return Result(ProfileImportStatus.Failed, "DependentSettingsNotSupported");
+                        }
                         verifiedBackup = backup;
                         error = "InvalidProfile";
                         var document = ProfileStore.Read(backup);

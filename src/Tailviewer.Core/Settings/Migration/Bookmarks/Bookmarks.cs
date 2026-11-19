@@ -173,6 +173,13 @@ namespace Tailviewer.Settings.Bookmarks
 		}
 
 #if NET10_0_OR_GREATER
+		internal static Bookmarks FromDocument(string fileName, XDocument document)
+		{
+			var model = new Bookmarks(fileName);
+			model.RestoreDocument(document);
+			return model;
+		}
+
 		private void RestoreDocument(XDocument document)
 		{
 			var bookmarks = new List<BookmarkSettings>();

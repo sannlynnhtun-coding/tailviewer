@@ -220,6 +220,42 @@ namespace Tailviewer.Core.Tests.Migration
         }
 
         [Test]
+        public async Task InvalidBookmarksKeepVerifiedRawBundleAndCurrentTarget()
+        {
+            var before = CreateTarget();
+            var sourceBookmarks = Path.Combine(Path.GetDirectoryName(_source), "bookmarks.xml");
+            File.WriteAllText(sourceBookmarks, "<xml><bookmark datasource='invalid' index='17'/></xml>");
+            var original = File.ReadAllBytes(sourceBookmarks);
+            var result = await Import(ProfileImportChoice.ReplaceExisting);
+            Assert.That(result.Status, Is.EqualTo(ProfileImportStatus.Failed));
+            Assert.That(result.ErrorCode, Is.EqualTo("InvalidBookmarks"));
+            Assert.That(result.HasVerifiedBackup, Is.True);
+            Assert.That(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(result.BackupFile), "bookmarks.xml")), Is.EqualTo(original));
+            Assert.That(File.ReadAllBytes(sourceBookmarks), Is.EqualTo(original));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+        }
+
+        [Test]
+        public async Task CorruptBookmarkBackupPreventsPublicationAndVerifiedClaim()
+        {
+            var before = CreateTarget();
+            File.WriteAllText(Path.Combine(Path.GetDirectoryName(_source), "bookmarks.xml"),
+                "<xml><bookmark datasource='" + SourceId + "' index='17'/></xml>");
+            var first = await Import(ProfileImportChoice.ReplaceExisting);
+            Assert.That(first.HasVerifiedBackup, Is.True);
+            var backup = Path.Combine(Path.GetDirectoryName(first.BackupFile), "bookmarks.xml");
+            var bytes = File.ReadAllBytes(backup);
+            bytes[0] ^= 1;
+            File.WriteAllBytes(backup, bytes);
+            var second = await Import(ProfileImportChoice.ReplaceExisting);
+            Assert.That(second.Status, Is.EqualTo(ProfileImportStatus.Failed));
+            Assert.That(second.ErrorCode, Is.EqualTo("BackupFailed"));
+            Assert.That(second.HasVerifiedBackup, Is.False);
+            Assert.That(File.ReadAllBytes(backup), Is.EqualTo(bytes));
+            Assert.That(File.ReadAllBytes(_target), Is.EqualTo(before));
+        }
+
+        [Test]
         public async Task DependentBookmarksAreBackedUpAndRepeatedImportsDoNotDuplicateThem()
         {
             var sourceBookmarks = Path.Combine(Path.GetDirectoryName(_source), "bookmarks.xml");
