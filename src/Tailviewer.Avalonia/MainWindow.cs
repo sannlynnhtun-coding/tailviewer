@@ -35,6 +35,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _path = new() { Text = "Open a log file to begin.", TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new() { Text = "Select lines with Shift/Ctrl • Ctrl/Cmd+C to copy" };
     private readonly ListBox _rows = new() { SelectionMode = SelectionMode.Multiple, Focusable = true };
+    private readonly LogTextSelection _textSelection;
     private readonly NavigationView _navigation = new();
     private readonly QuickNavigationView _quickNavigation;
     private readonly SourcesViewModel _workspace = new();
@@ -53,6 +54,12 @@ public sealed class MainWindow : Window
 
     public MainWindow(string? fileName = null)
     {
+        _textSelection = new LogTextSelection(_rows, () =>
+        {
+            _copy.IsEnabled = _rows.Selection.SelectedIndexes.Count > 0 || _textSelection!.HasSelection;
+            _follow.IsChecked = false;
+        });
+        ToolTip.SetTip(_rows, "Alt+drag to select text; Shift/Ctrl+click to select whole lines.");
         _folderFilesystem = new Lazy<IFilesystem>(() => new Filesystem(_folderScheduler));
         _quickNavigation = new QuickNavigationView(_workspace);
         DataContext = _workspace;
@@ -103,8 +110,10 @@ public sealed class MainWindow : Window
         _rows.ItemTemplate = new FuncDataTemplate<int>((index, _) =>
         {
             var row = _document?.GetLine(index);
-            return new TextBlock
+            return new SelectableTextBlock
             {
+                IsHitTestVisible = false,
+                Focusable = false,
                 DataContext = row,
                 FontFamily = new FontFamily("Cascadia Mono,Consolas,Menlo,monospace"),
                 FontSize = 14,
@@ -204,6 +213,7 @@ public sealed class MainWindow : Window
         _follow.IsCheckedChanged += (_, _) => ScrollToTail();
         _rows.SelectionChanged += (_, _) =>
         {
+            _textSelection.Clear();
             _copy.IsEnabled = _rows.Selection.SelectedIndexes.Count > 0;
             if (_copy.IsEnabled)
                 _follow.IsChecked = false;
@@ -219,6 +229,7 @@ public sealed class MainWindow : Window
             _timer.Stop();
             _document?.Dispose();
             _navigation.BindDocument(null);
+            _textSelection.BindDocument(null);
             _quickNavigation.Dismiss();
             foreach (var folder in _folders.Values) folder.Dispose();
             _folderScheduler.Dispose();
@@ -360,6 +371,7 @@ public sealed class MainWindow : Window
                 _document?.Dispose();
                 _document = null;
                 _navigation.BindDocument(null);
+                _textSelection.BindDocument(null);
                 _quickNavigation.Dismiss();
                 if (!_sources.Contains(source)) _sources.Add(source);
                 SelectSource(source);
@@ -381,6 +393,7 @@ public sealed class MainWindow : Window
             _document?.Dispose();
             _document = document;
             _navigation.BindDocument(document);
+            _textSelection.BindDocument(document);
             _quickNavigation.Dismiss();
             if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
             SelectSource(source);
@@ -428,6 +441,7 @@ public sealed class MainWindow : Window
         _document?.Dispose();
         _document = null;
         _navigation.BindDocument(null);
+        _textSelection.BindDocument(null);
         _quickNavigation.Dismiss();
         _copy.IsEnabled = false;
         _operationError = null;
@@ -472,6 +486,7 @@ public sealed class MainWindow : Window
 
     private void RefreshDocument()
     {
+        _textSelection.Refresh();
         if (_document == null)
         {
             if (_operationError != null)
@@ -524,11 +539,11 @@ public sealed class MainWindow : Window
     {
         var document = _document;
         var indices = _rows.Selection.SelectedIndexes.ToArray();
-        if (document == null || indices.Length == 0)
+        if (document == null || (indices.Length == 0 && !_textSelection.HasSelection))
             return;
         try
         {
-            var text = await document.CopyTextAsync(indices);
+            var text = await (_textSelection.CopyTextAsync() ?? document.CopyTextAsync(indices));
             if (document != _document || _closed)
                 return;
             if (Clipboard == null)

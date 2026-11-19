@@ -24,6 +24,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
 
     public string FileName { get; }
     public DataSourceId SourceId { get; }
+    public long Revision => _configuration.GetGeneration(SourceId);
     // shortcut: one integer per indexed line, use a lazy IList if index memory becomes a bottleneck.
     public AvaloniaList<int> Lines { get; } = new();
     public string? Error => _source.GetProperty(Core.Properties.EmptyReason)?.Explanation ?? _readError;
@@ -145,7 +146,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         }
     }
 
-    public Task<string> CopyTextAsync(LogSelection selection)
+    public Task<string> CopyTextAsync(LogSelection selection, long? expectedRevision = null)
     {
         var start = (Line: selection.AnchorLine, Column: selection.AnchorColumn);
         var end = (Line: selection.ActiveLine, Column: selection.ActiveColumn);
@@ -161,7 +162,7 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             text[0] = text[0][start.Column..];
             text[^1] = text[^1][..end.Column];
             return string.Join(Environment.NewLine, text);
-        });
+        }, expectedRevision);
     }
 
     public Task<string> CopyTextAsync(IEnumerable<int> selection)
@@ -172,9 +173,9 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         return ReadSelectionAsync(indices, text => string.Join(Environment.NewLine, text));
     }
 
-    private async Task<string> ReadSelectionAsync(LogLineIndex[] indices, Func<string[], string> format)
+    private async Task<string> ReadSelectionAsync(LogLineIndex[] indices, Func<string[], string> format, long? expectedRevision = null)
     {
-        var generation = _configuration.GetGeneration(SourceId);
+        var generation = expectedRevision ?? Revision;
         var text = await Task.Run(() => _source.GetColumn(indices, Core.Columns.RawContent,
             new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
         var result = string.Empty;

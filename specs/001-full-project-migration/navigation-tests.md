@@ -119,3 +119,34 @@ This is the shared copy contract, not an end-user character-selection UI.
 Mouse/keyboard range selection, highlighting and invalidation on source/reset
 still need integration. T019/T029/T030 remain unchecked. No native clipboard,
 Core suite, or large-range memory acceptance was run for this slice.
+## Slice 5: pointer character selection on virtualized rows
+
+Alt+left-drag now selects an original-text character range, including multiple
+realized rows and reverse drags. Normal Shift/Ctrl line-selection behavior stays
+available. A tooltip documents the gesture. Standard SelectableTextBlock provides
+selection highlighting; the existing virtualized ListBox and bounded document
+page cache are retained. Display line-number prefixes are excluded from range
+coordinates and copied text. The Copy button and existing Ctrl+C route use the
+same generation-fenced original-content reader.
+
+The pointer controller captures the source revision at selection time and passes
+it through the asynchronous copy. Replacement/reset invalidates selection before
+it can copy replacement content under old coordinates. Source/group/folder/close
+bindings clear ranges and release any owned pointer capture. Append retains the
+range and paused follow state. Selection highlighting is refreshed only while a
+range exists; no document-sized text control or parallel content buffer is added.
+
+A real headless pointer gesture initially failed with incorrect clipboard text.
+Three new cases now verify bidirectional cross-row drag/highlight, append
+preservation, replacement/source-switch clearing, original line-copy fallback,
+and explicit rejection of a pre-reset revision. Full affected Avalonia suite:
+77 pass, zero failures/skips. A subsequent focused pointer check also passed
+with an additional assertion that the native selection brush is present.
+Evidence: ignored artifacts/migration/t019-drag-red.log,
+t019-drag-focused.log, t019-drag-full.log, t019-drag-highlight.log and
+t019-drag/t019-drag.trx.
+
+T019/T029/T030 remain open: keyboard range extension, edge autoscroll for dragging
+beyond realized rows, wider large-file/provenance integration and native input/
+clipboard acceptance are still pending. The realized-row drag limit is documented
+in the controller; this slice does not claim complete selection parity.

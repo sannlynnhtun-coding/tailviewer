@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
@@ -406,6 +408,96 @@ public sealed class NavigationTest
             await copy.Should().ThrowAsync<ArgumentOutOfRangeException>();
         }
         (await document.CopyTextAsync(Array.Empty<int>())).Should().BeEmpty();
+    }
+
+    [AvaloniaTest]
+    public async Task AltDragCopiesCharacterRangeAcrossVirtualizedRows()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Count(block => block.DataContext is LogLine line && line.Text != null) == 3);
+            window.UpdateLayout();
+            foreach (var reverse in new[] { false, true })
+            {
+                DragText(window, reverse ? TextPoint(window, 1, 8) : TextPoint(window, 0, 2),
+                    reverse ? TextPoint(window, 0, 2) : TextPoint(window, 1, 8));
+                Rows(window).Selection.SelectedIndexes.Should().BeEmpty();
+                await CopyAndCheck(window, "rst" + Environment.NewLine + "  မြန်မာ");
+                Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Single(block => block.DataContext is LogLine { Index: 0 }).SelectedText.Should().Be("rst");
+                Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Single(block => block.DataContext is LogLine { Index: 0 }).SelectionBrush.Should().NotBeNull();
+            }
+            File.AppendAllText(_path, "\nappended");
+            await Until(() => Rows(window).ItemCount == 4);
+            await CopyAndCheck(window, "rst" + Environment.NewLine + "  မြန်မာ");
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CharacterDragIsClearedOnReplacementAndSourceSwitch()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            await Until(() => Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Any(block => block.DataContext is LogLine { Index: 0, Text: "first" }));
+            window.UpdateLayout();
+            DragText(window, TextPoint(window, 0, 1), TextPoint(window, 0, 4));
+            await CopyAndCheck(window, "irs");
+            File.WriteAllText(_path, "replaced");
+            await Until(() => Rows(window).ItemCount == 1 && Rows(window).GetVisualDescendants().OfType<TextBlock>()
+                .Any(block => block.DataContext is LogLine { Text: "replaced" }));
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected")).IsEnabled.Should().BeFalse();
+            window.UpdateLayout();
+            DragText(window, TextPoint(window, 0, 0), TextPoint(window, 0, 3));
+            await CopyAndCheck(window, "rep");
+            var other = Path.Combine(_folder, "other.log");
+            File.WriteAllText(other, "other");
+            await window.OpenFileAsync(other);
+            await Until(() => Rows(window).ItemCount == 1);
+            window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected")).IsEnabled.Should().BeFalse();
+            Rows(window).Selection.Select(0);
+            await CopyAndCheck(window, "other");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CharacterCopyRejectsARevisionCapturedBeforeResetNotification()
+    {
+        using var document = new LogDocument(_path);
+        await Until(() => { document.Refresh(); return document.Lines.Count == 3; });
+        var revision = document.Revision;
+        document.OnLogFileModified(null!, Tailviewer.Api.LogSourceModification.Reset());
+        Func<Task> copy = async () => await document.CopyTextAsync(new LogSelection(0, 1, 0, 4), revision);
+        await copy.Should().ThrowAsync<IOException>();
+    }
+
+    private static void DragText(MainWindow window, Point start, Point end)
+    {
+        window.MouseMove(start);
+        window.MouseDown(start, MouseButton.Left, RawInputModifiers.Alt);
+        window.MouseMove(end, RawInputModifiers.Alt | RawInputModifiers.LeftMouseButton);
+        window.MouseUp(end, MouseButton.Left, RawInputModifiers.Alt);
+    }
+
+    private static Point TextPoint(MainWindow window, int index, int column)
+    {
+        var block = Rows(window).GetVisualDescendants().OfType<TextBlock>()
+            .Single(block => block.DataContext is LogLine line && line.Index == index);
+        var row = (LogLine)block.DataContext!;
+        var offset = row.DisplayText.Length - row.Text!.Length;
+        var caret = block.TextLayout.HitTestTextPosition(offset + column);
+        return block.TranslatePoint(new Point(caret.X, caret.Y + caret.Height / 2), window)!.Value;
     }
 
     private static TextBox OpenNavigation(MainWindow window)
