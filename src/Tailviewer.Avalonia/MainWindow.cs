@@ -454,7 +454,7 @@ public sealed class MainWindow : Window
                 rename.Click += (_, _) => beginRename();
                 menu.Items.Add(rename);
             }
-            var add = new MenuItem { Header = "Add to group", IsEnabled = source.ParentId == DataSourceId.Empty };
+            var add = new MenuItem { Header = "Add to group" };
             foreach (var group in _workspace.All.Where(SourcesViewModel.IsGroup))
             {
                 var target = new MenuItem { Header = group.DisplayName, Tag = group.Id };

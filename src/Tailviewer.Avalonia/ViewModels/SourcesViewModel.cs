@@ -85,27 +85,39 @@ public sealed class SourcesViewModel
         var group = Find(groupId);
         if (!IsGroup(group) || !_groups.ContainsKey(group.Id)) throw new ArgumentException("The target is not a group.");
         if (member.ParentId == groupId) return;
-        if (member.ParentId != DataSourceId.Empty) throw new ArgumentException("This source already belongs to another parent.");
-        if (!Roots.Contains(member)) throw new ArgumentException("The source is not an ungrouped root.");
-        var candidate = All.Select(source => source.Clone()).ToArray();
-        candidate.Single(source => source.Id == memberId).ParentId = groupId;
-        Validate(candidate);
-        Roots.Remove(member);
-        member.ParentId = groupId;
-        _groups[groupId].Add(member);
+        Reparent(member, groupId, _groups[groupId], _groups[groupId].Count);
     }
 
     public void MoveRelative(DataSourceId id, DataSourceId targetId, bool after)
     {
         var source = Find(id);
         var target = Find(targetId);
-        if (source.ParentId != target.ParentId) throw new ArgumentException("Reordering requires sources in the same parent.");
         if (source.Id == target.Id) return;
-        var siblings = source.ParentId == DataSourceId.Empty ? Roots : _groups[source.ParentId];
-        var oldIndex = siblings.IndexOf(source);
+        var siblings = target.ParentId == DataSourceId.Empty ? Roots : _groups[target.ParentId];
         var newIndex = siblings.IndexOf(target) + (after ? 1 : 0);
-        if (oldIndex < newIndex) --newIndex;
-        siblings.Move(oldIndex, newIndex);
+        if (source.ParentId == target.ParentId)
+        {
+            var oldIndex = siblings.IndexOf(source);
+            if (oldIndex < newIndex) --newIndex;
+            siblings.Move(oldIndex, newIndex);
+        }
+        else Reparent(source, target.ParentId, siblings, newIndex);
+    }
+
+    private void Reparent(DataSource source, DataSourceId parentId, AvaloniaList<DataSource> destination, int index)
+    {
+        if (parentId != DataSourceId.Empty && destination.Count >= LogEntrySourceId.MaxSources)
+            throw new ArgumentException("The destination group has reached its source limit.");
+        var candidate = All.Select(item => item.Clone()).ToArray();
+        candidate.Single(item => item.Id == source.Id).ParentId = parentId;
+        Validate(candidate);
+        var previous = source.ParentId == DataSourceId.Empty ? null : Find(source.ParentId);
+        var origin = previous == null ? Roots : _groups[previous.Id];
+        origin.Remove(source);
+        previous?.ExcludedDataSources.Remove(source.Id);
+        source.ParentId = parentId;
+        destination.Insert(index, source);
+        if (previous != null && origin.Count == 1) Remove(previous.Id);
     }
 
     public void RenameGroup(DataSourceId id, string name)

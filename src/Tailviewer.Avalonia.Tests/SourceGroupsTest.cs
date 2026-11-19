@@ -101,7 +101,7 @@ public sealed class SourceGroupsTest
     }
 
     [Test]
-    public void ReparentingRequiresRemovalFromTheCurrentGroup()
+    public void MovingToAnotherGroupClearsThePreviousExclusionAndRetainsAnEmptyOldGroup()
     {
         var workspace = new SourcesViewModel();
         var first = workspace.AddGroup();
@@ -109,9 +109,13 @@ public sealed class SourceGroupsTest
         var file = File("missing.log");
         workspace.Roots.Add(file);
         workspace.AddToGroup(file.Id, first.Id);
-        Assert.Throws<ArgumentException>(() => workspace.AddToGroup(file.Id, second.Id));
-        workspace.GetChildren(first.Id).Should().Equal(file);
-        workspace.GetChildren(second.Id).Should().BeEmpty();
+        workspace.SetExcluded(file.Id, true);
+        workspace.AddToGroup(file.Id, second.Id);
+        workspace.GetChildren(first.Id).Should().BeEmpty();
+        workspace.GetChildren(second.Id).Should().Equal(file);
+        first.ExcludedDataSources.Should().BeEmpty();
+        file.ParentId.Should().Be(second.Id);
+        workspace.Roots.Should().Equal(first, second);
     }
 
     [Test]
@@ -232,7 +236,7 @@ public sealed class SourceGroupsTest
     }
 
     [Test]
-    public void ReorderingAcrossParentsOrWithAClosedIdentityDoesNotMutateTheGraph()
+    public void ReorderingCyclesOrClosedIdentitiesDoNotMutateTheGraph()
     {
         var workspace = new SourcesViewModel();
         var group = workspace.AddGroup();
@@ -242,10 +246,82 @@ public sealed class SourceGroupsTest
         workspace.AddToGroup(child.Id, group.Id);
         workspace.SetExcluded(child.Id, true);
         var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
-        Assert.Throws<ArgumentException>(() => workspace.MoveRelative(child.Id, root.Id, false));
+        Assert.Throws<XmlException>(() => workspace.MoveRelative(group.Id, child.Id, false));
         Assert.Throws<ArgumentException>(() => workspace.MoveRelative(root.Id, DataSourceId.CreateNew(), true));
         workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
         group.ExcludedDataSources.Should().Equal(child.Id);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void CrossParentArrangePromotesTheOldSiblingAndDefaultsTheMovedMemberToIncluded(bool after)
+    {
+        var workspace = new SourcesViewModel();
+        var oldGroup = workspace.AddGroup();
+        var newGroup = workspace.AddGroup();
+        var moved = File("moved.log");
+        var remaining = File("remaining.log");
+        var target = File("target.log");
+        workspace.Roots.AddRange(new[] { moved, remaining, target });
+        workspace.AddToGroup(moved.Id, oldGroup.Id);
+        workspace.AddToGroup(remaining.Id, oldGroup.Id);
+        workspace.AddToGroup(target.Id, newGroup.Id);
+        workspace.SetExcluded(moved.Id, true);
+        workspace.MoveRelative(moved.Id, target.Id, after);
+        workspace.Roots.Should().Equal(remaining, newGroup);
+        workspace.GetChildren(newGroup.Id).Should().Equal(after ? new[] { target, moved } : new[] { moved, target });
+        moved.ParentId.Should().Be(newGroup.Id);
+        remaining.ParentId.Should().Be(DataSourceId.Empty);
+        oldGroup.ExcludedDataSources.Should().NotContain(moved.Id);
+        newGroup.ExcludedDataSources.Should().NotContain(moved.Id);
+        workspace.Contains(oldGroup.Id).Should().BeFalse();
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void ArrangingBesideTheOldParentUsesThePromotedChildAsItsAnchor(bool after)
+    {
+        var workspace = new SourcesViewModel();
+        var group = workspace.AddGroup();
+        var moved = File("moved.log");
+        var remaining = File("remaining.log");
+        workspace.Roots.AddRange(new[] { moved, remaining });
+        workspace.AddToGroup(moved.Id, group.Id);
+        workspace.AddToGroup(remaining.Id, group.Id);
+        workspace.MoveRelative(moved.Id, group.Id, after);
+        workspace.Roots.Should().Equal(after ? new[] { remaining, moved } : new[] { moved, remaining });
+        workspace.All.Should().OnlyContain(source => source.ParentId == DataSourceId.Empty);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void AFullDestinationRejectsReparentingWithoutChangingTheOldGroup(bool arrange)
+    {
+        var workspace = new SourcesViewModel();
+        var full = workspace.AddGroup();
+        for (var index = 0; index < LogEntrySourceId.MaxSources; ++index)
+        {
+            var member = File($"full-{index}.log");
+            workspace.Roots.Add(member);
+            workspace.AddToGroup(member.Id, full.Id);
+        }
+        var previous = workspace.AddGroup();
+        var moved = File("moved.log");
+        var remaining = File("remaining.log");
+        workspace.Roots.AddRange(new[] { moved, remaining });
+        workspace.AddToGroup(moved.Id, previous.Id);
+        workspace.AddToGroup(remaining.Id, previous.Id);
+        workspace.SetExcluded(moved.Id, true);
+        var before = workspace.All.Select(source => (source.Id, source.ParentId)).ToArray();
+        Assert.Throws<ArgumentException>(() =>
+        {
+            if (arrange) workspace.MoveRelative(moved.Id, workspace.GetChildren(full.Id).First().Id, false);
+            else workspace.AddToGroup(moved.Id, full.Id);
+        });
+        workspace.All.Select(source => (source.Id, source.ParentId)).Should().Equal(before);
+        workspace.GetChildren(previous.Id).Should().Equal(moved, remaining);
+        previous.ExcludedDataSources.Should().Equal(moved.Id);
+        workspace.GetChildren(full.Id).Count().Should().Be(LogEntrySourceId.MaxSources);
     }
 
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };

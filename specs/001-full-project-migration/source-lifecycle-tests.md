@@ -373,3 +373,33 @@ of legacy tree drag/drop. Cross-parent arrange/merge gestures and their cycle,
 dissolution and source-limit rules still require integration. Automatic saved
 workspace binding remains T053. Native pointer/menu/accessibility and full Core
 tests were not rerun for this UI/model-only slice; T023 stays open.
+
+## Cross-parent arrange and group transfer slice (T023)
+
+MoveRelative now supports arranging a source beside a destination in another
+parent. Add to group can transfer an already-grouped source directly; the menu
+is no longer restricted to roots. Both use one Reparent operation that checks
+the destination's 255-source limit and validates the candidate parent graph
+before mutating either collection. A successful move retains the original ID,
+clears its old parent's exclusion, inserts it in destination order, and dissolves
+the old group only when exactly one member remains. Empty old groups remain.
+When arranging beside the old parent itself, insertion precedes dissolution so
+the promoted child retains the correct before/after anchor position.
+
+Four new arrange cases failed first at the previous same-parent restriction.
+They now pin cross-group order, exclusion cleanup, old sibling promotion and
+arranging before/after one's dissolving parent. Two full-destination cases prove
+that both transfer entry points leave the original graph/exclusion intact on
+rejection. The earlier temporary reject-all-cross-parent test is replaced by
+cycle/missing-ID rejection; existing nested-cycle tests still pass. A headless
+menu case moves a real selected log into another group, promotes its old sibling
+and verifies both source IDs and unchanged file contents/native-independent copy.
+
+Complete modern solution: 81 Archiver + 151 Avalonia pass, no failures/skips.
+Evidence under ignored artifacts/migration: t023-cross-red.log,
+t023-cross-focused.log and t023-cross-modern.log. No dependencies were added.
+
+This implements the move operation and menu transfer, not pointer drag/drop.
+Tree gesture routing, legacy grouping-on-file behavior and native drag/menu
+acceptance remain open. Shared Core code was unchanged and its full suite was
+not rerun; T023 and the full migration remain incomplete.
