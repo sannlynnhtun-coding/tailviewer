@@ -31,7 +31,7 @@
 | F25 | Portable EXE/ZIP, installer, upgrade/uninstall, icon/license/version | installer/Tailviewer.Avalonia.iss; src/Installer; src/Tailviewer.Avalonia/Properties/PublishProfiles | FR-012 | P12 | alpha packaging exists; full lifecycle incomplete |
 | F26 | Update check/preference/channel, consent/download/verify/install/restart/recovery | src/Tailviewer/{BusinessLogic/AutoUpdates,Ui/AutoUpdateViewModel.cs,Settings/AutoUpdateSettings.cs} | FR-013/014 | P11/P12 | preference/proxy models ported; consent/update flow and endpoints pending |
 | F27 | Offline operation, log privacy, archive path validation, update provenance | src/Tailviewer.Archiver; src/Tailviewer/BusinessLogic/AutoUpdates | FR-014/015 | P08/P11 | requires boundary tests |
-| F28 | Keyboard/menu shortcuts, accessibility, themes, native dialogs and progress states | src/Tailviewer/Ui; src/Tailviewer.Avalonia/MainWindow.cs | FR-016 | P03-P13 | basic controls only |
+| F28 | Keyboard/menu shortcuts, accessibility, themes, native dialogs and progress states | src/Tailviewer/Ui; src/Tailviewer.Avalonia/MainWindow.cs | FR-016 | P03-P13 | partial: native picker open/cancel and UIA row-copy verified; broader keyboard/accessibility acceptance pending |
 | F29 | All shipping project builds, tests, samples, docs and required notices | dependency-inventory.md; src/*Tests; docs; assets/branding | FR-001/017/018 | P00-P13 | partial: API/Core/Avalonia/Archiver modern subset; remaining shipping projects pending |
 
 ## Inventory closure rule
