@@ -35,18 +35,12 @@ try
     {
         var path = Path.Combine(root, "records.log");
         var records = sizeMiB * 1024 * 1024 / 128;
-        var block = Enumerable.Repeat((byte)'x', 128 * 1024).ToArray();
-        for (var index = 127; index < block.Length; index += 128) block[index] = (byte)'\n';
-        using (var output = File.Create(path))
-        {
-            for (var index = 0; index < sizeMiB * 8; ++index) output.Write(block);
-            output.Flush(true);
-        }
+        FixedWidthLogWriter.Write(path, sizeMiB);
         Check(new FileInfo(path).Length == (long)records * 128, "Generated fixture length differs from the manifest recipe.");
         for (var run = 1; run <= 3; ++run)
         {
             // Read through without allocating the entire fixture; warm-cache intent is recorded, not guaranteed.
-            using (var warm = File.OpenRead(path)) while (warm.Read(block) > 0) { }
+            FixedWidthLogWriter.ReadThrough(path);
             await Measure(path, sizeMiB, records, run);
         }
     }
