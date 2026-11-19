@@ -346,3 +346,26 @@ picker/OLE/handoff suite were not repeated. The previous complete native
 checkpoint remains 17/17; this is a focused four-case passing checkpoint.
 Native edge scrolling, mixed-monitor DPI and the full gesture/accessibility
 matrix remain pending. T023 and full migration stay open.
+
+## Slice 10: native captured-drag edge scrolling and cancellation
+
+The new native case opens 41 owned three-line files, selects/copies the first,
+then holds a physical drag at the tree's bottom edge. A bounded native UIA
+observation requires the original source to leave the viewport while another
+source becomes visible before Escape is posted. After cancellation, the first
+visible row's identity and physical top remain unchanged over 350 ms (more than
+three production refresh periods). All root paths retain their original order
+and every fixture file's original bytes are checked. No production changes or
+new input helper were required.
+
+Focused new case: 1 pass. Combined native pointer/hover/edge cases: 5 pass /
+0 failed / 0 skipped, with owned-window DPI recorded as 168. Cleanup audit finds
+no remaining app/testhost processes or native fixture directories. Evidence:
+artifacts/migration/t023-edge-native.log, t023-edge-pointer-native.log and
+matching TRX files under t021-native (ignored).
+
+This is vertical edge/cancel acceptance at the observed DPI; horizontal edge,
+mixed-monitor movement and the complete cross-parent/keyboard/accessibility
+matrix remain unproven. T023 remains partial. Modern/Core and the full native
+picker/OLE/handoff suite were not rerun for this test-only addition; the previous
+complete native checkpoint was 17/17 and later focused hover coverage is separate.

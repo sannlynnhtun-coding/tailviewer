@@ -457,6 +457,56 @@ public sealed class SourceEntryPointTest
         }
     }
 
+    [Test]
+    public void NativeCapturedTreeDragScrollsAtTheViewportEdgeAndStopsAfterEscape()
+    {
+        var content = "first\n" + SelectedLine + "\nlast";
+        var paths = new[] { _path }.Concat(Enumerable.Range(0, 40).Select(index =>
+        {
+            var path = Path.Combine(_folder, $"edge-{index:D3}.log");
+            File.WriteAllText(path, content);
+            return path;
+        })).ToArray();
+        var window = StartApplication(paths);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The owned tree must be accessible.");
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(paths[^1]), StringComparison.Ordinal) &&
+            tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == paths.Length
+            ? tree : null, "All owned files must be configured before dragging.");
+        var source = tree.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, _path));
+        Assert.That(source, Is.Not.Null);
+        ((SelectionItemPattern)source.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+        var label = WaitFor(() => source.FindFirst(TreeScope.Descendants, new AndCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+            new PropertyCondition(AutomationElement.NameProperty, Path.GetFileName(_path)))), "The first owned source must be visible.");
+        var from = label.Current.BoundingRectangle;
+        var viewport = tree.Current.BoundingRectangle;
+        Assert.That(viewport.Contains(new Point(from.Left + 30, from.Top + from.Height / 2)), Is.True);
+        NativeOleDrag.DragWithin(_process!, new Point(from.Left + Math.Min(30, from.Width / 2), from.Top + from.Height / 2),
+            new Point(viewport.Left + 90, viewport.Bottom - 8), true, () =>
+                WaitFor(() => FirstVisible() is { } first && first.Current.Name != _path &&
+                    (source.Current.IsOffscreen || source.Current.BoundingRectangle.Bottom <= viewport.Top) ? tree : null,
+                    "The real captured pointer must scroll the first source out of the viewport before Escape."));
+        var stopped = FirstVisible() ?? throw new InvalidOperationException("The tree must retain visible sources after Escape.");
+        var name = stopped.Current.Name;
+        var top = stopped.Current.BoundingRectangle.Top;
+        Thread.Sleep(350); // Observe more than three production refresh periods after cancellation.
+        var after = FirstVisible() ?? throw new InvalidOperationException("The tree must remain populated after cancellation.");
+        Assert.That(after.Current.Name, Is.EqualTo(name));
+        Assert.That(after.Current.BoundingRectangle.Top, Is.EqualTo(top));
+        var roots = tree.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Cast<AutomationElement>().ToArray();
+        Assert.That(roots.Select(item => item.Current.Name), Is.EqualTo(paths));
+        foreach (var path in paths) Assert.That(File.ReadAllText(path), Is.EqualTo(content));
+
+        AutomationElement? FirstVisible() => tree.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem))
+            .Cast<AutomationElement>().Where(item => !item.Current.IsOffscreen && item.Current.BoundingRectangle.Bottom > viewport.Top &&
+                item.Current.BoundingRectangle.Top < viewport.Bottom).OrderBy(item => item.Current.BoundingRectangle.Top).FirstOrDefault();
+    }
+
     private void SendSecondary(params string[] paths)
     {
         var start = new ProcessStartInfo(_process!.StartInfo.FileName) { UseShellExecute = false, WorkingDirectory = _folder };
