@@ -225,46 +225,46 @@ namespace Tailviewer.Settings
 
 			try
 			{
+#if NET10_0_OR_GREATER
+				var document = ProfileStore.Read(_fileName);
+				var candidate = Clone();
+				var seen = new HashSet<XName>();
+				var patched = false;
+				foreach (var child in document.Root.Elements())
+				{
+					if (child.Name.Namespace != XNamespace.None) continue;
+					using (var content = child.CreateReader())
+					{
+						content.MoveToContent();
+						if (!candidate.RestoreSection(content, out var sectionPatched)) continue;
+						if (!seen.Add(child.Name)) throw new XmlException("Duplicate profile section.");
+						patched |= sectionPatched;
+					}
+				}
+				// Restore publishes new section snapshots; consumers bind after loading a profile.
+				_autoUpdate = candidate._autoUpdate;
+				_dataSources = candidate._dataSources;
+				_mainWindow = candidate._mainWindow;
+				_quickFilters = candidate._quickFilters;
+				_export = candidate._export;
+				_logViewer = candidate._logViewer;
+				_logFile = candidate._logFile;
+				_customFormats = candidate._customFormats;
+				_rawXml = document;
+				_restoreFailed = false;
+				neededPatching = patched;
+#else
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
 				{
-#if NET10_0_OR_GREATER
-					var document = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
-					if (document.Root == null || document.Root.Name != "xml") throw new XmlException("Unexpected profile root.");
-					var candidate = Clone();
-					var seen = new HashSet<XName>();
-					var patched = false;
-					foreach (var child in document.Root.Elements())
-					{
-						if (child.Name.Namespace != XNamespace.None) continue;
-						using (var content = child.CreateReader())
-						{
-							content.MoveToContent();
-							if (!candidate.RestoreSection(content, out var sectionPatched)) continue;
-							if (!seen.Add(child.Name)) throw new XmlException("Duplicate profile section.");
-							patched |= sectionPatched;
-						}
-					}
-					// Restore publishes new section snapshots; consumers bind after loading a profile.
-					_autoUpdate = candidate._autoUpdate;
-					_dataSources = candidate._dataSources;
-					_mainWindow = candidate._mainWindow;
-					_quickFilters = candidate._quickFilters;
-					_export = candidate._export;
-					_logViewer = candidate._logViewer;
-					_logFile = candidate._logFile;
-					_customFormats = candidate._customFormats;
-					_rawXml = document;
-					_restoreFailed = false;
-					neededPatching = patched;
-#else
 					while (reader.Read())
 					{
 						RestoreSection(reader, out var sectionPatched);
 						neededPatching |= sectionPatched;
 					}
-#endif
+
 				}
+#endif
 			}
 			catch (Exception e)
 			{

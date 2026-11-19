@@ -22,7 +22,7 @@ namespace Tailviewer.Settings.Bookmarks
 
 		private static Task _saveTask;
 #if NET10_0_OR_GREATER
-		private XElement _rawXml;
+		private XDocument _rawXml;
 		private bool _restoreFailed;
 #endif
 
@@ -79,11 +79,15 @@ namespace Tailviewer.Settings.Bookmarks
 					};
 					using (XmlWriter writer = XmlWriter.Create(stream, settings))
 					{
+#if NET10_0_OR_GREATER
+						BuildDocument().Save(writer);
+#else
 						writer.WriteStartElement("xml");
 
 						Save(writer);
 
 						writer.WriteEndElement();
+#endif
 					}
 
 					if (!Directory.Exists(_fileFolder))
@@ -102,7 +106,11 @@ namespace Tailviewer.Settings.Bookmarks
 			}
 			catch (Exception e)
 			{
+#if NET10_0_OR_GREATER
+				Log.ErrorFormat("Bookmark persistence failed ({0}); existing data retained.", e.GetType().Name);
+#else
 				Log.ErrorFormat("Caught unexpected exception: {0}", e);
+#endif
 				return false;
 			}
 		}
@@ -122,26 +130,31 @@ namespace Tailviewer.Settings.Bookmarks
 
 			try
 			{
+#if NET10_0_OR_GREATER
+				var document = ProfileStore.Read(_fileName);
+				var element = document.Root;
+
+				var bookmarks = new List<BookmarkSettings>();
+				foreach (var child in element.Elements("bookmark"))
+				{
+					var bookmark = new BookmarkSettings();
+					using (var content = child.CreateReader())
+					{
+						content.MoveToContent();
+						bookmark.Restore(content);
+					}
+					bookmarks.Add(bookmark);
+				}
+				_rawXml = document;
+				_restoreFailed = false;
+
+				Clear();
+				Capacity = bookmarks.Count;
+				AddRange(bookmarks);
+#else
 				using (FileStream stream = File.OpenRead(_fileName))
 				using (XmlReader reader = XmlReader.Create(stream))
 				{
-#if NET10_0_OR_GREATER
-					var element = XElement.Load(reader, LoadOptions.PreserveWhitespace);
-					if (element.Name != "xml") throw new XmlException("Unexpected bookmark root element.");
-					var bookmarks = new List<BookmarkSettings>();
-					foreach (var child in element.Elements("bookmark"))
-					{
-						var bookmark = new BookmarkSettings();
-						using (var content = child.CreateReader())
-						{
-							content.MoveToContent();
-							bookmark.Restore(content);
-						}
-						bookmarks.Add(bookmark);
-					}
-					_rawXml = element;
-					_restoreFailed = false;
-#else
 					var bookmarks = new List<BookmarkSettings>();
 
 					while (reader.Read())
@@ -156,18 +169,21 @@ namespace Tailviewer.Settings.Bookmarks
 						}
 					}
 
-#endif
 					Clear();
 					Capacity = bookmarks.Count;
 					AddRange(bookmarks);
+
 				}
+#endif
 			}
 			catch (Exception e)
 			{
 #if NET10_0_OR_GREATER
 				_restoreFailed = true;
-#endif
+				Log.ErrorFormat("Bookmark persistence failed ({0}); existing data retained.", e.GetType().Name);
+#else
 				Log.ErrorFormat("Caught unexpected exception: {0}", e);
+#endif
 			}
 		}
 
@@ -188,10 +204,21 @@ namespace Tailviewer.Settings.Bookmarks
 			get { return this.ToList(); }
 		}
 
+#if NET10_0_OR_GREATER
+		private XDocument BuildDocument()
+		{
+			var document = _rawXml == null ? new XDocument() : new XDocument(_rawXml);
+			var root = SettingsXml.SaveElement("xml", Save);
+			if (document.Root == null) document.Add(root);
+			else document.Root.ReplaceWith(root);
+			return document;
+		}
+#endif
+
 		private void Save(XmlWriter writer)
 		{
 #if NET10_0_OR_GREATER
-			var element = _rawXml == null ? new XElement("xml") : new XElement(_rawXml);
+			var element = _rawXml == null ? new XElement("xml") : new XElement(_rawXml.Root);
 			SettingsXml.ReplaceChildren(element, "bookmark",
 				this.Select(bookmark => SettingsXml.SaveElement("bookmark", bookmark.Save)));
 			SettingsXml.WriteContent(element, writer);
@@ -205,7 +232,7 @@ namespace Tailviewer.Settings.Bookmarks
 #endif
 		}
 
-		#region Implementation of ICloneable
+#region Implementation of ICloneable
 
 		/// <summary>Creates an independent snapshot with the same destination.</summary>
 		public Bookmarks Clone()
@@ -213,7 +240,7 @@ namespace Tailviewer.Settings.Bookmarks
 			var clone = new Bookmarks(_fileName);
 			clone.AddRange(this.Select(x => x.Clone()));
 #if NET10_0_OR_GREATER
-			clone._rawXml = _rawXml == null ? null : new XElement(_rawXml);
+			clone._rawXml = _rawXml == null ? null : new XDocument(_rawXml);
 			clone._restoreFailed = _restoreFailed;
 #endif
 			return clone;
@@ -224,6 +251,6 @@ namespace Tailviewer.Settings.Bookmarks
 			return Clone();
 		}
 
-		#endregion
+#endregion
 	}
 }
