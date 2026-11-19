@@ -17,7 +17,7 @@ public sealed partial class SourceEntryPointTest
     private string _marker = null!;
     private Process? _process;
     private DataObject? _clipboard;
-    private readonly HashSet<string> _ownedCopies = new();
+    private uint _clipboardSequence;
     private const string SelectedLine = "  မြန်မာ 😀  ";
     private const string PickerLine = "picker မြန်မာ 😀";
 
@@ -26,7 +26,7 @@ public sealed partial class SourceEntryPointTest
     {
         _process = null;
         _clipboard = null;
-        _ownedCopies.Clear();
+        _clipboardSequence = 0;
         _folder = null!;
         Assert.That(Environment.UserInteractive, Is.True, "Native tests require an interactive Windows desktop.");
         var existing = Process.GetProcessesByName("Tailviewer.Avalonia");
@@ -50,6 +50,7 @@ public sealed partial class SourceEntryPointTest
             }
         _clipboard = snapshot;
         Clipboard.SetText(_marker);
+        _clipboardSequence = GetClipboardSequenceNumber();
     }
 
     [TearDown]
@@ -57,31 +58,29 @@ public sealed partial class SourceEntryPointTest
     {
         try
         {
-            if (_process != null)
+            if (_clipboard != null)
             {
-                if (!_process.HasExited)
-                {
-                    _process.CloseMainWindow();
-                    if (!_process.WaitForExit(2000))
-                    {
-                        _process.Kill(entireProcessTree: true);
-                        Assert.That(_process.WaitForExit(5000), Is.True, "The owned test process must exit.");
-                    }
-                }
-                _process.Dispose();
+                if (OwnsClipboard())
+                    Clipboard.SetDataObject(_clipboard, copy: true);
+                else TestContext.Progress.WriteLine("Clipboard changed externally; preserved its current contents.");
             }
         }
         finally
         {
             try
             {
-                if (_clipboard != null)
+                if (_process != null)
                 {
-                    var current = Clipboard.ContainsText() ? Clipboard.GetText() : null;
-                    if (current == _marker || current != null && _ownedCopies.Contains(current) || current == SelectedLine || current == PickerLine ||
-                        current is "first" or "last" or "picked-first" or "picked-last")
-                        Clipboard.SetDataObject(_clipboard, copy: true);
-                    else TestContext.Progress.WriteLine("Clipboard changed externally; preserved its current contents.");
+                    if (!_process.HasExited)
+                    {
+                        _process.CloseMainWindow();
+                        if (!_process.WaitForExit(2000))
+                        {
+                            _process.Kill(entireProcessTree: true);
+                            Assert.That(_process.WaitForExit(5000), Is.True, "The owned test process must exit.");
+                        }
+                    }
+                    _process.Dispose();
                 }
             }
             finally
@@ -104,6 +103,34 @@ public sealed partial class SourceEntryPointTest
         var window = StartApplication();
         SelectSecondLine(window);
         CopyAndCheck(window);
+    }
+
+    [Test]
+    public void NativeCopyDoesNotOverwriteAnExternalClipboardChange()
+    {
+        var window = StartApplication();
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+        const string externalFormat = "Tailviewer.Native.Acceptance.External";
+        var external = new DataObject();
+        external.SetText(SelectedLine);
+        external.SetData(externalFormat, "owned external-format sentinel");
+        Clipboard.SetDataObject(external, copy: true);
+        try
+        {
+            var failure = Assert.Throws<AssertionException>(() => CopyAndCheck(window));
+            Assert.That(failure!.Message, Does.Contain("Clipboard changed externally"));
+            Assert.That(Clipboard.GetText() == SelectedLine && Clipboard.ContainsData(externalFormat), Is.True,
+                "External clipboard text and formats must be preserved (contents are not logged).");
+        }
+        finally
+        {
+            if (OwnsClipboard() || Equals(Clipboard.GetData(externalFormat), "owned external-format sentinel"))
+            {
+                Clipboard.SetText(_marker);
+                _clipboardSequence = GetClipboardSequenceNumber();
+            }
+        }
     }
 
     [Test]
@@ -325,6 +352,7 @@ public sealed partial class SourceEntryPointTest
     {
         var window = StartApplication();
         SelectSecondLine(window);
+        CopyAndCheck(window);
         var title = window.Current.Name;
         var dialog = OpenPicker(window, folder: true);
         if (cancel)
@@ -332,6 +360,15 @@ public sealed partial class SourceEntryPointTest
             ((WindowPattern)dialog.GetCurrentPattern(WindowPattern.Pattern)).Close();
             WaitFor(() => window.Current.IsEnabled ? window : null, "The main window must recover after folder-picker cancellation.");
             Assert.That(window.Current.Name, Is.EqualTo(title));
+            WaitFor(() =>
+            {
+                var rows = window.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, "Log lines"));
+                if (rows == null || !rows.TryGetCurrentPattern(SelectionPattern.Pattern, out var pattern)) return null;
+                var selected = ((SelectionPattern)pattern).Current.GetSelection();
+                return selected.Length == 1 && selected[0].FindAll(TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                    .Any(text => text.Current.Name.TrimStart().StartsWith("2  ", StringComparison.Ordinal)) ? selected[0] : null;
+            }, "Picker cancellation must restore the accessible owned second-row selection without reselecting it.");
             CopyAndCheck(window);
             return;
         }
@@ -530,6 +567,7 @@ public sealed partial class SourceEntryPointTest
         var first = StartApplication();
         SelectSecondLine(first);
         CopyAndCheck(first);
+        ResetOwnedClipboard();
         var channel = Tailviewer.Avalonia.SingleApplicationHelper.GetChannelName();
         // Keep the kernel object alive across a crash so restart exercises abandoned ownership.
         using var witness = new Mutex(false, channel,
@@ -795,11 +833,71 @@ public sealed partial class SourceEntryPointTest
 
     private void CopyAndCheck(AutomationElement window, string expected = SelectedLine)
     {
-        _ownedCopies.Add(expected);
+        var logList = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Log lines")), "The owned app's log list must be accessible before copy.");
+        Assert.That(logList.Current.ProcessId, Is.EqualTo(_process!.Id), "Copy must target the owned app's log list.");
+        ResetOwnedClipboard();
+        logList.SetFocus();
+        Assert.That(NativeKeyboard.IsForeground(_process!), Is.True, "The owned app must have foreground focus immediately before copy.");
         InvokeButton(window, "Copy selected");
-        WaitFor(() => Clipboard.ContainsText() && Clipboard.GetText() == expected ? window : null,
-            "The native clipboard must receive the original owned fixture line (contents are not logged).");
+        try
+        {
+            WaitFor(() =>
+            {
+                var sequence = GetClipboardSequenceNumber();
+                if (!Clipboard.ContainsText() || Clipboard.GetText() != expected ||
+                    sequence != GetClipboardSequenceNumber()) return null;
+                _clipboardSequence = sequence;
+                return window;
+            },
+                "The native clipboard must receive a fresh copy of the original owned fixture line (contents are not logged).");
+        }
+        catch
+        {
+            try
+            {
+                var rows = window.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, "Log lines"));
+                var selection = rows != null && rows.TryGetCurrentPattern(SelectionPattern.Pattern, out var pattern)
+                    ? ((SelectionPattern)pattern).Current.GetSelection().Length : -1;
+                var copyError = window.FindAll(TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                    .Any(text => text.Current.Name.StartsWith("Cannot copy:", StringComparison.Ordinal));
+                TestContext.Progress.WriteLine($"Owned copy diagnostic: selection_count={selection}, copy_error_visible={copyError}, window_enabled={window.Current.IsEnabled}, foreground={NativeKeyboard.IsForeground(_process!)}");
+            }
+            catch (Exception diagnostic) when (diagnostic is ElementNotAvailableException or COMException or InvalidOperationException)
+            {
+                TestContext.Progress.WriteLine("Owned copy diagnostic unavailable: " + diagnostic.GetType().Name);
+            }
+            throw;
+        }
     }
+
+    private bool OwnsClipboard()
+    {
+        var sequence = GetClipboardSequenceNumber();
+        if (sequence != 0 && sequence == _clipboardSequence) return true;
+        if (_process == null || _process.HasExited) return false;
+        GetWindowThreadProcessId(GetClipboardOwner(), out var owner);
+        if (owner == (uint)_process.Id) return true;
+        TestContext.Progress.WriteLine($"Clipboard ownership diagnostic: observed_sequence={sequence}, recorded_sequence={_clipboardSequence}, owner_pid={owner}, expected_pid={_process.Id}");
+        return false;
+    }
+
+    private void ResetOwnedClipboard()
+    {
+        Assert.That(OwnsClipboard(), Is.True, "Clipboard changed externally; current contents were preserved.");
+        Clipboard.SetText(_marker);
+        _clipboardSequence = GetClipboardSequenceNumber();
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetClipboardOwner();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
     private static void InvokeButton(AutomationElement root, string text)
     {

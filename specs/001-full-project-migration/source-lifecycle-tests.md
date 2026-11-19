@@ -1765,3 +1765,41 @@ Metadata-enabled large-file/many-source costs, the remaining native cancel/copy
 failure, cold-cache/tailing acceptance, complete columns/plugin UI and the full
 migration remain open. Legacy WPF host runtime/build was not rerun. No task
 checklist was marked complete by this slice.
+
+### Native clipboard oracle and ownership follow-up (2026-11-20)
+
+The native fixture now resets an owned marker before each copy, so a previous
+identical clipboard result cannot satisfy a later action. Ownership uses the
+Windows clipboard sequence or the owned application process instead of a list
+of previously copied strings. A new negative test first failed because an
+external writer supplied identical text with an additional custom format; the
+old text comparison allowed that data to be overwritten. The new guard rejects
+that operation and preserves its formats. Clipboard contents are never logged.
+Restoration runs before terminating the owned app, with process and temporary
+folder cleanup still guaranteed by finally blocks. Intentional primary exits
+park the owned marker first. Folder-picker cancellation waits for the accessible
+selected row to return without reselecting it. Copy focuses the owned log list
+after preparing the marker and requires foreground ownership before invocation.
+
+The first eight-case native run passed six cases, including the new external
+clipboard regression, and failed two: crash/restart rejected changed clipboard
+ownership, and folder-picker cancellation failed its preflight fresh copy before
+the picker opened. This does not establish that cancellation itself caused the
+copy failure. These failures remain open; no timeout or assertion was weakened.
+Evidence: ignored artifacts/migration/t024-clipboard-same-text-external-red.log
+and t024-clipboard-provenance.log/TRX. Production sources are unchanged.
+The full native pointer/performance matrix and full migration acceptance remain
+pending. This fixture work does not complete T024 or any later migration task.
+
+A subsequent focused run passed all three external-clipboard and primary-restart
+cases (zero skips), including the previously failing crash/restart case.
+Evidence: t024-clipboard-provenance-focused.log/TRX. This repeat is scoped
+confirmation, not evidence that the earlier intermittent failure is resolved.
+
+The final isolated folder-picker run passed open and failed cancel at the
+preflight copy (before showing the picker). Diagnostics reported one selected
+row, no visible copy error, lost foreground ownership and a changed clipboard
+sequence owned by another PID. The guard preserved that clipboard data. This
+is evidence of desktop interference during the failed copy, not proof of its
+complete cause or a repaired cancel journey. Evidence:
+t024-picker-provenance-focused.log/TRX (1 pass / 1 fail / zero skips).
