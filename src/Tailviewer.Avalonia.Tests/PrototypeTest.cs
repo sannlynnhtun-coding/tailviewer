@@ -92,6 +92,27 @@ public sealed class PrototypeTest
         }
     }
 
+    [AvaloniaTest]
+    public void DashboardHighlightColorsTokensWithoutChangingTheText()
+    {
+        const string text = """{"message":"example","status":503,"retry":false}""";
+        var label = new TextBlock();
+        ObservabilityView.Highlight(label, text, 40);
+        var runs = label.Inlines!.OfType<global::Avalonia.Controls.Documents.Run>().ToArray();
+        string.Concat(runs.Select(run => run.Text)).Should().Be(text);
+        runs.Count(run => run.Foreground != null).Should().BeGreaterThan(3);
+    }
+    [AvaloniaTest]
+    public void DashboardHighlightsLocationsAndDetectsFencedCode()
+    {
+        const string text = "```csharp\npublic class Example {}\n```\nGET /api/accounts https://example.test/api C:\\Logs\\MOB Bank";
+        var label = new TextBlock();
+        ObservabilityView.Highlight(label, text, 512, "Auto");
+        var runs = label.Inlines!.OfType<global::Avalonia.Controls.Documents.Run>().ToArray();
+        string.Concat(runs.Select(run => run.Text)).Should().Be(text);
+        var tokens = runs.Where(run => run.Foreground != null).Select(run => run.Text);
+        tokens.Should().Contain(["public", "class", "/api/accounts", "https://example.test/api", @"C:\Logs\MOB Bank"]);
+    }
     [Test]
     public async Task DashboardParsesOffsetAndMultilineRollingLogs()
     {

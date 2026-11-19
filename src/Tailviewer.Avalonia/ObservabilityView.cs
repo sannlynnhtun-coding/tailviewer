@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 
@@ -37,6 +38,7 @@ internal sealed class ObservabilityView : UserControl, IDisposable
     private readonly TextBox _search = new() { PlaceholderText = "Search logs…", MinWidth = 220 };
     private readonly ToggleButton _regex = Toggle(".*");
     private readonly ComboBox _range = new() { ItemsSource = new[] { "All Time", "Last 5 min", "Last 15 min", "Last hour", "Last 24 hours" }, SelectedIndex = 0 };
+    private readonly ComboBox _language = new() { ItemsSource = new[] { "Auto", "Plain Text", "JSON", "C#", "JavaScript", "TypeScript", "Python", "Java", "SQL", "HTML/XML", "Shell" }, SelectedIndex = 0 };
     private readonly ComboBox _scope = new() { SelectedIndex = 0, MaxWidth = 220 };
     private readonly ComboBox _services = new() { SelectedIndex = 0, MaxWidth = 180 };
     private readonly WrapPanel _environments = new();
@@ -123,7 +125,9 @@ internal sealed class ObservabilityView : UserControl, IDisposable
         _search.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Escape) hints.IsVisible = false; };
         foreach (var chip in hints.Children.OfType<Button>())
             chip.Click += (_, _) => hints.IsVisible = false;
-        var commands = Row(_auto, _wrap, _compact, Action("Columns", ShowColumns), Action("Cancel", Cancel));
+        global::Avalonia.Automation.AutomationProperties.SetName(_language, "Highlight language");
+        _language.FontSize = 11;
+        var commands = Row(_auto, _wrap, _compact, Label("Language", 11), _language, Action("Columns", ShowColumns), Action("Cancel", Cancel));
         var sourceCommands = Row(AsyncAction("Add Folders", addFolders), AsyncAction("Open File", openFiles), Action("Sources", sources), _scope);
         var streamTools = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         Add(streamTools, _chips, 0);
@@ -137,6 +141,11 @@ internal sealed class ObservabilityView : UserControl, IDisposable
         _wrap.IsCheckedChanged += (_, _) => RefreshRows(heading);
         _compact.IsCheckedChanged += (_, _) => { _compact.Content = _compact.IsChecked == true ? "Compact" : "Comfy"; RefreshRows(heading); };
         _columnsChanged = () => RefreshRows(heading);
+        _language.SelectionChanged += (_, _) =>
+        {
+            RefreshRows(heading);
+            UpdateInspector();
+        };
 
         _curl = AsyncAction("Copy cURL", () => CopyAsync(CreateCurl(_rows.SelectedItem as ObservedLog)));
         _drawer.Children.Add(Row(Label("Log Inspector", 16), IconAction("Previous log", "M6 15L12 9 18 15", () => Navigate(-1)),
@@ -711,8 +720,8 @@ internal sealed class ObservabilityView : UserControl, IDisposable
         _curl.IsEnabled = CreateCurl(log) != null;
         var json = log.Payload is { } payload
             ? JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }) : log.Message;
-        _detail.Text = $"{log.File}:{log.Line}\n{log.Timestamp:O}   {log.Level}   {log.Service}\n" +
-            $"Host {log.Host ?? "—"}   HTTP {log.Status?.ToString() ?? "—"}   Trace {log.Trace ?? "—"}\n\n{json}";
+        Highlight(_detail, $"{log.File}:{log.Line}\n{log.Timestamp:O}   {log.Level}   {log.Service}\n" +
+            $"Host {log.Host ?? "—"}   HTTP {log.Status?.ToString() ?? "—"}   Trace {log.Trace ?? "—"}\n\n{json}", 32768, _language.SelectedItem is string mode && mode != "Auto" ? mode : DetectLanguage(log.File, log.Message), log.File);
     }
 
     private static string? CreateCurl(ObservedLog? log)
@@ -791,7 +800,7 @@ internal sealed class ObservabilityView : UserControl, IDisposable
                 if (_wrap.IsChecked == true) label.TextWrapping = TextWrapping.Wrap;
                 else if (message.IndexOfAny(['\r', '\n']) is var newline && newline >= 0)
                     message = message[..newline] + " …";
-                label.Text = message;
+                Highlight(label, message, 512, _language.SelectedItem as string, log.File);
             }
             if (log != null && index == 1)
                 label.Foreground = Accent(log.Level);
@@ -855,6 +864,87 @@ internal sealed class ObservabilityView : UserControl, IDisposable
         return label;
     }
 
+    private const string Locations = """(?<url>\b(?:https?|ftp)://[^\s"'<>]+)|(?<path>(?:\b[A-Za-z]:[\\/]|\\\\(?=[\w.-]))[^\r\n"'<>;|]+|(?<![\w/])/(?:[\w.~%:@{}-]+/)*[\w.~%:@{}-]+(?:\?[^\s"'<>]+)?)""";
+    private const string Values = """(?<key>"(?:\\.|[^"\\])*"(?=\s*:))|(?<string>"(?:\\.|[^"\\])*")|(?<exception>\b[\w.]*Exception\b)|(?<frame>^[ \t]+at[ \t]+[^\r\n]+)|(?<literal>\b(?:true|false|null|True|False|None)\b)|(?<number>(?<![\w.])-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.]))""";
+
+    private static Regex TokenPattern(string extra = "") => new(Locations + "|" + Values + extra,
+        RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+    private static readonly Regex Syntax = TokenPattern();
+    private static readonly Regex LocationSyntax = new(Locations, RegexOptions.CultureInvariant);
+    private static readonly IReadOnlyDictionary<string, Regex> CodeSyntax = new Dictionary<string, Regex>
+    {
+        ["C#"] = Keywords("using|namespace|class|struct|record|public|private|internal|static|var|new|return|async|await|throw|try|catch|if|else|foreach|void|string|int|bool"),
+        ["JavaScript"] = Keywords("const|let|var|function|class|import|export|from|return|async|await|new|throw|try|catch|if|else|undefined"),
+        ["TypeScript"] = Keywords("interface|type|enum|implements|extends|readonly|const|let|function|class|import|export|from|return|async|await|new|if|else"),
+        ["Python"] = Keywords("def|class|from|import|return|yield|async|await|raise|try|except|with|if|elif|else|for|in|lambda|self"),
+        ["Java"] = Keywords("package|import|class|interface|public|private|protected|final|static|void|new|return|throws|throw|try|catch|if|else|int|boolean"),
+        ["SQL"] = TokenPattern(@"|(?<code>\b(?i:select|from|where|insert|into|update|set|delete|join|on|group|order|by|having|values|create|table|as|and|or)\b)"),
+        ["HTML/XML"] = TokenPattern(@"|(?<code></?[A-Za-z][\w:-]*)"),
+        ["Shell"] = Keywords("export|function|if|then|else|fi|for|do|done|case|esac|echo|sudo|cd|grep|curl")
+    };
+
+    private static Regex Keywords(string words) => TokenPattern($@"|(?<code>\b(?:{words})\b)");
+
+    private static string? DetectLanguage(string? file, string text)
+    {
+        var snippet = text.AsSpan().TrimStart();
+        if (snippet.StartsWith("```", StringComparison.Ordinal))
+        {
+            var end = snippet.IndexOfAny('\r', '\n');
+            var tag = (end < 0 ? snippet[3..] : snippet[3..end]).Trim().ToString().ToLowerInvariant();
+            var language = tag switch
+            {
+                "cs" or "csharp" => "C#", "js" or "javascript" => "JavaScript",
+                "ts" or "typescript" => "TypeScript", "py" or "python" => "Python",
+                "java" => "Java", "sql" => "SQL", "html" or "xml" => "HTML/XML",
+                "sh" or "bash" or "shell" => "Shell", "json" => "JSON", _ => null
+            };
+            if (language != null) return language;
+        }
+
+        return Path.GetExtension(file)?.ToLowerInvariant() switch
+        {
+            ".cs" => "C#", ".js" or ".jsx" => "JavaScript", ".ts" or ".tsx" => "TypeScript",
+            ".py" => "Python", ".java" => "Java", ".sql" => "SQL",
+            ".html" or ".xml" => "HTML/XML", ".sh" or ".ps1" => "Shell", _ => null
+        };
+    }
+    private static readonly IBrush SyntaxString = new SolidColorBrush(Color.Parse("#86efac"));
+    private static readonly IBrush SyntaxNumber = new SolidColorBrush(Color.Parse("#fcd34d"));
+    private static readonly IBrush SyntaxLiteral = new SolidColorBrush(Color.Parse("#c4b5fd"));
+    private static readonly IBrush SyntaxException = new SolidColorBrush(Color.Parse("#fda4af"));
+
+    internal static void Highlight(TextBlock target, string text, int limit, string? language = null, string? file = null)
+    {
+        // shortcut: color a bounded prefix to keep large entries responsive; use token virtualization for larger ranges.
+        var prefix = text[..Math.Min(text.Length, limit)];
+        var runs = new InlineCollection();
+        var offset = 0;
+        if (language is null or "Auto") language = DetectLanguage(file, prefix);
+        var pattern = language == "Plain Text" ? LocationSyntax
+            : language != null && CodeSyntax.TryGetValue(language, out var code) ? code : Syntax;
+        foreach (Match match in pattern.Matches(prefix))
+        {
+            if (match.Index > offset) runs.Add(new Run(text[offset..match.Index]));
+            var quotedLocation = match.Groups["string"].Success
+                ? LocationSyntax.Match(match.Value[1..^1]) : Match.Empty;
+            var color = match.Groups["url"].Success || quotedLocation.Groups["url"].Success ? Blue
+                : match.Groups["path"].Success || quotedLocation.Groups["path"].Success ? Amber
+                : match.Groups["code"].Success ? SyntaxLiteral
+                : match.Groups["key"].Success ? Blue
+                : match.Groups["string"].Success ? SyntaxString
+                : match.Groups["exception"].Success ? SyntaxException
+                : match.Groups["frame"].Success ? Muted
+                : match.Groups["literal"].Success ? SyntaxLiteral : SyntaxNumber;
+            runs.Add(new Run(match.Value) { Foreground = color });
+            offset = match.Index + match.Length;
+        }
+
+        if (offset < text.Length) runs.Add(new Run(text[offset..]));
+        target.Text = null;
+        target.Inlines = runs;
+    }
     private static TextBlock Label(string text, double size = 12) => new()
     {
         Text = text, FontSize = size, Foreground = Ink, VerticalAlignment = VerticalAlignment.Center
