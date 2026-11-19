@@ -1595,3 +1595,71 @@ Shipping profile save/restore, broader native/performance acceptance and the
 remaining legacy source/column controls are still pending. T030 and the full
 migration remain open; Core production code and dependencies were unchanged,
 so the full Core suite was not rerun for this UI-only change.
+
+## Delta-time display and aggregate-owned multiline views (T026/T045, partial)
+
+The legacy delta formatter's pure formatting code is shared by the WPF and
+Avalonia projects through a partial class; WPF drawing remains in the legacy
+file. Seventeen checks cover signed magnitudes, units, singular/plural labels,
+zero and missing timestamps. The private sign helper returns an empty string
+instead of null for the same formatted output under nullable analysis.
+
+Show Delta Times uses the existing DataSource.ShowDeltaTimes/XML field for
+files, discovered files, folders and groups. Bounded page reads now retrieve raw
+text and Core.Columns.DeltaTime from ParsedSource on a background thread with
+the existing two-second query limit and revision publication guard. There is no
+new timestamp subtraction algorithm, whole-file display buffer or metadata
+indexing worker. Delta values are cached with each page even when hidden, so
+visibility toggles do not reopen readers or race an in-flight option-dependent
+read. Copy continues to read original raw text, excluding display prefixes.
+
+Three behavioral journeys first failed on the absent menu. They cover negative
+physical-file deltas versus sorted merged deltas, first-row missing delta,
+append, same-size/restored-mtime rewrite, toggle off/on, independent settings,
+character/whole-line copy, pause, return activation and XML round-trip.
+
+The initial full modern run passed Archiver 81 and Avalonia 236, but failed the
+existing inactive-group rewrite/return recovery case. Inspection found that a
+rebuilt group reused the raw document's old multiline worker across revisions.
+Multiline views now belong to the aggregate which consumes them and are created
+anew on rebuild. Merge layers stop first, then their entry views, then raw-reader
+leases are returned. A new ownership journey closes one nested aggregate while
+another tails the shared reader, replaces its timestamp format, rebuilds it,
+checks exact text and finally verifies exclusive file access after all owners
+close. Eight focused delta/multiline/restore checks pass after the change; this
+does not prove every possible cause of an intermittent recovery timeout.
+
+Evidence under ignored artifacts/migration/: t045-delta-formatter.log/TRX,
+-ui-red.log/TRX, -ui-green.log/TRX, -modern.log/TRX (the recovery failure),
+-aggregate-lifecycle.log/TRX and -native.log/TRX (seven entry/visibility checks).
+Elapsed-time metadata, custom/plugin parsing, complete columns/provenance UI,
+shipping profile persistence and full migration remain open. Page-read costs
+changed, so previous large-file performance results are not assumed to apply.
+
+Final modern validation passes 81 Archiver + 238 Avalonia = 319 with no
+failures/skips, including the new ownership journey. Native final validation
+passes 13/13: delta and line-number toggles, folder picker/options apply/cancel,
+Ctrl+G, and six large-file runs. Each large-file run includes 30 post-index
+navigation submit-to-visible samples; all 180 resolve. Measurements below use
+warm-cache fixed-width synthetic logs, the owned foreground app, no concurrent
+test suite or profiler, and existing thresholds without relaxing assertions.
+
+| Size (MiB) | Run | First visible page (ms) | Peak app memory through indexing (MiB) | Navigation submit-to-visible p95 (ms) |
+|---|---|---|---|---|
+| 100 | 1 | 1603.08 | 253.97 | 114.46 |
+| 100 | 2 | 1544.19 | 254.30 | 114.56 |
+| 100 | 3 | 1548.33 | 243.15 | 120.39 |
+| 1024 | 1 | 2595.14 | 510.30 | 124.87 |
+| 1024 | 2 | 2297.61 | 533.31 | 123.43 |
+| 1024 | 3 | 5389.50 | 557.04 | 96.08 |
+
+These runs meet their 3s/10s first-page, under-1-GiB index-memory and 200ms
+navigation p95 budgets. They do not cover cold cache, timestamped/multiline
+large-file distributions, many cached aggregates, whole navigation-dialog
+preparation time, during-index interaction latency or five-minute tailing after
+this change. Full SC-004–006 acceptance remains open. Core production code was
+unchanged; its full suite and legacy WPF host build were not rerun here.
+Final evidence: artifacts/migration/t045-delta-modern-final.log/TRX and
+t045-delta-native-final.log/TRX, with six attached native-large-file JSONL
+reports. Checks used the combined working tree; the formatter, aggregate
+ownership fix and delta display are delivered as separate logical commits.

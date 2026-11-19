@@ -107,6 +107,31 @@ public sealed partial class SourceEntryPointTest
     }
 
     [Test]
+    public void NativeDeltaTimeTogglePreservesOriginalSelectionAndCopy()
+    {
+        const string selected = "2026-11-20 12:00:02.000 INFO မြန်မာ 😀";
+        var content = "2026-11-20 12:00:01.000 INFO first\n" + selected + "\n2026-11-20 12:00:03.000 INFO last";
+        File.WriteAllText(_path, content);
+        var window = StartApplication();
+        SelectSecondLine(window);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        var source = WaitFor(() => tree.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.NameProperty, _path)), "The owned source must be selectable.");
+        foreach (var visible in new[] { true, false })
+        {
+            InvokeSourceMenu(window, source, "Show Delta Times");
+            WaitFor(() => window.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
+                .FirstOrDefault(item => item.Current.Name.EndsWith(selected, StringComparison.Ordinal) &&
+                    item.Current.Name.Contains("+1 sec", StringComparison.Ordinal) == visible),
+                "The selected original line must render with the chosen delta visibility.");
+            CopyAndCheck(window, selected);
+        }
+        Assert.That(File.ReadAllText(_path), Is.EqualTo(content));
+    }
+
+    [Test]
     public void NativeLineNumberTogglePreservesOriginalSelectionAndCopy()
     {
         var window = StartApplication();
@@ -117,14 +142,7 @@ public sealed partial class SourceEntryPointTest
             new PropertyCondition(AutomationElement.NameProperty, _path)), "The owned source must be selectable.");
         foreach (var hidden in new[] { true, false })
         {
-            NativeKeyboard.OpenContextMenu(_process!, source);
-            var condition = new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
-                new PropertyCondition(AutomationElement.NameProperty, "Show line numbers"));
-            var command = WaitFor(() => window.FindFirst(TreeScope.Descendants, condition) ??
-                AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, _process!.Id))
-                    .Cast<AutomationElement>().Select(root => root.FindFirst(TreeScope.Subtree, condition)).FirstOrDefault(item => item != null),
-                "The keyboard context menu must expose line-number visibility.");
-            ((InvokePattern)command.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            InvokeSourceMenu(window, source, "Show line numbers");
             WaitFor(() => window.FindAll(TreeScope.Descendants,
                     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
                 .FirstOrDefault(item => hidden ? item.Current.Name == SelectedLine : item.Current.Name.TrimStart() == "2  " + SelectedLine),
@@ -132,6 +150,18 @@ public sealed partial class SourceEntryPointTest
             CopyAndCheck(window);
         }
         Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+    }
+
+    private void InvokeSourceMenu(AutomationElement window, AutomationElement source, string header)
+    {
+        NativeKeyboard.OpenContextMenu(_process!, source);
+        var condition = new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+            new PropertyCondition(AutomationElement.NameProperty, header));
+        var command = WaitFor(() => window.FindFirst(TreeScope.Descendants, condition) ??
+            AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, _process!.Id))
+                .Cast<AutomationElement>().Select(root => root.FindFirst(TreeScope.Subtree, condition)).FirstOrDefault(item => item != null),
+            "The keyboard context menu must expose " + header);
+        ((InvokePattern)command.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
     }
 
     [Test]

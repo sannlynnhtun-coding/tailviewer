@@ -570,6 +570,17 @@ public sealed class MainWindow : Window
                 _textSelection.Refresh();
             };
             menu.Items.Add(lineNumbers);
+            var deltaTimes = new MenuItem { Header = "Show Delta Times", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.ShowDeltaTimes };
+            ToolTip.SetTip(deltaTimes, "Show the amount of time elapsed since the previous entry");
+            deltaTimes.Click += (_, _) =>
+            {
+                if (_closed || !_workspace.All.Concat(_folderChildren.Values.SelectMany(children => children)).Any(item => ReferenceEquals(item, source))) return;
+                source.ShowDeltaTimes = !source.ShowDeltaTimes;
+                deltaTimes.IsChecked = source.ShowDeltaTimes;
+                if (_document?.SourceId == source.Id) _document.SetShowDeltaTimes(source.ShowDeltaTimes);
+                _textSelection.Refresh();
+            };
+            menu.Items.Add(deltaTimes);
             var singleLine = new MenuItem { Header = "Single Line", ToggleType = MenuItemToggleType.CheckBox, IsChecked = source.IsSingleLine };
             ToolTip.SetTip(singleLine, "Treat every single line as a separate log entry");
             singleLine.Click += async (_, _) =>
@@ -958,6 +969,7 @@ public sealed class MainWindow : Window
     private void ShowDocument(DataSource source, LogDocument document, long request, string? path, string? name)
     {
         document.SetShowLineNumbers(source.ShowLineNumbers);
+        document.SetShowDeltaTimes(source.ShowDeltaTimes);
         _document = document;
         _navigation.BindDocument(document);
         _textSelection.BindDocument(document);

@@ -101,6 +101,89 @@ public sealed class SourcesTest
     private string _second = null!;
 
     [AvaloniaTest]
+    public Task FileDeltaTimesRespectOriginalOrderAndReplacement() => DeltaTimeVisibility("file");
+
+    [AvaloniaTest]
+    public Task FolderDeltaTimesRespectMergedOrderAndReplacement() => DeltaTimeVisibility("folder");
+
+    [AvaloniaTest]
+    public Task GroupDeltaTimesRespectMergedOrderAndReplacement() => DeltaTimeVisibility("group");
+
+    private async Task DeltaTimeVisibility(string kind)
+    {
+        const string earlier = "2026-11-20 12:00:01.000 INFO earlier";
+        const string later = "2026-11-20 12:00:02.000 WARN later";
+        const string otherText = "2026-11-20 12:00:03.000 ERROR other";
+        const string tail = "2026-11-20 12:00:04.000 INFO tail";
+        File.WriteAllText(_first, later + "\n" + earlier);
+        File.WriteAllText(_second, otherText);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var file = workspace.All.Single(source => source.File == _first);
+            var other = workspace.All.Single(source => source.File == _second);
+            var source = file;
+            if (kind == "folder") { await window.OpenFileAsync(_folder); source = (DataSource)tree.SelectedItem!; }
+            else if (kind == "group") source = workspace.GroupWith(file.Id, other.Id);
+            tree.SelectedItem = source;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == source.Id && Rows(window).ItemCount == (kind == "file" ? 2 : 3));
+            await Copy(window, 1, kind == "file" ? earlier : later);
+            await ClickSourceMenu(tree, source, "Show Delta Times");
+            source.ShowDeltaTimes.Should().BeTrue();
+            await ExpectDelta(1, kind == "file" ? "-1 sec" : "+1 sec");
+            window.GetVisualDescendants().OfType<NavigationView>().Single().Document!.GetLine(0).DisplayText.Should().NotContain("sec");
+            await CopySelected(window, kind == "file" ? earlier : later);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            other.ShowDeltaTimes.Should().BeFalse();
+            File.AppendAllText(_first, "\n" + tail);
+            await WaitUntil(() => Rows(window).ItemCount == (kind == "file" ? 3 : 4));
+            await ExpectDelta(kind == "file" ? 2 : 3, kind == "file" ? "+3 sec" : "+1 sec");
+            await ClickSourceMenu(tree, source, "Show Delta Times");
+            source.ShowDeltaTimes.Should().BeFalse();
+            var document = window.GetVisualDescendants().OfType<NavigationView>().Single().Document!;
+            document.GetLine(1).DisplayText.Should().NotContain(" sec");
+            Rows(window).Focus();
+            Rows(window).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, KeyModifiers = KeyModifiers.Alt | KeyModifiers.Shift });
+            await CopySelected(window, "2");
+            await ClickSourceMenu(tree, source, "Show Delta Times");
+            await CopySelected(window, "2");
+            tree.SelectedItem = other;
+            await WaitUntil(() => window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == other.Id);
+            tree.SelectedItem = source;
+            await ExpectDelta(1, kind == "file" ? "-1 sec" : "+1 sec");
+            var profilePath = Path.Combine(_folder, "delta-time-settings.xml");
+            var profile = new ApplicationSettings(profilePath);
+            foreach (var item in workspace.All) profile.DataSources.Add(item.Clone());
+            profile.Save().Should().BeTrue();
+            var restored = new ApplicationSettings(profilePath);
+            restored.Restore();
+            restored.DataSources.Single(item => item.Id == source.Id).ShowDeltaTimes.Should().BeTrue();
+            var before = File.ReadAllText(_first);
+            var replaced = before.Replace("12:00:02", "12:00:05").Replace("12:00:01", "12:00:06").Replace("12:00:04", "12:00:07");
+            var modified = File.GetLastWriteTimeUtc(_first);
+            File.WriteAllText(_first, replaced);
+            File.SetLastWriteTimeUtc(_first, modified);
+            await ExpectDelta(1, kind == "file" ? "+1 sec" : "+2 sec");
+            File.ReadAllText(_first).Should().Be(replaced);
+            File.ReadAllText(_second).Should().Be(otherText);
+
+            async Task ExpectDelta(int index, string expected)
+            {
+                await WaitUntil(() =>
+                {
+                    var current = window.GetVisualDescendants().OfType<NavigationView>().Single().Document;
+                    return current?.SourceId == source.Id && current.Lines.Count > index && current.GetLine(index).DisplayText.Contains(expected);
+                });
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public Task FileLineNumbersCanBeHiddenWithoutChangingSelection() => LineNumberVisibility("file");
 
     [AvaloniaTest]
