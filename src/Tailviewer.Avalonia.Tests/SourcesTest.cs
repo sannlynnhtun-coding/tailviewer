@@ -1703,6 +1703,89 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task SelectedGroupMergesTimestampsTailsAndReconfiguresExclusions()
+    {
+        const string earlier = "2026-11-19 12:00:01.000 INFO earlier\u0001 original";
+        const string later = "2026-11-19 12:00:02.000 ERROR later";
+        const string tail = "2026-11-19 12:00:03.000 WARN tail";
+        File.WriteAllText(_first, later);
+        File.WriteAllText(_second, earlier);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = workspace.All.Single(source => source.File == _first);
+            var second = workspace.All.Single(source => source.File == _second);
+            var group = workspace.GroupWith(first.Id, second.Id);
+            tree.SelectedItem = group;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, earlier);
+            await Copy(window, 1, later);
+            var parent = workspace.AddGroup();
+            workspace.AddToGroup(group.Id, parent.Id);
+            tree.SelectedItem = parent;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains(parent.DisplayName));
+            await Copy(window, 0, earlier);
+            File.AppendAllText(_second, "\n" + tail);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 2, tail);
+            group.ExcludedDataSources.Add(second.Id);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, later);
+            group.ExcludedDataSources.Remove(second.Id);
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 0, earlier);
+            var encoding = window.GetVisualDescendants().OfType<ComboBox>().Single(combo => AutomationProperties.GetName(combo) == "Text encoding");
+            encoding.SelectedItem = encoding.Items.OfType<ComboBoxItem>().Single(item => Equals(item.Content, "utf-8"));
+            window.GetVisualDescendants().OfType<TextBlock>().Should().NotContain(text => text.Text != null && text.Text.StartsWith("Cannot open file:"));
+            await WaitUntil(() => Rows(window).ItemCount == 3);
+            await Copy(window, 0, earlier);
+            tree.SelectedItem = second;
+            await WaitUntil(() => Rows(window).ItemCount == 2 && window.Title!.Contains("second.log"));
+            await Copy(window, 1, tail);
+            File.ReadAllText(_first).Should().Be(later);
+            File.ReadAllText(_second).Should().Be(earlier + "\n" + tail);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task GroupKeepsReadableMembersWhenAnotherMemberIsMissingAndRecoversIt()
+    {
+        const string present = "2026-11-19 12:00:01.000 INFO present";
+        const string recovered = "2026-11-19 12:00:02.000 INFO recovered";
+        File.WriteAllText(_first, present);
+        File.Delete(_second);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var first = workspace.All.Single(source => source.File == _first);
+            var second = workspace.All.Single(source => source.File == _second);
+            var group = workspace.GroupWith(first.Id, second.Id);
+            tree.SelectedItem = group;
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, present);
+            group.ExcludedDataSources.Add(second.Id);
+            await WaitUntil(() => !window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.StartsWith("Cannot open group member:") == true));
+            group.ExcludedDataSources.Remove(second.Id);
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.StartsWith("Cannot open group member:") == true));
+            File.WriteAllText(_second, recovered);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 1, recovered);
+            File.ReadAllText(_first).Should().Be(present);
+            File.ReadAllText(_second).Should().Be(recovered);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task GroupWithFileCreatesAnOrderedGroupAtTheDestinationAndKeepsOriginalFiles()
     {
         var window = new MainWindow();

@@ -54,6 +54,8 @@ public sealed class MainWindow : Window
     private readonly SourceDocuments _readerOwner = new((source, encoding) => new LogDocument(source, encoding));
     private readonly Dictionary<DataSourceId, SourceDocuments.Lease> _documents = new();
     private SourceDocuments.Lease? _activeLease;
+    private GroupDocument? _activeGroup;
+    private long _lastGroupRefresh;
     private long _lastReaderRefresh;
     // shortcut: viewport offsets are session-only until profile save/restore in T055.
     private readonly Dictionary<DataSourceId, (LogDocument Document, long Revision, Vector Offset)> _viewStates = new();
@@ -77,7 +79,7 @@ public sealed class MainWindow : Window
             if (_closed || !_open.IsEnabled || _document == null) return;
             var source = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
                 .FirstOrDefault(item => item.Id == _document.SourceId);
-            if (source != null) await OpenSourceAsync(_document.FileName, source);
+            if (source != null) await ActivateSourceAsync(source);
         };
         _sourceDrag = new SourceTreeDrag(_sourceTree, _workspace, async (source, target, after) =>
         {
@@ -320,6 +322,8 @@ public sealed class MainWindow : Window
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
             _timer.Stop();
+            _activeGroup?.Dispose();
+            _activeGroup = null;
             foreach (var entry in _documents.Values) entry.Dispose();
             _documents.Clear();
             _activeLease?.Dispose();
@@ -458,16 +462,49 @@ public sealed class MainWindow : Window
             await OpenSourceAsync(source.File ?? source.LogFileFolderPath, source);
             return;
         }
-        ++_openRequest;
-        _openingSource = DataSourceId.Empty;
-        _open.IsEnabled = true;
-        SaveViewState();
-        ClearDocument();
-        SelectSource(source);
-        _path.Text = source.DisplayName;
-        Title = $"{source.DisplayName} — Tailviewer prototype";
-        RefreshDocument();
+        var request = ++_openRequest;
+        _openingSource = source.Id;
+        _lastGroupRefresh = Environment.TickCount64;
+        GroupDocument? pending = null;
+        try
+        {
+            if (!ConfigureReaders()) return;
+            pending = await GroupDocument.OpenAsync(source, _readerOwner, GroupChildren);
+            if (_closed || request != _openRequest) return;
+            SaveViewState();
+            ClearDocument();
+            _activeGroup = pending;
+            pending = null;
+            _document = _activeGroup.Document;
+            _navigation.BindDocument(_document);
+            _textSelection.BindDocument(_document);
+            SelectSource(source);
+            _document.Refresh();
+            _rows.ItemsSource = _document.Lines;
+            _follow.IsChecked = source.FollowTail;
+            _path.Text = source.DisplayName;
+            Title = $"{source.DisplayName} — Tailviewer prototype";
+            RefreshDocument();
+        }
+        catch (Exception error)
+        {
+            if (!_closed && request == _openRequest) _status.Text = _operationError = "Cannot open group: " + error.Message;
+        }
+        finally
+        {
+            pending?.Dispose();
+            if (request == _openRequest)
+            {
+                _openingSource = DataSourceId.Empty;
+                _open.IsEnabled = true;
+                UpdateCloseCommands();
+            }
+        }
     }
+
+    private IReadOnlyList<DataSource> GroupChildren(DataSource source) =>
+        source.LogFileFolderPath != null ? _folderChildren.GetValueOrDefault(source.Id)?.ToArray() ?? Array.Empty<DataSource>() :
+        _workspace.GetChildren(source.Id).ToArray();
 
     private ContextMenu CreateSourceMenu(DataSource source, Action? beginRename, Action refreshHeading)
     {
@@ -965,7 +1002,7 @@ public sealed class MainWindow : Window
         }
         if (_document.Refresh())
             ScrollToTail();
-        _status.Text = _operationError ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
+        _status.Text = _operationError ?? _activeGroup?.Error ?? _document.Error ?? $"{_document.Lines.Count:N0} lines • {(_follow.IsChecked == true ? "Following tail" : "Paused — enable Follow tail to jump to the end")} • Ctrl/Cmd+G: go to line";
     }
 
     private void RefreshSourceStates()
@@ -1013,6 +1050,10 @@ public sealed class MainWindow : Window
             view.UpdateIndexedCount(!pendingReaders.Contains(source.Id) && readerError == null && _documents.TryGetValue(source.Id, out var indexed)
                 ? indexed.Document.Lines.Count : null);
         }
+        if (_sourceTree.SelectedItem is DataSource selected && SourcesViewModel.IsGroup(selected) &&
+            _openingSource == DataSourceId.Empty && Environment.TickCount64 - _lastGroupRefresh >= 500 &&
+            (_activeGroup == null || !_activeGroup.IsCurrent(_readerOwner, GroupChildren)))
+            _ = ActivateSourceAsync(selected);
     }
 
     private bool ConfigureReaders()
@@ -1063,6 +1104,13 @@ public sealed class MainWindow : Window
 
     private void ReleaseActiveLease()
     {
+        // shortcut: group views rebuild on activation; restore their viewport/selection snapshots in T031.
+        if (_activeGroup != null)
+        {
+            _viewStates.Remove(_activeGroup.Document.SourceId);
+            _activeGroup.Dispose();
+        }
+        _activeGroup = null;
         if (_activeLease != null && !_documents.Values.Contains(_activeLease)) _activeLease.Dispose();
         _activeLease = null;
     }

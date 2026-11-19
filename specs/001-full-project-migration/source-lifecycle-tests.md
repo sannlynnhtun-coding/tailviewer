@@ -1246,3 +1246,53 @@ artifacts/migration/t023-group-parser-contracts-red.log/TRX,
 t023-group-parser-contracts.log/TRX and t023-group-parser-core.log/TRX.
 Desktop binding changes are committed separately. No native or Framework runtime
 execution was performed for this listener fix.
+
+## Selected group output with leased parsed readers (T023/T026/T043, partial)
+
+Selecting a group now binds a real virtualized LogDocument over the existing
+Core merge instead of clearing the log view. GroupDocument holds file-reader
+leases and owns only its group/merge layers. Nested configured groups recurse
+in member order with cycle checks. Exclusions preserve source slots without
+opening excluded members. Missing/inaccessible members contribute empty slots
+and a visible group error while readable members continue; when the catalog
+successfully opens a previously failed member, the active group is rebuilt.
+Membership/exclusion/reader identity changes trigger reconfiguration on the
+existing refresh cycle. Stale pending activation is disposed rather than bound.
+
+FileLogSourceFactory.ParseText reuses GenericTextLogSource and the existing
+LogSourceColumnAdorner. Streaming readers advertise raw/index/offset columns;
+merge additionally needs valid log-entry indexes, so parsing alone initially
+produced zero merged rows. Adding the house adorner resolves this without
+buffering entire files. Raw single-file display/copy remains on its original
+source, while group members use the parsed/adorned view. Existing buffered
+RawContent already retains control characters; no speculative preservation
+option was retained. Decoder changes activate by source kind, so a group name
+is never treated as a file path.
+
+The headless behavioral red failed waiting for group output. Final tests cover
+chronological merge, nested-group tailing, exclusion/re-inclusion, exact copy
+including an owned control character, decoder refresh, switching back to the
+original child reader, and unchanged owned file contents. A second scenario
+retains readable members beside a missing file, excludes/re-includes the still
+missing member, then creates it and observes automatic merge recovery without
+another configuration change. That stronger test exposed copy clearing the
+operation-error field; stable group errors now come from the group owner, so
+copy cannot hide them. No assertion was weakened or timeout extended.
+
+Final modern solution: 81 Archiver + 204 Avalonia = 285 passed, zero failures
+or skips (t023-group-ui-verified.log/TRX). Core full-suite result is recorded in
+the listener-fix section above. Intermediate runs: t023-group-ui-red (missing
+binding), -focused/-diagnostic (missing entry-index adorner), -parsed (2/2),
+-modern (81+203), -lifecycle (2/2), -final (81+204 before decoder-caller/error
+refinements), -encoding (16/16), -recovery (one stable-error regression) and
+-recovery-fixed (2/2). All artifacts are under ignored artifacts/migration/;
+the final verified run includes the latest changes. Modern solution build also
+builds retained Core/Archiver legacy targets; legacy NU1902 remains visible.
+
+Remaining scope: selecting a folder still uses its existing folder overview;
+folder aggregate output is next. Group activation rebuilds its view rather than
+restoring viewport/selection snapshots (explicit T031 shortcut); source-aware
+provenance UI, multiline/custom/plugin parser integration, parser-state changes
+across replacement, and full performance/native acceptance remain pending.
+Native/Framework runtime suites were not rerun in this slice. No task checklist
+is marked complete from this partial implementation; full migration stays open.

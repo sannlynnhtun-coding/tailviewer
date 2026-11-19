@@ -14,6 +14,8 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
     private const int MaxPages = 8;
     private readonly DefaultTaskScheduler _scheduler = new();
     private readonly ILogSource _source;
+    private readonly SourceGroup? _group;
+    internal ILogSource ParsedSource { get; }
     private readonly Dictionary<int, LogLine[]> _pages = new();
     private readonly Dictionary<int, LogLine[]> _loading = new();
     private volatile bool _disposed;
@@ -45,11 +47,33 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
             FileName = Path.GetFullPath(configuration.File);
             var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
             _source = factory.OpenRead(FileName, encoding ?? Encoding.UTF8, detectByteOrderMarks: encoding == null);
+            ParsedSource = FileLogSourceFactory.ParseText(_source);
             _source.AddListener(this, TimeSpan.Zero, 10000);
         }
         catch
         {
             _source?.Dispose();
+            _scheduler.Dispose();
+            throw;
+        }
+    }
+
+    internal LogDocument(DataSource configuration, IEnumerable<(DataSourceId Id, ILogSource Source)> members)
+    {
+        try
+        {
+            _configuration = new SourceConfiguration(new DataSourceSettings { configuration });
+            SourceId = configuration.Id;
+            FileName = configuration.LogFileFolderPath ?? configuration.DisplayName ?? "Group";
+            _group = new SourceGroup(_scheduler);
+            _group.Configure(configuration, members);
+            _source = _group.LogSource;
+            ParsedSource = _source;
+            _source.AddListener(this, TimeSpan.Zero, 10000);
+        }
+        catch
+        {
+            _group?.Dispose();
             _scheduler.Dispose();
             throw;
         }
@@ -189,7 +213,8 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         _disposed = true;
         _configuration.Invalidate(SourceId);
         _source.RemoveListener(this);
-        _source.Dispose();
+        if (_group != null) _group.Dispose();
+        else ParsedSource.Dispose();
         _scheduler.Dispose();
         _pages.Clear();
     }
