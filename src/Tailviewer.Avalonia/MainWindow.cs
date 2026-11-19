@@ -55,6 +55,7 @@ public sealed class MainWindow : Window
     private readonly Dictionary<DataSourceId, SourceDocuments.Lease> _documents = new();
     private SourceDocuments.Lease? _activeLease;
     private GroupDocument? _activeGroup;
+    private readonly Dictionary<DataSourceId, GroupDocument> _groupDocuments = new();
     private long _lastGroupRefresh;
     private long _lastReaderRefresh;
     // shortcut: viewport offsets are session-only until profile save/restore in T055.
@@ -322,6 +323,8 @@ public sealed class MainWindow : Window
             ++_openRequest;
             _openingSource = DataSourceId.Empty;
             _timer.Stop();
+            foreach (var group in _groupDocuments.Values) group.Dispose();
+            _groupDocuments.Clear();
             _activeGroup?.Dispose();
             _activeGroup = null;
             foreach (var entry in _documents.Values) entry.Dispose();
@@ -473,23 +476,30 @@ public sealed class MainWindow : Window
         try
         {
             if (!ConfigureReaders()) return;
-            pending = await GroupDocument.OpenAsync(source, _readerOwner, GroupChildren);
+            _groupDocuments.TryGetValue(source.Id, out var cached);
+            if (cached == null || !cached.IsCurrent(_readerOwner, GroupChildren))
+                pending = await GroupDocument.OpenAsync(source, _readerOwner, GroupChildren);
             if (_closed || request != _openRequest) return;
             SaveViewState();
-            ClearDocument();
-            _activeGroup = pending;
+            _rows.ItemsSource = null;
+            if (pending != null)
+            {
+                if (cached != null)
+                {
+                    _viewStates.Remove(source.Id);
+                    source.SelectedLogLines.Clear();
+                    if (!ReferenceEquals(cached, _activeGroup)) cached.Dispose();
+                }
+                _groupDocuments[source.Id] = pending;
+                WatchDocument(source, pending.Document);
+            }
+            var ready = pending ?? cached!;
             pending = null;
-            _document = _activeGroup.Document;
-            _navigation.BindDocument(_document);
-            _textSelection.BindDocument(_document);
-            SelectSource(source);
-            _document.Refresh();
-            _rows.ItemsSource = _document.Lines;
-            _follow.IsChecked = source.FollowTail;
-            _path.Text = source.LogFileFolderPath ?? source.DisplayName;
+            ReleaseActiveLease();
+            _activeGroup = ready;
             var name = source.LogFileFolderPath != null ? Path.GetFileName(Path.TrimEndingDirectorySeparator(source.LogFileFolderPath)) : source.DisplayName;
-            Title = $"{name} — Tailviewer prototype";
-            RefreshDocument();
+            ShowDocument(source, ready.Document, request, source.LogFileFolderPath ?? source.DisplayName, name);
+            PruneDocuments();
         }
         catch (Exception error)
         {
@@ -834,49 +844,7 @@ public sealed class MainWindow : Window
             pendingLease = null;
             ReleaseActiveLease();
             _activeLease = lease;
-            _document = document;
-            _navigation.BindDocument(document);
-            _textSelection.BindDocument(document);
-            _quickNavigation.Dismiss();
-            if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
-            SelectSource(source);
-            _operationError = null;
-            document.Refresh();
-            _rows.ItemsSource = document.Lines;
-            var restore = _viewStates.TryGetValue(source.Id, out var view) &&
-                ReferenceEquals(view.Document, document) && view.Revision == document.Revision;
-            if (restore)
-            {
-                _rows.Selection.BeginBatchUpdate();
-                try
-                {
-                    foreach (var index in source.SelectedLogLines.OrderBy(index => (int)index))
-                        if (index >= 0 && index < document.Lines.Count) _rows.Selection.Select((int)index);
-                }
-                finally { _rows.Selection.EndBatchUpdate(); }
-            }
-            _follow.IsChecked = source.FollowTail;
-            _path.Text = document.FileName;
-            Title = $"{Path.GetFileName(document.FileName)} — Tailviewer prototype";
-            RefreshDocument();
-            if (restore)
-            {
-                // Run after the control's default-priority selected-item scroll, which would overwrite this offset.
-                _pendingViewRestore = (document, request);
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (_pendingViewRestore.Request == request) _pendingViewRestore = default;
-                    if (_closed || request != _openRequest || !ReferenceEquals(_document, document) ||
-                        document.Revision != view.Revision) return;
-                    _rows.UpdateLayout();
-                    if (_rows.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll)
-                    {
-                        scroll.Offset = new Vector(view.Offset.X, _follow.IsChecked == true
-                            ? Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) : view.Offset.Y);
-                    }
-                }, DispatcherPriority.Default);
-            }
-            else ScrollToTail();
+            ShowDocument(source, document, request, document.FileName, Path.GetFileName(document.FileName));
             PruneDocuments();
         }
         catch (Exception ex)
@@ -897,6 +865,53 @@ public sealed class MainWindow : Window
                 UpdateCloseCommands();
             }
         }
+    }
+
+    private void ShowDocument(DataSource source, LogDocument document, long request, string? path, string? name)
+    {
+        _document = document;
+        _navigation.BindDocument(document);
+        _textSelection.BindDocument(document);
+        _quickNavigation.Dismiss();
+        if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
+        SelectSource(source);
+        _operationError = null;
+        document.Refresh();
+        _rows.ItemsSource = document.Lines;
+        var restore = _viewStates.TryGetValue(source.Id, out var view) &&
+            ReferenceEquals(view.Document, document) && view.Revision == document.Revision;
+        if (restore)
+        {
+            _rows.Selection.BeginBatchUpdate();
+            try
+            {
+                foreach (var index in source.SelectedLogLines.OrderBy(index => (int)index))
+                    if (index >= 0 && index < document.Lines.Count) _rows.Selection.Select((int)index);
+            }
+            finally { _rows.Selection.EndBatchUpdate(); }
+        }
+        _follow.IsChecked = source.FollowTail;
+        _path.Text = path;
+        Title = $"{name} — Tailviewer prototype";
+        RefreshDocument();
+        if (restore)
+        {
+            // Run after the control's default-priority selected-item scroll, which would overwrite this offset.
+            _pendingViewRestore = (document, request);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_pendingViewRestore.Request == request) _pendingViewRestore = default;
+                if (_closed || request != _openRequest || !ReferenceEquals(_document, document) ||
+                    document.Revision != view.Revision) return;
+                _rows.UpdateLayout();
+                if (_rows.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll)
+                {
+                    scroll.Offset = new Vector(view.Offset.X, _follow.IsChecked == true
+                        ? Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) : view.Offset.Y);
+                }
+            }, DispatcherPriority.Default);
+        }
+        else ScrollToTail();
     }
 
     private void SelectSource(DataSource? source)
@@ -1026,6 +1041,17 @@ public sealed class MainWindow : Window
         if (_document != null && _document.SourceId != _openingSource)
             _sourceStates[_document.SourceId] = _document.Error ?? (_document.IsLoading ? "Loading…" :
                 _document.Lines.Count == 0 ? "No log lines." : null);
+        foreach (var (id, group) in _groupDocuments.ToArray())
+        {
+            if (ReferenceEquals(group, _activeGroup)) continue;
+            if (!group.IsCurrent(_readerOwner, GroupChildren))
+            {
+                _groupDocuments.Remove(id);
+                _viewStates.Remove(id);
+                group.Dispose();
+            }
+            else group.Document.Refresh();
+        }
         foreach (var view in _sourceTree.GetVisualDescendants().OfType<SourcesView>())
         {
             var source = view.Source;
@@ -1085,6 +1111,12 @@ public sealed class MainWindow : Window
             if (!ReferenceEquals(previous, _activeLease)) previous.Dispose();
         }
         _documents[source.Id] = lease;
+        WatchDocument(source, document);
+        return lease;
+    }
+
+    private void WatchDocument(DataSource source, LogDocument document)
+    {
         document.Lines.CollectionChanged += (_, args) =>
         {
             if (args.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Reset or
@@ -1094,17 +1126,12 @@ public sealed class MainWindow : Window
                 source.SelectedLogLines.Clear();
             }
         };
-        return lease;
     }
 
     private void ReleaseActiveLease()
     {
-        // shortcut: group views rebuild on activation; restore their viewport/selection snapshots in T031.
-        if (_activeGroup != null)
-        {
-            _viewStates.Remove(_activeGroup.Document.SourceId);
+        if (_activeGroup != null && !_groupDocuments.Values.Contains(_activeGroup))
             _activeGroup.Dispose();
-        }
         _activeGroup = null;
         if (_activeLease != null && !_documents.Values.Contains(_activeLease)) _activeLease.Dispose();
         _activeLease = null;
@@ -1143,6 +1170,13 @@ public sealed class MainWindow : Window
     {
         var retained = _workspace.All.Concat(_folderChildren.Values.SelectMany(children => children))
             .Select(source => source.Id).ToHashSet();
+        foreach (var (id, group) in _groupDocuments.ToArray())
+            if (!retained.Contains(id))
+            {
+                _groupDocuments.Remove(id);
+                _viewStates.Remove(id);
+                if (!ReferenceEquals(group, _activeGroup)) group.Dispose();
+            }
         foreach (var (id, entry) in _documents.ToArray())
             if (id != _document?.SourceId && !retained.Contains(id))
             {

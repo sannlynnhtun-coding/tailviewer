@@ -1337,3 +1337,49 @@ selection restoration for aggregate views, parser-state changes on replacement,
 multiline/custom/plugin parsers, provenance navigation and full performance
 acceptance remain unfinished. T022/T023/T026/T031 remain unchecked; the complete
 migration goal is still active.
+
+## Aggregate selection/viewport restoration and member revisions (T026/T031, partial)
+
+Opened aggregate documents now remain in the existing window lifetime, with
+leased member readers, when switching to another source. Group/folder and raw
+file activation share the existing ShowDocument restoration path instead of
+duplicating selection/follow/scroll logic. Returning to unchanged content reuses
+the same aggregate document, restores saved line selection, paused state and X/Y
+viewport, and retains the existing default-priority scroll ordering/request and
+revision guards. Aggregate reset/removal events invalidate saved selection just
+like file documents. Closure/pruning disposes configured aggregate caches; retired
+active aggregates live only until their displayed rows detach.
+
+Inactive valid aggregates refresh their row state. Membership/exclusion/reader
+identity changes retire inactive caches. Member reader revisions are now part
+of aggregate validity as well: a rewrite retires the old derived merge even if
+the raw document identity is unchanged. This closes the newly exercised stale
+aggregate path without accepting old selection or cached text on return. The
+previous rebuild-on-every-activation shortcut has been removed; session-only
+profile persistence remains the existing T055 shortcut.
+
+Two owned-file headless tests use 2000 timestamped long lines for group/folder
+views, select lines 1000/1002, park an independent viewport near line 1400 with
+horizontal offset 140, switch to a file and back, and verify document identity,
+exact two-line copy and X/Y restoration within one pixel. They then rewrite an
+inactive member, observe aggregate revision invalidation, return to the new
+one-line result, reject old selection and copy the replacement exactly.
+
+The initial fixture timed out on viewport visibility because it scrolled before
+the selected-item auto-scroll settled; the merge count was already 2000. Waiting
+for the selected row as the existing raw-file fixture does exposed the actual
+behavioral red: both aggregate documents were recreated. After caching/restoring,
+both reached the later inactive-rewrite failure. Member revision validation
+resolved it. No timeout increased or assertion weakened. Evidence under ignored
+artifacts/migration/: t031-aggregate-view-red (fixture ordering),
+-behavior-red (two document-identity failures), -focused (raw restoration passes,
+two inactive-rewrite failures), -revision (5/5), -modern (81 Archiver + 207
+Avalonia = 288 passed, zero failures/skips), and -native (folder-picker apply/
+cancel plus Ctrl+G, 3/3). Native checks verify entry/shortcut flows, not native
+aggregate viewport rendering. Core production code is unchanged; full Core and
+performance workloads were not repeated. Legacy NU1902 remains visible.
+
+Restart/profile persistence, character-range selection restoration, parser-state
+changes across replacement, multiline/custom/plugin parsing, provenance
+navigation and complete performance/native acceptance remain open. T026/T031
+and the complete migration remain unchecked/in progress.

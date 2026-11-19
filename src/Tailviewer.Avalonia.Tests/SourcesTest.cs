@@ -367,6 +367,60 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public Task GroupRestoresItsSelectionAndViewportAndRejectsRewrittenRows() => AggregateRestoresView(false);
+
+    [AvaloniaTest]
+    public Task FolderRestoresItsSelectionAndViewportAndRejectsRewrittenRows() => AggregateRestoresView(true);
+
+    private async Task AggregateRestoresView(bool folderView)
+    {
+        var start = new DateTime(2026, 11, 19, 12, 0, 0);
+        string Row(int index) => start.AddSeconds(index).ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture) + " INFO " + index + " " + new string('x', 400);
+        File.WriteAllText(_first, string.Join('\n', Enumerable.Range(0, 2000).Select(Row)));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(folderView ? new[] { _folder, _first } : new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var aggregate = folderView ? workspace.All.Single(source => source.LogFileFolderPath != null) :
+                workspace.GroupWith(workspace.All.Single(source => source.File == _first).Id, workspace.All.Single(source => source.File == _second).Id);
+            tree.SelectedItem = aggregate;
+            await WaitUntil(() => Rows(window).ItemCount == 2000 && window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == aggregate.Id);
+            var document = window.GetVisualDescendants().OfType<NavigationView>().Single().Document!;
+            Rows(window).Selection.Select(1000);
+            Rows(window).Selection.Select(1002);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>().Any(text => text.Text?.Contains(Row(1000)) == true));
+            Rows(window).ScrollIntoView(1400);
+            await WaitUntil(() => Rows(window).GetVisualDescendants().OfType<SelectableTextBlock>().Any(text => text.Text?.Contains(Row(1400)) == true));
+            var scroll = Rows(window).GetVisualDescendants().OfType<ScrollViewer>().Single();
+            scroll.Offset = new Vector(140, scroll.Offset.Y);
+            await WaitUntil(() => scroll.Offset.X > 100 && scroll.Offset.Y > 1000);
+            var offset = scroll.Offset;
+            await window.OpenFileAsync(_second);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            tree.SelectedItem = aggregate;
+            await WaitUntil(() => Rows(window).ItemCount == 2000);
+            window.GetVisualDescendants().OfType<NavigationView>().Single().Document.Should().BeSameAs(document);
+            Rows(window).Selection.SelectedIndexes.Should().Equal(1000, 1002);
+            await WaitUntil(() => Math.Abs(scroll.Offset.X - offset.X) < 1 && Math.Abs(scroll.Offset.Y - offset.Y) < 1);
+            window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+            await CopySelected(window, Row(1000) + Environment.NewLine + Row(1002));
+            await window.OpenFileAsync(_second);
+            var revision = document.Revision;
+            const string replacement = "2026-11-19 13:00:00.000 INFO replacement";
+            File.WriteAllText(_first, replacement);
+            await WaitUntil(() => document.Revision != revision);
+            tree.SelectedItem = aggregate;
+            await WaitUntil(() => Rows(window).ItemCount == 1 && window.GetVisualDescendants().OfType<NavigationView>().Single().Document?.SourceId == aggregate.Id);
+            Rows(window).Selection.SelectedIndexes.Should().BeEmpty();
+            await Copy(window, 0, replacement);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task SwitchingSourcesRestoresLineSelectionAndThePausedViewport()
     {
         File.WriteAllText(_first, string.Join('\n', Enumerable.Range(0, 2000).Select(index => index + " " + new string('x', 400))));

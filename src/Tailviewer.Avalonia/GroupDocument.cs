@@ -8,6 +8,7 @@ namespace Tailviewer.Avalonia;
 internal sealed class GroupDocument : IDisposable
 {
     private readonly List<SourceDocuments.Lease> _leases = new();
+    private readonly Dictionary<DataSourceId, long> _revisions = new();
     private readonly List<LogDocument> _groups = new();
     private readonly List<ILogSource> _emptySources = new();
     private readonly List<DataSourceId> _failedReaders = new();
@@ -49,6 +50,7 @@ internal sealed class GroupDocument : IDisposable
                         var lease = await readers.AcquireAsync(member.Id);
                         result._leases.Add(lease);
                         document = lease.Document;
+                        result._revisions[member.Id] = document.Revision;
                     }
                     catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                     {
@@ -84,7 +86,8 @@ internal sealed class GroupDocument : IDisposable
         {
             if (!readers.TryAcquire(lease.Document.SourceId, out var current)) return false;
             using (current)
-                if (!ReferenceEquals(current!.Document, lease.Document)) return false;
+                if (!ReferenceEquals(current!.Document, lease.Document) ||
+                    lease.Document.Revision != _revisions[lease.Document.SourceId]) return false;
         }
         foreach (var failed in _failedReaders)
             if (readers.TryAcquire(failed, out var recovered))
