@@ -95,3 +95,27 @@ Evidence: artifacts/migration/t019-cycle-tests.log and
 t019-cycle/t019-cycle.trx. Native keyboard input was not exercised.
 T019/T029 remain open for character/multiline selection and the remaining
 large-file/rotation/provenance integration/dependencies described above.
+## Slice 4: original character-range copy contract
+
+Legacy TextCanvas.OnCopyToClipboard copies whole selected lines; its character
+range behavior is not a baseline claim. T019/T030 explicitly request character
+selection, so LogSelection now records anchor/active UTF-16 line/column positions
+for the Avalonia implementation. LogDocument normalizes reverse selections,
+reads original Core RawContent, slices only the first/last lines and preserves
+internal empty lines, spaces, Unicode and platform newlines. Both range and
+whole-line copy reuse the existing generation-fenced read/publish path.
+Invalid line/column offsets are rejected rather than silently copying a nearby
+range; whole-line indices are also checked before accessing Core.
+
+The initial callable range overload returned whole lines, giving a meaningful
+wrong-content red test (emoji expected, complete line returned). Two new cases
+now verify forward/reverse single/multiline ranges, emoji/Burmese/whitespace,
+empty ranges and invalid coordinates/indices. Full Avalonia suite: 74 passed,
+zero failures/skips. Evidence: ignored artifacts/migration/t019-character-red.log,
+t019-character-tests.log, t019-character-full.log and
+t019-character/t019-character.trx.
+
+This is the shared copy contract, not an end-user character-selection UI.
+Mouse/keyboard range selection, highlighting and invalidation on source/reset
+still need integration. T019/T029/T030 remain unchecked. No native clipboard,
+Core suite, or large-range memory acceptance was run for this slice.

@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using FluentAssertions;
 using NUnit.Framework;
 using Tailviewer.Avalonia.ViewModels;
+using Tailviewer.Avalonia.Views;
 
 namespace Tailviewer.Avalonia.Tests;
 
@@ -368,6 +369,43 @@ public sealed class NavigationTest
             window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
         }
         finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task CharacterSelectionCopiesOnlyOriginalTextInEitherDirection()
+    {
+        File.WriteAllText(_path, "  A😀B  \n\nမြန်မာ tail");
+        using var document = new LogDocument(_path);
+        await Until(() => { document.Refresh(); return document.Lines.Count == 3; });
+        (await document.CopyTextAsync(new LogSelection(0, 3, 0, 5))).Should().Be("😀");
+        (await document.CopyTextAsync(new LogSelection(0, 5, 0, 3))).Should().Be("😀");
+        var expected = string.Join(Environment.NewLine, "😀B  ", "", "မြန်မာ");
+        (await document.CopyTextAsync(new LogSelection(0, 3, 2, 6))).Should().Be(expected);
+        (await document.CopyTextAsync(new LogSelection(2, 6, 0, 3))).Should().Be(expected);
+        (await document.CopyTextAsync(new LogSelection(0, 3, 0, 3))).Should().BeEmpty();
+    }
+
+    [AvaloniaTest]
+    public async Task CharacterSelectionRejectsInvalidCoordinatesRatherThanClamping()
+    {
+        using var document = new LogDocument(_path);
+        await Until(() => { document.Refresh(); return document.Lines.Count == 3; });
+        foreach (var selection in new[]
+                 {
+                     new LogSelection(-1, 0, 0, 0), new LogSelection(0, -1, 0, 0),
+                     new LogSelection(0, 0, 3, 0), new LogSelection(0, 0, 0, 6),
+                     new LogSelection(2, 6, 0, 0), new LogSelection(int.MaxValue, 0, 0, 0)
+                 })
+        {
+            Func<Task> copy = async () => await document.CopyTextAsync(selection);
+            await copy.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        }
+        foreach (var indices in new[] { new[] { -1 }, new[] { 3 }, new[] { int.MaxValue } })
+        {
+            Func<Task> copy = async () => await document.CopyTextAsync(indices);
+            await copy.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        }
+        (await document.CopyTextAsync(Array.Empty<int>())).Should().BeEmpty();
     }
 
     private static TextBox OpenNavigation(MainWindow window)

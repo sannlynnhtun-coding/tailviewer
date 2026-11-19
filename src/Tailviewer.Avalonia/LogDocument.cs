@@ -4,6 +4,7 @@ using Avalonia.Collections;
 using Tailviewer.Api;
 using Tailviewer.Core;
 using Tailviewer.Settings;
+using Tailviewer.Avalonia.Views;
 
 namespace Tailviewer.Avalonia;
 
@@ -144,15 +145,41 @@ public sealed class LogDocument : IDisposable, ILogSourceListener
         }
     }
 
-    public async Task<string> CopyTextAsync(IEnumerable<int> selection)
+    public Task<string> CopyTextAsync(LogSelection selection)
+    {
+        var start = (Line: selection.AnchorLine, Column: selection.AnchorColumn);
+        var end = (Line: selection.ActiveLine, Column: selection.ActiveColumn);
+        if (start.CompareTo(end) > 0) (start, end) = (end, start);
+        if (start.Line < 0 || end.Line >= Lines.Count || start.Column < 0 || end.Column < 0)
+            throw new ArgumentOutOfRangeException(nameof(selection));
+        var indices = Enumerable.Range(start.Line, end.Line - start.Line + 1).Select(i => new LogLineIndex(i)).ToArray();
+        return ReadSelectionAsync(indices, text =>
+        {
+            if (start.Column > text[0].Length || end.Column > text[^1].Length)
+                throw new ArgumentOutOfRangeException(nameof(selection));
+            if (text.Length == 1) return text[0][start.Column..end.Column];
+            text[0] = text[0][start.Column..];
+            text[^1] = text[^1][..end.Column];
+            return string.Join(Environment.NewLine, text);
+        });
+    }
+
+    public Task<string> CopyTextAsync(IEnumerable<int> selection)
     {
         var indices = selection.Distinct().Order().Select(i => new LogLineIndex(i)).ToArray();
+        if (indices.Any(index => index < 0 || index >= Lines.Count))
+            throw new ArgumentOutOfRangeException(nameof(selection));
+        return ReadSelectionAsync(indices, text => string.Join(Environment.NewLine, text));
+    }
+
+    private async Task<string> ReadSelectionAsync(LogLineIndex[] indices, Func<string[], string> format)
+    {
         var generation = _configuration.GetGeneration(SourceId);
         var text = await Task.Run(() => _source.GetColumn(indices, Core.Columns.RawContent,
             new LogSourceQueryOptions(LogSourceQueryMode.Default, TimeSpan.FromSeconds(2))));
         var result = string.Empty;
         if (_disposed || text.Any(line => line == null) ||
-            !_configuration.TryPublish(SourceId, generation, () => result = string.Join(Environment.NewLine, text)))
+            !_configuration.TryPublish(SourceId, generation, () => result = format(text)))
             throw new IOException("The file changed or could not be read. Select the lines and try again.");
         return result;
     }
