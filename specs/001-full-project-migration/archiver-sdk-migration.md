@@ -74,3 +74,21 @@ Raw logs/TRX/dependency JSON stay under ignored artifacts. They identify execute
 | `archiver-cli-pack.log` | `85a0e5d204fd6ef5c62fb446f1b5218751d4adcadbb3bc367cd3df0c3c26e297` |
 | `archiver-cli-changes.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
 | `t008-packages.json` | `b5d957f0dc694c563dcf471bf2564ffd52f2a2fa370f493426936b4b27331112` |
+
+### Requested T008 follow-up verification
+
+Revalidated on 2026-11-19 using SDK 10.0.302. T008 was already implemented
+and checked off; no additional project or runtime changes were necessary.
+Both production targets build with zero errors. The complete Archiver suite
+passes 81/81 tests with zero skips. The generated modern archive.deps.json
+resolves log4net 3.6.0 and SkiaSharp 3.119.4 and contains no Metrolib, PE,
+SharpRemote, PresentationCore, PresentationFramework or System.Drawing.Common
+library entries. Retained legacy log4net NU1902 warnings remain visible.
+
+Evidence: artifacts/migration/t008-current-build.log,
+artifacts/migration/t008-recheck.log and
+artifacts/migration/t008-recheck/t008-recheck.trx (ignored local artifacts).
+In-progress Core profile-import changes were preserved and excluded from this
+verification commit. These checks used the current working tree, including
+those changes; they are not a clean-checkout validation. Legacy desktop/service
+runtime integration and repository publishing remain outside this verification.
