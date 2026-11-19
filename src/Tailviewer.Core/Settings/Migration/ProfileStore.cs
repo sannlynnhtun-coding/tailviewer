@@ -14,7 +14,7 @@ namespace Tailviewer.Settings
         internal const int MaxFileBytes = 16 * 1024 * 1024;
         internal const int MaxDepth = 64;
 
-        internal static void Write(string path, Action<XmlWriter> serialize, Action<XDocument> validate)
+        internal static void Write(string path, Action<XmlWriter> serialize, Action<XDocument> validate, bool allowReplace = true)
         {
             ArgumentNullException.ThrowIfNull(serialize);
             ArgumentNullException.ThrowIfNull(validate);
@@ -26,21 +26,11 @@ namespace Tailviewer.Settings
             var ownsStage = false;
             var ownsCandidate = false;
             var replacing = File.Exists(path);
+            if (replacing && !allowReplace) throw new IOException("Profile target already exists.");
             if (replacing && new FileInfo(path).Length > MaxFileBytes) throw new XmlException("Existing profile exceeds the file-size limit.");
             try
             {
-                if (Directory.Exists(stage) || File.Exists(stage)) throw new IOException("Staging path already exists.");
-                // CopyFile may reset file ACLs; keep copied bytes inside an owner-only directory first.
-                if (OperatingSystem.IsWindows())
-                {
-                    var directorySecurity = new DirectorySecurity();
-                    directorySecurity.SetAccessRuleProtection(true, false);
-                    using (var identity = WindowsIdentity.GetCurrent())
-                        directorySecurity.AddAccessRule(new FileSystemAccessRule(identity.User, FileSystemRights.FullControl,
-                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-                    new DirectoryInfo(stage).Create(directorySecurity);
-                }
-                else Directory.CreateDirectory(stage);
+                CreatePrivateDirectory(stage);
                 ownsStage = true;
                 using (new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     ownsCandidate = true;
@@ -92,6 +82,21 @@ namespace Tailviewer.Settings
                 catch (IOException) { }
                 catch (UnauthorizedAccessException) { }
             }
+        }
+
+        internal static void CreatePrivateDirectory(string path)
+        {
+            if (Directory.Exists(path) || File.Exists(path)) throw new IOException("Private directory already exists.");
+            if (OperatingSystem.IsWindows())
+            {
+                var security = new DirectorySecurity();
+                security.SetAccessRuleProtection(true, false);
+                using (var identity = WindowsIdentity.GetCurrent())
+                    security.AddAccessRule(new FileSystemAccessRule(identity.User, FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+                new DirectoryInfo(path).Create(security);
+            }
+            else Directory.CreateDirectory(path);
         }
 
         internal static XDocument Read(string path)

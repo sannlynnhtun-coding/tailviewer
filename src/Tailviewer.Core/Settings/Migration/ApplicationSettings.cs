@@ -257,6 +257,13 @@ namespace Tailviewer.Settings
 		}
 
 #if NET10_0_OR_GREATER
+        internal static ApplicationSettings FromDocument(string fileName, XDocument document)
+        {
+            var model = new ApplicationSettings(fileName);
+            model.RestoreDocument(document, out _);
+            return model;
+        }
+
 		private void RestoreDocument(XDocument document, out bool neededPatching)
 		{
 			var candidate = Clone();
@@ -358,7 +365,7 @@ namespace Tailviewer.Settings
 		}
 
 #if NET10_0_OR_GREATER
-		private XDocument BuildDocument()
+		internal XDocument BuildDocument()
 		{
 			var known = SettingsXml.SaveElement("xml", WriteKnown);
 			var document = _rawXml == null ? new XDocument(new XElement("xml")) : new XDocument(_rawXml);
