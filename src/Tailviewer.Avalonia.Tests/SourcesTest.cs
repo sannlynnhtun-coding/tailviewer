@@ -367,6 +367,51 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public Task GroupRedetectsTimestampFormatAfterSameSizeReplacement() => GroupRedetectsTimestampFormat(false);
+
+    [AvaloniaTest]
+    public Task GroupRedetectsTimestampFormatAfterRotation() => GroupRedetectsTimestampFormat(true);
+
+    private async Task GroupRedetectsTimestampFormat(bool rotate)
+    {
+        const string oldText = "2026-11-19 12:00:01.000 INFO original";
+        var replacement = "19/11/2026 12:00:01:000 INFO changed".PadRight(oldText.Length);
+        const string other = "2026-11-19 12:00:02.000 INFO other";
+        File.WriteAllText(_first, oldText);
+        File.WriteAllText(_second, other);
+        var timestamp = File.GetLastWriteTimeUtc(_first);
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFilesAsync(new[] { _first, _second });
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var workspace = (SourcesViewModel)window.DataContext!;
+            var group = workspace.GroupWith(workspace.All.Single(source => source.File == _first).Id,
+                workspace.All.Single(source => source.File == _second).Id);
+            tree.SelectedItem = group;
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            await Copy(window, 0, oldText);
+            var document = window.GetVisualDescendants().OfType<NavigationView>().Single().Document!;
+            var revision = document.Revision;
+            if (rotate) File.Move(_first, _first + ".rotated");
+            File.WriteAllText(_first, replacement);
+            File.SetLastWriteTimeUtc(_first, timestamp);
+            new FileInfo(_first).Length.Should().Be(oldText.Length);
+            await WaitUntil(() => document.Revision != revision);
+            await WaitUntil(() => Rows(window).ItemCount == 2 &&
+                !ReferenceEquals(window.GetVisualDescendants().OfType<NavigationView>().Single().Document, document));
+            Rows(window).Selection.SelectedIndexes.Should().BeEmpty();
+            await Copy(window, 0, replacement);
+            await Copy(window, 1, other);
+            File.GetLastWriteTimeUtc(_first).Should().Be(timestamp);
+            File.ReadAllText(_first).Should().Be(replacement);
+            if (rotate) File.ReadAllText(_first + ".rotated").Should().Be(oldText);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public Task GroupRestoresItsSelectionAndViewportAndRejectsRewrittenRows() => AggregateRestoresView(false);
 
     [AvaloniaTest]

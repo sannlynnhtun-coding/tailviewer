@@ -1383,3 +1383,47 @@ Restart/profile persistence, character-range selection restoration, parser-state
 changes across replacement, multiline/custom/plugin parsing, provenance
 navigation and complete performance/native acceptance remain open. T026/T031
 and the complete migration remain unchecked/in progress.
+
+## Built-in parser reset after replacement/rotation (T026/T043, partial)
+
+The streaming-derived parser previously retained its detected timestamp format
+across content generations. Group merge could then omit a replaced file whose
+new contents used a different supported timestamp format. FileLogSourceFactory's
+built-in path now supplies an internal parser factory to GenericTextLogSource.
+Source reset marks a new generation; the next valid read replaces/disposes the
+owned parser and redetects the format. Parser access/publication is serialized,
+but underlying source I/O occurs outside that lock. A reset or closure during
+that I/O causes default results rather than publication of old parsed values.
+
+Factory-owned parsers unsubscribe and dispose during closure, with source
+cleanup in finally even if parser disposal fails. The existing public supplied-
+parser constructor keeps its prior disposal behavior, explicitly covered by a
+compatibility test; no new public constructor or plugin compatibility promise
+was introduced. Factory parser column shape remains fixed, with an explicit
+shortcut to rebuild the source when plugin schemas change. Plugin/custom-parser
+lifecycle and format selection are still later migration work.
+
+Two real-file headless regressions first failed after warming the old format.
+They replace or rotate an owned member file, preserving original size/mtime,
+switch yyyy-MM-dd timestamps to supported dd/MM/yyyy timestamps, wait for a new
+aggregate generation, reject stale selection, and copy both merged rows exactly.
+The replacement bytes/mtime and rotated original bytes are checked afterwards.
+Core contract reds also proved that format reset failed and a read invalidated
+mid-flight could publish an old timestamp. Final contracts additionally cover
+closure during an underlying read, source cleanup after owned-parser disposal
+failure, and preservation of supplied-parser disposal behavior.
+
+Evidence in ignored artifacts/migration/: t043-parser-reset-ui-red.log/TRX
+(2 failures), -contracts-red.log/TRX (2 failures), -contracts.log/TRX (initial
+5/5), -ui-focused.log/TRX (replacement/rotation plus group/folder restoration,
+4/4), -core.log/TRX (7169 pass before the final ownership-compatibility
+refinement), -core-final.log/TRX (7170 pass, zero failures, five pre-existing
+skips), and -modern.log/TRX (81 Archiver + 209 Avalonia = 290 passed, zero
+failures/skips). The modern build includes retained net45/net452 production
+targets; known legacy NU1902 remains visible. Assertions/timeouts were not
+weakened or extended.
+
+Native/Framework runtime and performance workloads were not rerun for this
+parser-state fix. Full plugin/custom/multiline parsing, schema changes,
+restart persistence, provenance navigation and full acceptance remain open.
+T026/T043 and the full migration remain incomplete.

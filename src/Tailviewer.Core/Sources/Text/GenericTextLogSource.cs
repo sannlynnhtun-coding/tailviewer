@@ -12,9 +12,14 @@ namespace Tailviewer.Core
 	/// </summary>
 	public sealed class GenericTextLogSource
 		: ILogSource
+		, ILogSourceListener
 	{
+		private readonly object _sync = new object();
 		private readonly ProxyLogListenerCollection _listeners;
-		private readonly ILogEntryParser _parser;
+		private ILogEntryParser _parser;
+		private readonly Func<ILogEntryParser> _createParser;
+		private long _generation;
+		private bool _needsParserReset;
 		private readonly IReadOnlyList<IColumnDescriptor> _parsedColumns;
 		private readonly IReadOnlyList<IColumnDescriptor> _allColumns;
 		private readonly IReadOnlyLogEntry _nothingParsed;
@@ -29,11 +34,19 @@ namespace Tailviewer.Core
 		                            ILogEntryParser parser)
 		{
 			_source = source ?? throw new ArgumentNullException(nameof(source));
-			_parser = parser;
+			_parser = parser ?? throw new ArgumentNullException(nameof(parser));
 			_parsedColumns = _parser.Columns.ToList();
 			_allColumns = _source.Columns.Concat(_parsedColumns).Distinct().ToList();
 			_listeners = new ProxyLogListenerCollection(source, this);
 			_nothingParsed = new ReadOnlyLogEntry(_parsedColumns);
+		}
+
+		// shortcut: factory parser columns stay fixed; rebuild the source when a plugin schema changes.
+		internal GenericTextLogSource(ILogSource source, Func<ILogEntryParser> createParser)
+			: this(source, (createParser ?? throw new ArgumentNullException(nameof(createParser)))())
+		{
+			_createParser = createParser;
+			_source.AddListener(this, TimeSpan.Zero, 10000);
 		}
 
 		/// <inheritdoc />
@@ -124,28 +137,47 @@ namespace Tailviewer.Core
 		                       int destinationIndex,
 		                       LogSourceQueryOptions queryOptions)
 		{
-			var source = _source;
+			ILogSource source;
+			long generation;
+			lock (_sync)
+			{
+				source = _source;
+				generation = _generation;
+			}
 			if (source != null)
 			{
 				var columnsToCopy = source.Columns;
 				var tmp = new LogBufferArray(sourceIndices.Count, columnsToCopy);
 				source.GetEntries(sourceIndices, tmp, 0, queryOptions);
 
-				foreach (var column in columnsToCopy)
+				lock (_sync)
 				{
-					if (destination.Contains(column))
+					if (!ReferenceEquals(source, _source) || generation != _generation)
 					{
-						destination.CopyFrom(column, destinationIndex, tmp, new Int32Range(0, sourceIndices.Count));
+						destination.FillDefault(destinationIndex, sourceIndices.Count);
+						return;
 					}
-				}
-
-				for (var i = 0; i < sourceIndices.Count; ++i)
-				{
-					var parsedLogEntry = _parser.Parse(tmp[i]);
-					if (parsedLogEntry != null)
-						destination[destinationIndex + i].CopyFrom(parsedLogEntry);
-					else
-						destination[destinationIndex + i].CopyFrom(_nothingParsed);
+					if (_needsParserReset)
+					{
+						var parser = _createParser() ?? throw new InvalidOperationException("The parser factory returned no parser.");
+						var previous = _parser;
+						_parser = parser;
+						_needsParserReset = false;
+						previous.Dispose();
+					}
+					foreach (var column in columnsToCopy)
+					{
+						if (destination.Contains(column))
+							destination.CopyFrom(column, destinationIndex, tmp, new Int32Range(0, sourceIndices.Count));
+					}
+					for (var i = 0; i < sourceIndices.Count; ++i)
+					{
+						var parsedLogEntry = _parser.Parse(tmp[i]);
+						if (parsedLogEntry != null)
+							destination[destinationIndex + i].CopyFrom(parsedLogEntry);
+						else
+							destination[destinationIndex + i].CopyFrom(_nothingParsed);
+					}
 				}
 			}
 			else
@@ -162,11 +194,37 @@ namespace Tailviewer.Core
 
 		#region Implementation of IDisposable
 
+		void ILogSourceListener.OnLogFileModified(ILogSource logSource, LogSourceModification modification)
+		{
+			if (!modification.IsReset()) return;
+			lock (_sync)
+			{
+				if (!ReferenceEquals(logSource, _source)) return;
+				++_generation;
+				_needsParserReset = _createParser != null;
+			}
+		}
+
 		/// <inheritdoc />
 		public void Dispose()
 		{
-			_source?.Dispose();
-			_source = null;
+			ILogSource source;
+			lock (_sync)
+			{
+				source = _source;
+				if (source == null) return;
+				_source = null;
+				++_generation;
+			}
+			try
+			{
+				if (_createParser != null) source.RemoveListener(this);
+			}
+			finally
+			{
+				try { if (_createParser != null) _parser.Dispose(); }
+				finally { source.Dispose(); }
+			}
 		}
 
 		#endregion

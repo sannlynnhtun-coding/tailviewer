@@ -11,7 +11,7 @@ namespace Tailviewer.Core
 		/// <summary>Owns a raw text source and adds built-in parsing and original-position columns without buffering the whole file.</summary>
 		public static ILogSource ParseText(ILogSource source)
 		{
-			return new LogSourceColumnAdorner(new GenericTextLogSource(source, new GenericTextLogEntryParser()));
+			return new LogSourceColumnAdorner(new GenericTextLogSource(source, () => new GenericTextLogEntryParser()));
 		}
 
 		/// <summary>
