@@ -70,3 +70,33 @@ publishing queued UI work. Mutex/user-session naming, UI activation, shutdown
 integration and real-process crash/handoff acceptance remain open T021/T025
 work. The current tests run both pipe ends in one process and do not prove those
 cross-process ownership or cross-user security requirements.
+
+## Slice 3: user/session ownership lease
+
+SingleApplicationHelper derives a stable versioned channel name from the Windows
+user SID and process session ID using SHA-256; the raw SID is not included in
+the channel name. Its named mutex uses .NET 10 CurrentUserOnly and
+CurrentSessionOnly options. TryAcquire is nonblocking, accepts transferred
+abandoned ownership, and returns no lease while another primary holds it. An
+in-process guard prevents recursive acquisition on the same thread from creating
+another primary. Dispose is idempotent and requires the acquiring thread before
+changing either kernel ownership or the guard. The future synchronous STA Main
+must retain/dispose the lease across the complete desktop lifetime.
+
+Four cases verify same-thread/helper and competing-thread exclusion, a separate
+raw kernel-mutex contender, release/reacquisition, abandoned raw-mutex ownership
+transfer, wrong-thread disposal preserving ownership, and channel-name separation
+across user/session inputs. All mutex names are test-owned GUIDs. Abandonment is
+produced by an owned thread exiting without ReleaseMutex while a witness handle
+keeps the kernel object alive; this is not a process-crash acceptance result.
+
+Full modern suite: 81 Archiver + 126 Avalonia pass, no failures/skips.
+Evidence: ignored artifacts/migration/t025-owner-focused.log and
+t025-owner-modern.log. Existing legacy NU1902 warnings remain visible.
+
+Startup/pipe/UI integration is still pending, so application instance behavior
+has not changed yet. Windows native two-process handoff, actual process-crash
+recovery and cross-user/session isolation acceptance remain unproven. The Unix
+username/session-zero naming fallback is explicitly a later-milestone shortcut,
+not Linux/macOS single-instance support. No unrelated process is enumerated or
+killed by this ownership helper.
