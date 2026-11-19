@@ -610,3 +610,21 @@ button discovery and failed one run; both that failed result and the calibrated
 optimization is claimed. SC-005's DURING-indexing interaction scope remains open;
 this post-index preflight does not establish scroll/pause/indexing latency.
 Core/modern/full native suites were not repeated for these fixture-only changes.
+
+## Boundary navigation port (T029)
+
+Legacy TextCanvas binds Ctrl+Home/End to selecting and revealing the first/last
+line. The Avalonia port lacked that behavior: the new raw-key headless test
+failed with line 1000 still selected instead of line 0. MainWindow now routes
+these exact-Control shortcuts, while the log list has keyboard focus, through
+the same select/reveal path as Go to line. That path also clears pending
+character selection so a previous asynchronous selection cannot replace the
+new boundary selection or its copy result. Other text fields keep their keys.
+
+The regression exercises both boundaries of 2,000 lines, realized row content,
+paused follow and exact copied text after starting character selection.
+The complete modern solution passes 81 Archiver and 178 Avalonia tests, no
+failures/skips (artifacts/migration/t029-boundary-navigation-modern.log/TRX).
+The behavioral red is retained in t029-boundary-navigation-red.log/TRX.
+This ports boundary selection; Shift-based range extension and the remaining
+derived-source navigation acceptance are separate migration work.

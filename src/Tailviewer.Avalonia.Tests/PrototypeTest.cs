@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.NUnit;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -217,6 +218,41 @@ public sealed class PrototypeTest
             window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "café");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task ControlHomeAndEndSelectAndRevealTheBoundaryLines()
+    {
+        File.WriteAllText(_path, string.Join("\n", Enumerable.Range(0, 2000).Select(index => "line-" + index)));
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_path);
+            var rows = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => rows.ItemCount == 2000);
+            window.UpdateLayout();
+            rows.Selection.Select(1000);
+            rows.ScrollIntoView(1000);
+            rows.Focus().Should().BeTrue();
+            foreach (var key in new[] { Key.Home, Key.End })
+            {
+                rows.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right,
+                    KeyModifiers = KeyModifiers.Alt | KeyModifiers.Shift });
+                window.KeyPress(key, RawInputModifiers.Control, key == Key.Home ? PhysicalKey.Home : PhysicalKey.End, null);
+                window.KeyRelease(key, RawInputModifiers.Control, key == Key.Home ? PhysicalKey.Home : PhysicalKey.End, null);
+                var expected = key == Key.Home ? 0 : 1999;
+                rows.Selection.SelectedIndexes.Should().Equal(expected);
+                await WaitUntil(() => rows.GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Any(text => text.Text?.EndsWith("  line-" + expected, StringComparison.Ordinal) == true));
+                window.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked.Should().BeFalse();
+                await window.Clipboard!.SetTextAsync("boundary-copy-sentinel");
+                window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "_Copy selected"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitUntilAsync(async () => await window.Clipboard!.TryGetTextAsync() == "line-" + expected);
+            }
         }
         finally { window.Close(); }
     }

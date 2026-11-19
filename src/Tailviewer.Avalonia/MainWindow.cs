@@ -243,12 +243,7 @@ public sealed class MainWindow : Window
         _navigation.LineChosen += index =>
         {
             if (_document == null || !ReferenceEquals(_document, _navigation.Document)) return;
-            _follow.IsChecked = false;
-            _rows.Selection.Clear();
-            _rows.Selection.Select(index);
-            _rows.ScrollIntoView(index);
-            _operationError = null;
-            _rows.Focus();
+            SelectAndRevealLine(index);
         };
         _navigation.Cancelled += () =>
         {
@@ -844,12 +839,31 @@ public sealed class MainWindow : Window
         }
     }
 
+    private void SelectAndRevealLine(int index)
+    {
+        if (_document == null || index < 0 || index >= _document.Lines.Count) return;
+        _follow.IsChecked = false;
+        _textSelection.Clear();
+        _rows.Selection.Clear();
+        _rows.Selection.Select(index);
+        _rows.ScrollIntoView(index);
+        _operationError = null;
+        _rows.Focus();
+    }
+
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape && _sourceDrag.IsDragging)
         {
             _sourceDrag.Clear();
             e.Handled = true;
+            return;
+        }
+        if (_rows.IsKeyboardFocusWithin && e.KeyModifiers == KeyModifiers.Control &&
+            e.Key is Key.Home or Key.End && _document?.Lines.Count > 0)
+        {
+            e.Handled = true;
+            SelectAndRevealLine(e.Key == Key.Home ? 0 : _document.Lines.Count - 1);
             return;
         }
         if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.Control or (KeyModifiers.Control | KeyModifiers.Shift))
