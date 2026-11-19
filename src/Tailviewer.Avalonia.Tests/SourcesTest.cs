@@ -779,6 +779,52 @@ public sealed class SourcesTest
         }
         finally { window.Close(); }
     }
+    [AvaloniaTest]
+    public async Task GroupRenameCommitsOrCancelsWithoutSwitchingTheActiveFile()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var group = (DataSource)tree.SelectedItem!;
+            await window.OpenFileAsync(_first);
+            await WaitUntil(() => Rows(window).ItemCount == 2);
+            var file = (DataSource)tree.SelectedItem!;
+            foreach (var commit in new[] { true, false })
+            {
+                await WaitUntil(() => tree.ContainerFromItem(group) is TreeViewItem item && item.ContextMenu != null);
+                var container = (TreeViewItem)tree.ContainerFromItem(group)!;
+                var menu = container.ContextMenu!;
+                container.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+                await WaitUntil(() => menu.IsOpen);
+                var rename = menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Header, "Rename group"));
+                rename.Should().NotBeNull("because legacy merged sources support renaming");
+                rename!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                menu.Close();
+                await WaitUntil(() => container.GetVisualDescendants().OfType<TextBox>().Any(box => box.IsVisible));
+                var editor = container.GetVisualDescendants().OfType<TextBox>().Single(box => box.IsVisible);
+                AutomationProperties.GetName(editor).Should().Be("Group name");
+                editor.Text = commit ? "မြန်မာ 😀 group" : "discard this";
+                editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = commit ? Key.Enter : Key.Escape });
+                group.DisplayName.Should().Be("မြန်မာ 😀 group");
+                ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
+                container.GetVisualDescendants().OfType<TextBlock>().Should().Contain(block => block.Text == group.DisplayName);
+                ((SourcesViewModel)window.DataContext!).FindNavigationMatches("မြန်မာ").Single().DataSource.Id.Should().Be(group.Id);
+                await Copy(window, 1, "  original spaces  ");
+            }
+            var profilePath = Path.Combine(_folder, "rename-profile.xml");
+            var profile = new ApplicationSettings(profilePath);
+            foreach (var item in ((SourcesViewModel)window.DataContext!).All) profile.DataSources.Add(item.Clone());
+            profile.Save().Should().BeTrue();
+            var restored = new ApplicationSettings(profilePath);
+            restored.Restore();
+            restored.DataSources.Single(item => item.Id == group.Id).DisplayName.Should().Be("မြန်မာ 😀 group");
+            file.File.Should().Be(_first);
+        }
+        finally { window.Close(); }
+    }
     private static Button Command(MainWindow window, string name)
     {
         var button = window.GetVisualDescendants().OfType<Button>()

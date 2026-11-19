@@ -135,5 +135,29 @@ public sealed class SourceGroupsTest
         Assert.Throws<ArgumentException>(() => workspace.SetExcluded(file.Id, true));
         group.ExcludedDataSources.Should().BeEmpty();
     }
+    [Test]
+    public void RenamePreservesGroupMembershipAndRejectsFilesFoldersAndClosedGroups()
+    {
+        var workspace = new SourcesViewModel();
+        var parent = workspace.AddGroup();
+        var group = workspace.AddGroup();
+        var file = File("missing.log");
+        var folder = new DataSource { Id = DataSourceId.CreateNew(), LogFileFolderPath = "missing-folder" };
+        workspace.Roots.AddRange(new[] { file, folder });
+        workspace.AddToGroup(group.Id, parent.Id);
+        workspace.AddToGroup(file.Id, group.Id);
+        workspace.SetExcluded(file.Id, true);
+        workspace.RenameGroup(group.Id, "  မြန်မာ 😀  ");
+        group.DisplayName.Should().Be("  မြန်မာ 😀  ");
+        group.ParentId.Should().Be(parent.Id);
+        workspace.GetChildren(group.Id).Should().Equal(file);
+        group.ExcludedDataSources.Should().Equal(file.Id);
+        Assert.Throws<ArgumentException>(() => workspace.RenameGroup(file.Id, "wrong"));
+        Assert.Throws<ArgumentException>(() => workspace.RenameGroup(folder.Id, "wrong"));
+        file.File.Should().Be("missing.log");
+        folder.LogFileFolderPath.Should().Be("missing-folder");
+        workspace.Remove(group.Id);
+        Assert.Throws<ArgumentException>(() => workspace.RenameGroup(group.Id, "closed"));
+    }
     private static DataSource File(string path) => new(path) { Id = DataSourceId.CreateNew() };
 }

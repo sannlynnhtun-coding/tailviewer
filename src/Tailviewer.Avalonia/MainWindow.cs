@@ -92,13 +92,57 @@ public sealed class MainWindow : Window
             var label = new TextBlock { Text = string.IsNullOrEmpty(name) ? path : name, TextTrimming = TextTrimming.CharacterEllipsis };
             ToolTip.SetTip(label, path);
             AutomationProperties.SetName(label, path);
-            label.ContextMenu = CreateSourceMenu(source);
+            var content = new Grid { Children = { label } };
+            Action? beginRename = null;
+            if (SourcesViewModel.IsGroup(source))
+            {
+                var editor = new TextBox { IsVisible = false };
+                AutomationProperties.SetName(editor, "Group name");
+                content.Children.Add(editor);
+                void FinishRename(bool commit)
+                {
+                    if (!editor.IsVisible) return;
+                    if (commit && !_closed)
+                    {
+                        try
+                        {
+                            _workspace.RenameGroup(source.Id, editor.Text ?? "");
+                            label.Text = source.DisplayName;
+                            ToolTip.SetTip(label, source.DisplayName);
+                            AutomationProperties.SetName(label, source.DisplayName);
+                            if ((_sourceTree.SelectedItem as DataSource)?.Id == source.Id)
+                            {
+                                _path.Text = source.DisplayName;
+                                Title = $"{source.DisplayName} — Tailviewer prototype";
+                            }
+                        }
+                        catch (ArgumentException error) { _status.Text = _operationError = "Cannot rename group: " + error.Message; }
+                    }
+                    editor.IsVisible = false;
+                    label.IsVisible = true;
+                }
+                beginRename = () =>
+                {
+                    editor.Text = source.DisplayName;
+                    label.IsVisible = false;
+                    editor.IsVisible = true;
+                    Dispatcher.UIThread.Post(() => { if (editor.IsVisible) { editor.Focus(); editor.SelectAll(); } }, DispatcherPriority.Loaded);
+                };
+                editor.KeyDown += (_, args) =>
+                {
+                    if (args.Key is not (Key.Enter or Key.Escape)) return;
+                    args.Handled = true;
+                    FinishRename(args.Key == Key.Enter);
+                };
+                editor.LostFocus += (_, _) => FinishRename(false);
+            }
+            label.ContextMenu = CreateSourceMenu(source, beginRename);
             label.AttachedToVisualTree += (_, _) =>
             {
                 var item = label.FindAncestorOfType<TreeViewItem>();
                 if (item != null) item.ContextMenu = label.ContextMenu;
             };
-            return label;
+            return content;
         }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : _workspace.GetChildren(source.Id));
         _sourceTree.ContainerPrepared += (_, args) =>
         {
@@ -341,13 +385,19 @@ public sealed class MainWindow : Window
         RefreshDocument();
     }
 
-    private ContextMenu CreateSourceMenu(DataSource source)
+    private ContextMenu CreateSourceMenu(DataSource source, Action? beginRename)
     {
         var menu = new ContextMenu();
         void RefreshMenu()
         {
             menu.Items.Clear();
             if (!_workspace.Contains(source.Id)) return;
+            if (beginRename != null)
+            {
+                var rename = new MenuItem { Header = "Rename group" };
+                rename.Click += (_, _) => beginRename();
+                menu.Items.Add(rename);
+            }
             var add = new MenuItem { Header = "Add to group", IsEnabled = source.ParentId == DataSourceId.Empty };
             foreach (var group in _workspace.All.Where(SourcesViewModel.IsGroup))
             {

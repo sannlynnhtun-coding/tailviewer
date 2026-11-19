@@ -272,3 +272,25 @@ dependencies are open. Group timestamp-aware aggregate rendering is still US2;
 this slice preserves exclusion configuration but does not claim merged-output
 filtering. Native menu/keyboard accessibility and full Core tests were not rerun
 for this UI/model-only change. Automatic workspace persistence remains T053.
+## Group rename command slice
+
+Legacy FileDataSourceViewModel and FolderDataSourceViewModel reject renaming;
+MergedDataSourceViewModel permits it. The modern source menu follows that policy:
+Rename group opens an inline, automation-named Group name editor. Enter commits;
+Escape or lost focus cancels. Renaming validates the current configured group,
+updates its tree label/tooltip/accessibility name and selected-group title, and
+preserves its ID, parent, exclusions, members and current document. Existing
+navigation reads the updated name directly. No physical paths are renamed.
+
+The headless menu test failed first because Rename group was missing. It now
+commits a Burmese/emoji name, cancels a subsequent edit, verifies navigation and
+original active-file copy, and saves/restores the renamed group through owned
+ApplicationSettings XML. A model test covers nested membership/exclusions and
+rejects files, folders and removed groups without changing their paths.
+
+Complete modern solution: 81 Archiver + 94 Avalonia pass, zero failures/skips.
+Ignored evidence: artifacts/migration/t023-rename-red.log,
+t023-rename-focused.log and t023-rename-modern.log. T023 remains open for its
+remaining dependency/group behavior requirements; timestamp-aware aggregation
+remains US2. No native editor/accessibility acceptance or full Core rerun was
+performed for this UI/model-only slice; automatic workspace persistence is T053.

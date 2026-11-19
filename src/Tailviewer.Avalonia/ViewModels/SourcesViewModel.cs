@@ -95,6 +95,13 @@ public sealed class SourcesViewModel
         _groups[groupId].Add(member);
     }
 
+    public void RenameGroup(DataSourceId id, string name)
+    {
+        var source = Find(id);
+        if (!IsGroup(source)) throw new ArgumentException("Only groups can be renamed.");
+        source.DisplayName = name;
+    }
+
     public void SetExcluded(DataSourceId memberId, bool excluded)
     {
         var member = Find(memberId);
