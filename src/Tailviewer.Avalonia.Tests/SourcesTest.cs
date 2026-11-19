@@ -636,6 +636,38 @@ public sealed class SourcesTest
     }
 
     [AvaloniaTest]
+    public async Task UnavailableFolderPickerLeavesManualPathEditingAndApplyUsable()
+    {
+        var manual = Path.Combine(_folder, "manual-root");
+        Directory.CreateDirectory(manual);
+        File.WriteAllText(Path.Combine(manual, "manual.log"), "manual");
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = tree.Items.OfType<DataSource>().Single();
+            var dialog = await OpenFolderOptions(window, tree, folder);
+            dialog.StorageProvider.CanPickFolder.Should().BeFalse("because this fixture uses the headless platform");
+            var browse = dialog.GetVisualDescendants().OfType<Button>()
+                .Single(button => AutomationProperties.GetName(button) == "Choose monitored folder");
+            browse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => browse.IsEnabled && dialog.GetVisualDescendants().OfType<TextBlock>().Any(text =>
+                text.Text?.StartsWith("Cannot choose folder:") == true));
+            var path = dialog.GetVisualDescendants().OfType<TextBox>().Single(box => AutomationProperties.GetName(box) == "Folder path");
+            path.Text.Should().Be(_folder);
+            folder.LogFileFolderPath.Should().Be(_folder);
+            path.Text = manual;
+            dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Apply"))
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => !dialog.IsVisible && (tree.ContainerFromItem(folder) as TreeViewItem)?.ItemCount == 1);
+            folder.LogFileFolderPath.Should().Be(manual);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task FolderOptionsRejectInvalidPathsThenMoveTheWatcherWithoutChangingIdentity()
     {
         var window = new MainWindow();

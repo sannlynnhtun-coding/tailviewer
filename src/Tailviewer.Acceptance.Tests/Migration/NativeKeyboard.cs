@@ -26,14 +26,18 @@ internal static class NativeKeyboard
 
     public static void ScrollToEnd(Process process, AutomationElement list) => ControlKey(process, list, 35);
 
-    private static void ControlKey(Process process, AutomationElement list, ushort key)
+    public static void OpenContextMenu(Process process, AutomationElement source) => ModifierKey(process, source, 16, 121);
+
+    private static void ControlKey(Process process, AutomationElement list, ushort key) => ModifierKey(process, list, 17, key);
+
+    private static void ModifierKey(Process process, AutomationElement list, ushort modifier, ushort key)
     {
         if (IntPtr.Size != 8 || Marshal.SizeOf<Input>() != 40)
             throw new PlatformNotSupportedException("This native keyboard fixture requires Windows x64 INPUT layout.");
-        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 35, 36, 65, 71, 91, 92 };
+        var inputKeys = new[] { 1, 2, 4, 5, 6, 16, 17, 18, 35, 36, 65, 71, 91, 92, 121 };
         if (inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
             throw new InvalidOperationException("Release mouse buttons, modifiers and chord keys before the owned keyboard fixture.");
-        if (list.Current.ProcessId != process.Id) throw new InvalidOperationException("The log list is not owned by the test process.");
+        if (list.Current.ProcessId != process.Id) throw new InvalidOperationException("The target control is not owned by the test process.");
         list.SetFocus();
         GetWindowThreadProcessId(GetForegroundWindow(), out var foreground);
         if (foreground != process.Id) throw new InvalidOperationException("The owned app must have foreground focus before keyboard input.");
@@ -45,16 +49,16 @@ internal static class NativeKeyboard
                 GetWindowThreadProcessId(GetForegroundWindow(), out foreground);
                 if (foreground != process.Id || inputKeys.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
                     throw new InvalidOperationException("Focus or input state changed before the owned chord.");
-                var sent = SendInput(4, new[] { Key(17, 0), Key(key, 0), Key(key, 2), Key(17, 2) }, 40);
+                var sent = SendInput(4, new[] { Key(modifier, 0), Key(key, 0), Key(key, 2), Key(modifier, 2) }, 40);
                 if (sent == 4) return;
                 // Release only keys whose down event this fixture actually injected.
                 if (sent >= 2) SendInput(1, new[] { Key(key, 2) }, 40);
-                if (sent >= 1) SendInput(1, new[] { Key(17, 2) }, 40);
-                throw new Win32Exception("The owned Control chord was not fully injected.");
+                if (sent >= 1) SendInput(1, new[] { Key(modifier, 2) }, 40);
+                throw new Win32Exception("The owned modifier chord was not fully injected.");
             }
             focused = TreeWalker.ControlViewWalker.GetParent(focused);
         }
-        throw new InvalidOperationException("Keyboard focus is outside the owned log list.");
+        throw new InvalidOperationException("Keyboard focus is outside the owned target control.");
     }
 
     private static Input Key(ushort key, uint flags) => new()

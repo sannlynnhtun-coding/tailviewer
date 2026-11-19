@@ -958,3 +958,47 @@ t023-folder-member-exclusion-modern.log/TRX. Core/native/performance suites were
 not repeated for this UI configuration slice. Aggregate merge/filter output and
 the full migration remain pending; these settings controls do not establish
 aggregate inclusion behavior or shipping restart persistence.
+
+## Folder-options native picker (T022/T024)
+
+Legacy FolderDataSourceViewModel.ChooseFolder opens a folder picker with the
+current edited path and stages the result until the edit is accepted. The
+Avalonia editor now exposes Browse with the same workflow, using its own
+Window.StorageProvider, one folder, and a suggested current local directory.
+Picker cancellation leaves the path unchanged; selection updates only the
+editor, and Apply still controls watcher/configuration publication. Closed-owner
+checks reject late picker results. An unavailable picker reports a recoverable
+message while manual path editing/Apply stay usable. Suggested and returned
+storage objects are disposed once no longer needed.
+
+The native fixture adds only the fixed Shift+F10 chord through the existing
+guarded keyboard implementation. PID/focus ancestry, held mouse/modifier/chord
+checks, immediate ownership recheck, atomic injection and partial-release
+cleanup are retained; no arbitrary public chord API is exposed. Existing Ctrl+A
+and Ctrl+G wrappers still submit the same Control chords. F10 joins the held-key
+guard. The owned-window lookup used by existing pickers is reused for the
+options editor and its nested native folder picker.
+
+Two Windows cases open the real context menu/editor/picker, select or cancel,
+verify editor path versus unchanged configured folder before Apply, then
+apply/cancel and copy the expected watched Unicode log. Both original and
+destination fixtures remain unchanged. Initial cases failed because Browse was
+missing, proving the context-menu/editor path already worked. After adding the
+button, they failed with Unsupported Pattern because an untyped path-name query
+matched the static label instead of the edit field. The typed Edit/Value query
+also waits for the async picker result; no timeout/assertion was relaxed.
+
+Native picker cases plus Ctrl+G/large Ctrl+A regression pass 4/4, zero skips or
+failures (artifacts/migration/t022-folder-browse-native-typed.log/TRX).
+The preceding failures remain in t022-folder-browse-native-red.log/TRX and
+t022-folder-browse-native.log/TRX. The modern solution passes 81 Archiver + 191
+Avalonia cases, zero failures/skips (t022-folder-browse-modern.log/TRX), including
+the headless unavailable-picker/manual-Apply case. This solution run precedes
+the final storage-object disposal-only change; affected checks are recorded
+separately. Full Core/native/performance suites and restart persistence remain
+outside this slice. T022/T024 and the full migration are still incomplete.
+
+After adding storage-object disposal, both native picker cases pass 2/2 and
+the headless unavailable-picker/manual-Apply case passes 1/1, no failures/skips:
+t022-folder-browse-cleanup-native.log/TRX and
+t022-folder-browse-cleanup-headless.log/TRX. No owned viewer processes remain.

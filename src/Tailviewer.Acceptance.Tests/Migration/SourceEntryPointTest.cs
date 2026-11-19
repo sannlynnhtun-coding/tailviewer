@@ -271,6 +271,57 @@ public sealed partial class SourceEntryPointTest
         CopyAndCheck(window);
     }
 
+    [TestCase(false), TestCase(true)]
+    public void NativeFolderOptionsBrowseAppliesOrCancelsWithoutChangingOriginalLogs(bool cancel)
+    {
+        var destination = Path.Combine(_folder, "new-root");
+        Directory.CreateDirectory(destination);
+        var movedLog = Path.Combine(destination, "moved.log");
+        var content = "first\n" + SelectedLine + "\nlast";
+        File.WriteAllText(movedLog, content);
+        var window = StartApplication(_folder);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The configured folder must appear in the source tree.");
+        var folder = WaitFor(() => tree.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.NameProperty, _folder)), "The owned folder must be selectable.");
+        NativeKeyboard.OpenContextMenu(_process!, folder);
+        var condition = new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+            new PropertyCondition(AutomationElement.NameProperty, "Folder options…"));
+        var edit = WaitFor(() => window.FindFirst(TreeScope.Descendants, condition) ??
+            AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, _process!.Id))
+                .Cast<AutomationElement>().Select(root => root.FindFirst(TreeScope.Subtree, condition)).FirstOrDefault(item => item != null),
+            "The keyboard context menu must expose Folder options.");
+        ((InvokePattern)edit.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+        var options = WaitForOwnedWindow(window, "Folder options");
+        InvokeButton(options, "Choose monitored folder");
+        var picker = WaitForOwnedWindow(options, "Choose folder to monitor");
+        if (cancel) ((WindowPattern)picker.GetCurrentPattern(WindowPattern.Pattern)).Close();
+        else SubmitPicker(picker, destination);
+        WaitFor(() => options.Current.IsEnabled ? options : null, "The options editor must recover after the native picker closes.");
+        var path = WaitFor(() =>
+        {
+            var field = options.FindFirst(TreeScope.Descendants, new AndCondition(
+                new PropertyCondition(AutomationElement.NameProperty, "Folder path"),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit)));
+            return field != null && ((ValuePattern)field.GetCurrentPattern(ValuePattern.Pattern)).Current.Value == (cancel ? _folder : destination)
+                ? field : null;
+        }, "The editable path must reflect the picker result without applying the folder configuration.");
+        Assert.That(((ValuePattern)path.GetCurrentPattern(ValuePattern.Pattern)).Current.Value, Is.EqualTo(cancel ? _folder : destination));
+        Assert.That(folder.Current.Name, Is.EqualTo(_folder));
+        Assert.That(tree.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count, Is.EqualTo(1));
+        InvokeButton(options, cancel ? "Cancel" : "Apply");
+        var configured = WaitFor(() => window.Current.IsEnabled ? tree.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.NameProperty, cancel ? _folder : destination)) : null,
+            "Apply must update the existing folder and Cancel must retain its original path.");
+        var child = WaitFor(() => configured.FindFirst(TreeScope.Children,
+            new PropertyCondition(AutomationElement.NameProperty, cancel ? _path : movedLog)), "The configured watcher must expose the expected owned log.");
+        ((SelectionItemPattern)child.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window);
+        Assert.That(File.ReadAllText(_path), Is.EqualTo(content));
+        Assert.That(File.ReadAllText(movedLog), Is.EqualTo(content));
+    }
+
     [Test]
     public void NativeOleDropOpensFilesAndFoldersWithoutMovingOrDuplicatingLogs()
     {
@@ -331,6 +382,11 @@ public sealed partial class SourceEntryPointTest
     {
         InvokeButton(window, folder ? "Open folder" : "Open file");
         var title = folder ? "Open log folder" : "Open log file";
+        return WaitForOwnedWindow(window, title);
+    }
+
+    private AutomationElement WaitForOwnedWindow(AutomationElement window, string title)
+    {
         return WaitFor(() => window.FindFirst(TreeScope.Descendants,
                 new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
                     new PropertyCondition(AutomationElement.NameProperty, title))) ??

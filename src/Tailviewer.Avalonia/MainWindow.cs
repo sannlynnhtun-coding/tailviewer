@@ -578,12 +578,15 @@ public sealed class MainWindow : Window
     {
         if (_closed || !_workspace.Contains(source.Id) || !_folders.TryGetValue(source.Id, out var original)) return;
         var path = new TextBox { Text = source.LogFileFolderPath };
+        var browse = new Button { Content = "Browse…", Margin = new Thickness(8, 0, 0, 0) };
+        DockPanel.SetDock(browse, Dock.Right);
         var pattern = new TextBox { Text = source.LogFileSearchPattern };
         var recursive = new CheckBox { Content = "Include subfolders", IsChecked = source.Recursive };
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var apply = new Button { Content = "Apply", IsDefault = true };
         var cancel = new Button { Content = "Cancel", IsCancel = true };
         AutomationProperties.SetName(path, "Folder path");
+        AutomationProperties.SetName(browse, "Choose monitored folder");
         AutomationProperties.SetName(pattern, "Folder file patterns");
         AutomationProperties.SetName(status, "Folder options status");
         var dialog = new Window
@@ -595,11 +598,37 @@ public sealed class MainWindow : Window
                 Margin = new Thickness(16), Spacing = 8,
                 Children =
                 {
-                    new TextBlock { Text = "Folder path" }, path,
+                    new TextBlock { Text = "Folder path" }, new DockPanel { Children = { browse, path } },
                     new TextBlock { Text = "File patterns (for example *.log;*.txt)" }, pattern, recursive, status,
                     new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { apply, cancel } }
                 }
             }
+        };
+        browse.Click += async (_, _) =>
+        {
+            if (!browse.IsEnabled) return;
+            browse.IsEnabled = false;
+            try
+            {
+                var provider = dialog.StorageProvider;
+                if (!provider.CanPickFolder) throw new NotSupportedException("Folder picking is unavailable. Enter the folder path directly.");
+                using var start = Uri.TryCreate(path.Text, UriKind.Absolute, out var uri) && uri.IsFile
+                    ? await provider.TryGetFolderFromPathAsync(uri) : null;
+                if (_closed || !dialog.IsVisible) return;
+                var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "Choose folder to monitor", AllowMultiple = false, SuggestedStartLocation = start
+                });
+                try
+                {
+                    if (_closed || !dialog.IsVisible || folders.Count == 0) return;
+                    path.Text = folders[0].TryGetLocalPath() ?? throw new NotSupportedException("Only local folders can be monitored.");
+                    status.Text = "";
+                }
+                finally { foreach (var folder in folders) folder.Dispose(); }
+            }
+            catch (Exception error) { if (dialog.IsVisible) status.Text = "Cannot choose folder: " + error.Message; }
+            finally { browse.IsEnabled = true; }
         };
         cancel.Click += (_, _) => dialog.Close();
         apply.Click += async (_, _) =>
