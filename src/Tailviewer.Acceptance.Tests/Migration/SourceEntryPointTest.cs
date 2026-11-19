@@ -121,10 +121,7 @@ public sealed class SourceEntryPointTest
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
             .Any(text => text.Current.Name.Trim() == "3") ? last : null,
             "The EOF row must render its line number without a permanent Loading label.");
-        var selected = rows.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
-        ((SelectionItemPattern)selected[0].GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
-        for (var index = 1; index < selected.Count; ++index)
-            ((SelectionItemPattern)selected[index].GetCurrentPattern(SelectionItemPattern.Pattern)).AddToSelection();
+        NativeKeyboard.SelectAll(_process!, rows);
         CopyAndCheck(window, string.Join(Environment.NewLine, "first", SelectedLine, ""));
         Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\n"));
     }
