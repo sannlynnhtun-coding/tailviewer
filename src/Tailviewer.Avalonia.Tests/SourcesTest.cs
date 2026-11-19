@@ -1103,6 +1103,41 @@ public sealed class SourcesTest
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public async Task GroupedFolderRetainsOneIdentityAndItsLiveWatcherWhenReactivated()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(_folder);
+            var tree = window.GetVisualDescendants().OfType<TreeView>().Single();
+            var folder = (DataSource)tree.SelectedItem!;
+            Command(window, "New group").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var group = (DataSource)tree.SelectedItem!;
+            await AddThroughMenu(tree, folder, group);
+            await WaitUntil(() => Command(window, "Open folder").IsEnabled);
+            tree.ItemCount.Should().Be(1, "because a group member must not also appear as a root");
+            var workspace = (SourcesViewModel)window.DataContext!;
+            workspace.All.Select(source => source.Id).Should().Equal(group.Id, folder.Id);
+            folder.ParentId.Should().Be(group.Id);
+            var parent = (TreeViewItem)tree.ContainerFromItem(group)!;
+            await WaitUntil(() => parent.ContainerFromItem(folder) is TreeViewItem item && item.ItemCount == 2);
+            var discovered = Path.Combine(_folder, "added.log");
+            File.WriteAllText(discovered, "discovered");
+            await WaitUntil(() => parent.ContainerFromItem(folder) is TreeViewItem item && item.ItemCount == 3);
+            var member = (TreeViewItem)parent.ContainerFromItem(folder)!;
+            tree.SelectedItem = member.Items.OfType<DataSource>().Single(source => source.File == discovered);
+            await WaitUntil(() => Rows(window).ItemCount == 1);
+            await Copy(window, 0, "discovered");
+            tree.SelectedItem = folder;
+            await WaitUntil(() => Command(window, "Open folder").IsEnabled && Rows(window).ItemCount == 0);
+            workspace.All.Select(source => source.Id).Should().Equal(group.Id, folder.Id);
+            tree.ItemCount.Should().Be(1);
+        }
+        finally { window.Close(); }
+    }
+
     private static string? SourceStatus(TreeView tree, DataSource source) =>
         (tree.ContainerFromItem(source) as TreeViewItem)?.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(block => AutomationProperties.GetName(block) == "Source status")?.Text;

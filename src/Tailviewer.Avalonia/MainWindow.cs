@@ -563,7 +563,7 @@ public sealed class MainWindow : Window
                 _navigation.BindDocument(null);
                 _textSelection.BindDocument(null);
                 _quickNavigation.Dismiss();
-                if (!_sources.Contains(source)) _sources.Add(source);
+                if (source.ParentId == DataSourceId.Empty && !_sources.Contains(source)) _sources.Add(source);
                 SelectSource(source);
                 _operationError = null;
                 _path.Text = path;

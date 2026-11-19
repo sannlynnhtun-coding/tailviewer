@@ -403,3 +403,23 @@ This implements the move operation and menu transfer, not pointer drag/drop.
 Tree gesture routing, legacy grouping-on-file behavior and native drag/menu
 acceptance remain open. Shared Core code was unchanged and its full suite was
 not rerun; T023 and the full migration remain incomplete.
+
+## Grouped-folder activation identity regression (T022/T023)
+
+The folder activation branch added any non-root folder back into Roots even
+when it was already a configured group member. A real menu regression failed
+with XmlException: Source identities must be unique. The branch now uses the
+same ParentId-is-empty condition as file activation before adding a root.
+
+The case groups an owned watched folder, checks its sole configured identity,
+creates another matching log and waits for live discovery, selects/copies that
+child, then reactivates the grouped folder. The original group/folder IDs and
+single root remain intact; no duplicate watcher or configured root is created.
+One production line changed. Focused case passes; complete modern solution
+passes 81 Archiver + 152 Avalonia tests with zero failures/skips.
+
+Ignored evidence: artifacts/migration/t022-grouped-folder-red.log,
+t022-grouped-folder-focused.log and t022-grouped-folder-modern.log. T022/T023
+remain partial; native folder-group menus/accessibility and the full Core suite
+were not rerun for this UI activation guard. Pointer tree drag and aggregation
+remain separate pending work.
