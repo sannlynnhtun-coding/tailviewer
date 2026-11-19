@@ -1193,3 +1193,36 @@ readers alone cannot produce meaningful timestamp merges. Full modern/native
 and full Core suites were not repeated for this isolated additive class;
 existing merge behavior was checked by its complete affected suite. T023 and
 the overall migration remain incomplete.
+
+## Parser provenance prerequisite for group binding (T026/T043, partial)
+
+GenericTextLogSource previously fetched only Index/RawContent before handing
+entries to a parser. Consequently the generic parser's forwarding entry could
+not retain OriginalIndex, LogEntryIndex, SourceId or other underlying columns.
+The shared accessor now buffers the underlying source's advertised columns;
+parsed Timestamp/LogLevel still override their input values. This fixes the
+shared path used by the legacy parser factory and acceptance sources, without
+adding a second parser or changing the desktop's current raw-reader pipeline.
+
+The regression requests actual input row 42, retaining OriginalIndex 42,
+LogEntryIndex 42 and source slot 3 while parsing a different timestamp and
+Error level from the text. Initial fixture mistakes are retained in the local
+logs: heterogeneous descriptor array inference, and assuming InMemoryLogSource
+accepted arbitrary index overrides or advertised SourceId by default. The
+fixture now creates real preceding rows and explicitly advertises SourceId.
+The final fixture was rerun against the original production line and failed
+with OriginalIndex Invalid instead of 42; restored production passes.
+
+Affected parser/group/merge checks: 1025/1025 pass, zero skips. Full net10.0 Core
+suite: 7163 passed, zero failures, five pre-existing skips (empty-construction,
+true/foobar, two string-literal cases and TestGetTimestamp4). Both Core targets
+net45/net10.0 build with zero errors; known legacy NU1902 warnings remain.
+Evidence: artifacts/migration/t043-parser-provenance-final-red.log/TRX,
+t043-parser-provenance-green.log/TRX, t043-parser-provenance-core.log/TRX and
+t043-parser-provenance-build.log. Earlier fixture/focused failures are retained
+under the same prefix and are not reported as production regressions.
+
+No desktop group output is claimed yet: parser/leased-member wiring and UI
+binding remain next. Avalonia/native and original Framework runtime suites were
+not repeated in this shared-accessor slice. T026/T043 and full migration remain
+incomplete; this change does not establish plugin parser compatibility.

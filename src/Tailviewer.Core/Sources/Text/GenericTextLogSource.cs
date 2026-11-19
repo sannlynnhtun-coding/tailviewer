@@ -127,7 +127,7 @@ namespace Tailviewer.Core
 			var source = _source;
 			if (source != null)
 			{
-				var columnsToCopy = new IColumnDescriptor[] {Core.Columns.Index, Core.Columns.RawContent};
+				var columnsToCopy = source.Columns;
 				var tmp = new LogBufferArray(sourceIndices.Count, columnsToCopy);
 				source.GetEntries(sourceIndices, tmp, 0, queryOptions);
 
