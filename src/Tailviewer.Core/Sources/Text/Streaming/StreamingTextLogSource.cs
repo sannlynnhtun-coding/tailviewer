@@ -52,6 +52,9 @@ namespace Tailviewer.Core
 		private readonly IPeriodicTask _fileScanTask;
 		private readonly IPeriodicTask _fileReadTask;
 		private readonly CancellationTokenSource _cancellationTokenSource;
+		private readonly object _streamSync = new object();
+		private Stream _scanStream;
+		private StreamReader _readStream;
 		private readonly ConcurrentQueue<IReadRequest> _pendingReadRequests;
 		private readonly IReadOnlyList<IColumnDescriptor> _columns;
 		private FileFingerprint _lastFingerprint;
@@ -128,6 +131,15 @@ namespace Tailviewer.Core
 			_cancellationTokenSource.Cancel();
 			_taskScheduler.StopPeriodic(_fileScanTask);
 			_taskScheduler.StopPeriodic(_fileReadTask);
+
+			// Cancellation stops future work; close active handles before returning to callers.
+			lock (_streamSync)
+			{
+				try { _scanStream?.Dispose(); }
+				finally { _readStream?.Dispose(); }
+				_scanStream = null;
+				_readStream = null;
+			}
 
 			lock (_index)
 			{
@@ -300,15 +312,23 @@ namespace Tailviewer.Core
 			return TimeSpan.FromMilliseconds(100);
 		}
 
+		private Stream OpenScanStream()
+		{
+			lock (_streamSync)
+			{
+				_cancellationTokenSource.Token.ThrowIfCancellationRequested();
+				_scanStream = _filesystem.Open(_fileName, FileMode.Open, FileAccess.Read,
+				                               FileShare.ReadWrite | FileShare.Delete);
+				return _scanStream;
+			}
+		}
+
 		private bool ReadEntireFile(CancellationToken cancellationToken)
 		{
 			var metadataChanged = HasFileChanged(out var currentFingerprint, out var previousFingerprint);
 			var start = DateTime.UtcNow;
 
-			using (var stream = _filesystem.Open(_fileName,
-			                                     FileMode.Open,
-			                                     FileAccess.Read,
-			                                     FileShare.ReadWrite | FileShare.Delete))
+			using (var stream = OpenScanStream())
 			{
 				var length = stream.Length;
 				var indexedCheckpoint = ReadCheckpoint(stream, _lastStreamPosition, cancellationToken);
@@ -703,12 +723,14 @@ namespace Tailviewer.Core
 				if (!_filesystem.FileExists(_fileName))
 					return null;
 
-				var stream = new FileStream(_fileName,
-				                            FileMode.Open,
-				                            FileAccess.Read,
-				                            FileShare.ReadWrite | FileShare.Delete,
-				                            BufferSize);
-				return CreateReader(stream, leaveOpen: false);
+				lock (_streamSync)
+				{
+					_cancellationTokenSource.Token.ThrowIfCancellationRequested();
+					var stream = new FileStream(_fileName, FileMode.Open, FileAccess.Read,
+					                            FileShare.ReadWrite | FileShare.Delete, BufferSize);
+					try { return _readStream = CreateReader(stream, leaveOpen: false); }
+					catch { stream.Dispose(); throw; }
+				}
 			}
 			catch (Exception e)
 			{

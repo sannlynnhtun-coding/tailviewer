@@ -36,6 +36,42 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
         }
 
         [Test]
+        public async Task DisposalReleasesTheFileHandleWhileAnOwnedScanIsStillUnwinding()
+        {
+            Write("owned scan");
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            var firstRead = 0;
+            var real = new Filesystem(_scheduler);
+            var filesystem = new Mock<IFilesystem>();
+            filesystem.Setup(value => value.FileExists(_path)).Returns(true);
+            filesystem.Setup(value => value.GetFileInfo(_path)).Returns(() => real.GetFileInfo(_path));
+            filesystem.Setup(value => value.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                .Returns(() => new ChangeAfterOffsetReadStream(_path, () => { }, (length, count) =>
+                {
+                    if (Interlocked.Exchange(ref firstRead, 1) != 0) return;
+                    entered.Set();
+                    if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("The owned scan gate was not released.");
+                }));
+            using var source = new StreamingTextLogSource(filesystem.Object, _scheduler, _path,
+                LogFileFormats.GenericText, new UTF8Encoding(false));
+            var scanning = Task.Run(() => _scheduler.RunOnce());
+            try
+            {
+                Assert.That(entered.Wait(TimeSpan.FromSeconds(3)), Is.True);
+                source.Dispose();
+                using var exclusive = new FileStream(_path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                Assert.That(exclusive.Length, Is.GreaterThan(0));
+            }
+            finally
+            {
+                release.Set();
+                await scanning;
+            }
+            Assert.That(source.GetLogLineIndexOfOriginalLineIndex(0), Is.EqualTo(LogLineIndex.Invalid));
+        }
+
+        [Test]
         public void AppendAfterTheEmptyLengthCheckCannotLoseTheFirstLine()
         {
             Write("");

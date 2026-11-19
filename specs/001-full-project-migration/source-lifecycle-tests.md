@@ -1885,3 +1885,43 @@ t023-promotion-green.log/TRX, t023-promotion-ui*.log/TRX,
 t023-promotion-final-focused.log/TRX, t023-core-group.log/TRX and
 t023-modern-final.log/TRX. Production changes are confined to group removal
 validation and its close-command caller; Core production sources are unchanged.
+
+### T026 active-stream disposal follow-up (2026-11-20)
+
+The T023 full-run reader-39 exclusive-open failure prompted an ownership audit.
+StreamingTextLogSource.Dispose cancelled/stopped its periodic tasks but did not
+close streams already held by callbacks that were still unwinding. The scanner
+and request-reader each owned a local using scope; task cancellation alone did
+not establish the immediate file-handle release expected by the lease tests.
+
+A deterministic Core regression pauses an owned real FileStream before its
+first scan read, disposes the source, and attempts exclusive reopen while the
+scan remains paused. It first failed with a sharing violation. The shared Core
+source now records its scan stream and request reader, synchronizes opening
+with disposal, closes both before returning, and prevents post-cancellation
+stream opens. Scanner and request-reader work remain concurrent; only stream
+opening/disposal is synchronized. Reader construction failures also close the
+just-opened FileStream. Existing read/reset generation fences remain intact.
+The test releases its gate and awaits the worker in finally; no sleep, timeout
+increase or weakened file-sharing assertion was added.
+
+Focused modern streaming tests: 55 passed. Full modern Core: 7,179 passed,
+zero failures, five pre-existing skips. The shared legacy Core/API targets
+also build; net471 streaming tests pass 54/54 with no skips (the modern-only
+allocation test is not present there). The existing 40-reader UI fixture and
+the complete modern solution are revalidated separately below.
+
+Evidence under ignored artifacts/migration/: t026-stream-dispose-red.log/TRX,
+t026-stream-dispose-green.log/TRX, t026-stream-dispose-core-full.log/TRX,
+t026-stream-dispose-legacy.log/TRX and t026-stream-dispose-modern-full.log/TRX.
+This fixes a lifecycle defect within T026, not the entire task or US1 acceptance.
+Native desktop focus/picker/drag checks, cold-cache and metadata-enabled
+performance matrices, and network filesystem open/close latency were not
+revalidated. Legacy log4net NU1902 warnings remain visible.
+
+Final modern solution result: 81 Archiver + 250 Avalonia = 331 passed,
+zero failures/skips. The previously failing
+ManyConfiguredFilesTailIndependentlyAndReleaseTheirHandlesOnClosure case passes,
+including exclusive reopen after all 40 readers are released. The earlier
+T023 failed run remains recorded above; this new result supersedes its current
+reader-cleanup status without changing the remaining native acceptance gaps.
