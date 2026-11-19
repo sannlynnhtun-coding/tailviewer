@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Tailviewer/BusinessLogic/FileExplorer/IFileExplorer.cs" Link="Platform/IFileExplorer.cs" />
+    <Compile Include="../Tailviewer/Ui/LogView/DeltaTimes/DeltaTimeFormatter.Formatting.cs" Link="Views/DeltaTimeFormatter.Formatting.cs" />
     <InternalsVisibleTo Include="Tailviewer.Avalonia.Tests" />
     <AvaloniaResource Include="Assets/Tailviewer.png" />
     <ProjectReference Include="../Tailviewer.Core/Tailviewer.Core.csproj" />

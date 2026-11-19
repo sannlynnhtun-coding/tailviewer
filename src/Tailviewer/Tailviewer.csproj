@@ -280,6 +280,7 @@
     <Compile Include="Ui\LogView\AbstractLogEntryValueFormatter.cs" />
     <Compile Include="Ui\LogView\AbstractLogColumnPresenter.cs" />
     <Compile Include="Ui\LogView\DeltaTimes\DeltaTimeFormatter.cs" />
+    <Compile Include="Ui\LogView\DeltaTimes\DeltaTimeFormatter.Formatting.cs" />
     <Compile Include="Ui\LogView\DeltaTimes\DeltaTimeColumnPresenter.cs" />
     <Compile Include="Ui\LogView\ElapsedTime\ElapsedTimeColumnPresenter.cs" />
     <Compile Include="Ui\LogView\ElapsedTime\ElapsedTimeFormatter.cs" />
