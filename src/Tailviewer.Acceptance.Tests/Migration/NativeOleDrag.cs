@@ -99,7 +99,11 @@ internal static class NativeOleDrag
         }
         finally
         {
+            var foreground = NativeKeyboard.ForegroundProcessId;
             source.Close();
+            // Closing our drag-source window can activate an unrelated previously active app.
+            if ((foreground == Environment.ProcessId || foreground == process.Id) && !process.HasExited)
+                SetForegroundWindow(process.MainWindowHandle);
             if (moved && GetPhysicalCursorPos(out var current) && current.X == lastPoint.X && current.Y == lastPoint.Y)
                 SetPhysicalCursorPos(original.X, original.Y);
         }

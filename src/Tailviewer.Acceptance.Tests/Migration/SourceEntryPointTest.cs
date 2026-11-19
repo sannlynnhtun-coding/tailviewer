@@ -391,6 +391,48 @@ public sealed partial class SourceEntryPointTest
         CopyAndCheck(window);
     }
 
+    [Test]
+    public void NativeFolderPickerOpensMultipleFoldersAndRetainsTheExistingFile()
+    {
+        var first = Path.Combine(_folder, "first မြန်မာ folder");
+        var second = Path.Combine(_folder, "second မြန်မာ folder");
+        Directory.CreateDirectory(first);
+        Directory.CreateDirectory(second);
+        var firstLog = Path.Combine(first, "first.log");
+        var secondLog = Path.Combine(second, "second.log");
+        var firstContent = "first\n" + SelectedLine + "\nlast";
+        var secondContent = "first\n" + PickerLine + "\nlast";
+        File.WriteAllText(firstLog, firstContent);
+        File.WriteAllText(secondLog, secondContent);
+        var window = StartApplication();
+        var dialog = OpenPicker(window, folder: true);
+        SubmitPicker(dialog, $"\"{first}\" \"{second}\"");
+        WaitFor(() => window.Current.IsEnabled && window.Current.Name.Contains(Path.GetFileName(second), StringComparison.Ordinal) ? window : null,
+            "The last selected folder must become active.");
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The source tree must be accessible.");
+        var folders = new List<AutomationElement>();
+        WaitFor(() =>
+        {
+            var roots = tree.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Cast<AutomationElement>().ToArray();
+            folders = roots.Where(item => item.FindAll(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 1).ToList();
+            return roots.Length == 3 && folders.Count == 2 ? tree : null;
+        }, "Both picked folders must discover their files without removing the original file source.");
+        foreach (var (folder, expected) in folders.Zip(new[] { SelectedLine, PickerLine }))
+        {
+            var child = folder.FindFirst(TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem));
+            ((SelectionItemPattern)child.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+            SelectSecondLine(window);
+            CopyAndCheck(window, expected);
+        }
+        Assert.That(File.ReadAllText(_path), Is.EqualTo(firstContent));
+        Assert.That(File.ReadAllText(firstLog), Is.EqualTo(firstContent));
+        Assert.That(File.ReadAllText(secondLog), Is.EqualTo(secondContent));
+    }
+
     [TestCase(false), TestCase(true)]
     public void NativeFolderOptionsBrowseAppliesOrCancelsWithoutChangingOriginalLogs(bool cancel)
     {
@@ -862,7 +904,7 @@ public sealed partial class SourceEntryPointTest
                 var copyError = window.FindAll(TreeScope.Descendants,
                         new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)).Cast<AutomationElement>()
                     .Any(text => text.Current.Name.StartsWith("Cannot copy:", StringComparison.Ordinal));
-                TestContext.Progress.WriteLine($"Owned copy diagnostic: selection_count={selection}, copy_error_visible={copyError}, window_enabled={window.Current.IsEnabled}, foreground={NativeKeyboard.IsForeground(_process!)}");
+                TestContext.Progress.WriteLine($"Owned copy diagnostic: selection_count={selection}, copy_error_visible={copyError}, window_enabled={window.Current.IsEnabled}, foreground={NativeKeyboard.IsForeground(_process!)}, foreground_pid={NativeKeyboard.ForegroundProcessId}");
             }
             catch (Exception diagnostic) when (diagnostic is ElementNotAvailableException or COMException or InvalidOperationException)
             {
