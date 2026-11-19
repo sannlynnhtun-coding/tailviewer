@@ -1155,3 +1155,41 @@ artifacts/migration/t022-many-readers.log/TRX and
 t022-many-readers-contracts.log/TRX. No production code changed in this slice,
 so the full modern/native/Core suites were not repeated. Whole-app many-source
 profiling, parser/aggregate integration and the full migration remain pending.
+
+## Modern group lifecycle foundation (T023, UI binding pending)
+
+SourceGroup ports the essential ownership/reconfiguration behavior from legacy
+MergedDataSource without its WPF-host AbstractDataSource dependency. It reuses
+Core MergedLogSource and LogSourceProxy, keeps a stable forwarding source, and
+exposes a read-only ordered identity list for interpreting source slots.
+Excluded members occupy EmptyLogSource slots, matching the legacy attribution
+rule. Unknown exclusion IDs and caller settings are retained. Group disposal
+owns only its merge/proxy, not member sources or the caller's scheduler.
+
+Membership snapshots reject empty/duplicate/self identities, null sources and
+more than the existing 255 source slots before replacing the active merge.
+Workspace graph validation remains responsible for indirect cycles. Existing
+Core timestamp ordering is preserved: ties follow member order; unstamped
+entries with no timestamp-bearing parent are omitted. Replacement detaches the
+old merge; queued/late old-member updates cannot populate the stable view.
+
+Four tests cover exclusions/re-inclusion with source slot 1 retained, unknown
+settings, timestamp ties and original indexes, pending/late old-member updates,
+empty membership, invalid snapshots preserving the usable view, idempotent
+closure and surviving member reads/appends. The initial fixture namespace
+qualification compile failure is retained separately from the behavioral red:
+three tests then failed with NotImplementedException before production code.
+Final group + existing merge suites pass 1024/1024, zero failures/skips. Core
+net45 and net10.0 both build with zero errors (known NU1902 warnings visible).
+
+Evidence: artifacts/migration/t023-group-owner-red.log (fixture compile),
+t023-group-owner-behavior-red.log/TRX, t023-group-owner-focused.log/TRX,
+t023-group-owner-merge.log/TRX and t023-group-owner-build.log.
+
+This is a Core foundation, not completed group/folder output in the desktop.
+MainWindow still clears the log view for groups/folders. Binding leased member
+readers and restoring the parsed timestamp pipeline are required next; raw
+readers alone cannot produce meaningful timestamp merges. Full modern/native
+and full Core suites were not repeated for this isolated additive class;
+existing merge behavior was checked by its complete affected suite. T023 and
+the overall migration remain incomplete.
