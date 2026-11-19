@@ -321,3 +321,28 @@ This proves the three gestures at the observed DPI, not a mixed-monitor matrix,
 native edge scrolling/hover expansion, all cross-parent gestures or full screen
 reader/keyboard coverage. T023 and full migration remain open. Shared Core code
 was unchanged, so its complete suite was not repeated.
+
+## Slice 9: native collapsed-group hover expansion
+
+An additional real-process case creates an empty group through the actual New
+group button, pointer-drags one owned file into it, collapses it through the
+native ExpandCollapse pattern, then drags another root onto its header. The
+helper keeps mouse down while a bounded UIA observation waits for Expanded;
+it never invokes Expand itself during the gesture. Only after expansion is
+observed does it release the mouse. The test checks the two ordered member
+paths, root count, original Unicode copy and unchanged bytes of all three files.
+
+DragWithin accepts an optional bounded observation while holding capture; its
+existing PID, external-cursor, modifier, release and restoration guards remain.
+Existing pointer cases use the unchanged no-observation path. Initial focused
+hover case passes 1/1; final native pointer suite (before/group/Escape/hover)
+passes 4/4 with no failures/skips. The owned windows record 168 DPI. Post-run
+audit finds no remaining app/testhost processes or native fixture directories.
+
+Evidence: artifacts/migration/t023-hover-native.log,
+t023-hover-pointer-native.log and matching TRX files under t021-native (ignored).
+Production sources were unchanged, so modern/Core suites and the full native
+picker/OLE/handoff suite were not repeated. The previous complete native
+checkpoint remains 17/17; this is a focused four-case passing checkpoint.
+Native edge scrolling, mixed-monitor DPI and the full gesture/accessibility
+matrix remain pending. T023 and full migration stay open.

@@ -112,7 +112,7 @@ internal static class NativeOleDrag
         }
     }
 
-    public static void DragWithin(Process process, Point from, Point to, bool cancel)
+    public static void DragWithin(Process process, Point from, Point to, bool cancel, Action? whileHeld = null)
     {
         if (new[] { 1, 2, 4, 5, 6, 16, 17, 18, 91, 92 }.Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
             throw new InvalidOperationException("Native pointer tests require released mouse buttons and modifiers.");
@@ -139,6 +139,7 @@ internal static class NativeOleDrag
             Check(end);
             if (!GetPhysicalCursorPos(out var current) || current.X != end.X || current.Y != end.Y)
                 throw new InvalidOperationException("The cursor changed externally during the owned drag.");
+            whileHeld?.Invoke();
             if (cancel)
             {
                 if (!PostMessage(process.MainWindowHandle, 0x100, (UIntPtr)0x1b, (IntPtr)1) ||

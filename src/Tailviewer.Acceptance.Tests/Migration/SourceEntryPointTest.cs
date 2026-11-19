@@ -396,6 +396,67 @@ public sealed class SourceEntryPointTest
         Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
     }
 
+    [Test]
+    public void NativePointerHoverExpandsACollapsedGroupBeforeDroppingTheSource()
+    {
+        var memberPath = Path.Combine(_folder, "hover-member.log");
+        var sourcePath = Path.Combine(_folder, "hover-source မြန်မာ.log");
+        File.WriteAllText(memberPath, "first\nfirst\nlast");
+        var content = "picked-first\n" + PickerLine + "\npicked-last";
+        File.WriteAllText(sourcePath, content);
+        var window = StartApplication(_path, memberPath, sourcePath);
+        var tree = WaitFor(() => window.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Sources")), "The owned tree must be accessible.");
+        WaitFor(() => window.Current.Name.Contains(Path.GetFileName(sourcePath), StringComparison.Ordinal) ? window : null,
+            "All owned startup paths must finish opening.");
+        InvokeButton(window, "New group");
+        var group = WaitFor(() => tree.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, "Merged Data Source")), "The new group must have an accessible name.");
+        var member = WaitFor(() => tree.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, memberPath)), "The member must remain configured.");
+        ((SelectionItemPattern)member.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window, "first");
+        NativeOleDrag.DragWithin(_process!, HeaderPoint(member, Path.GetFileName(memberPath)), HeaderPoint(group, "Merged Data Source"), false);
+        WaitFor(() => group.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 1 ? group : null,
+            "The initial owned member must join the group.");
+        var expansion = (ExpandCollapsePattern)group.GetCurrentPattern(ExpandCollapsePattern.Pattern);
+        expansion.Collapse();
+        Assert.That(expansion.Current.ExpandCollapseState, Is.EqualTo(ExpandCollapseState.Collapsed));
+        var source = WaitFor(() => tree.FindFirst(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.NameProperty, sourcePath)), "The drag source must remain a root.");
+        ((SelectionItemPattern)source.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+        NativeOleDrag.DragWithin(_process!, HeaderPoint(source, Path.GetFileName(sourcePath)), HeaderPoint(group, "Merged Data Source"), false,
+            () => WaitFor(() => expansion.Current.ExpandCollapseState == ExpandCollapseState.Expanded ? group : null,
+                "The native captured pointer must expand the group before mouse release."));
+        WaitFor(() => group.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count == 2 ? group : null,
+            "The source must join the already expanded group.");
+        var children = group.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Cast<AutomationElement>().ToArray();
+        Assert.That(children.Select(child => child.Current.Name), Is.EqualTo(new[] { memberPath, sourcePath }));
+        Assert.That(tree.FindAll(TreeScope.Children,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem)).Count, Is.EqualTo(2));
+        ((SelectionItemPattern)children[1].GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+        SelectSecondLine(window);
+        CopyAndCheck(window, PickerLine);
+        Assert.That(File.ReadAllText(sourcePath), Is.EqualTo(content));
+        Assert.That(File.ReadAllText(memberPath), Is.EqualTo("first\nfirst\nlast"));
+        Assert.That(File.ReadAllText(_path), Is.EqualTo("first\n" + SelectedLine + "\nlast"));
+
+        static Point HeaderPoint(AutomationElement item, string name)
+        {
+            var label = WaitFor(() => item.FindFirst(TreeScope.Descendants, new AndCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+                new PropertyCondition(AutomationElement.NameProperty, name))), "The owned header text must be accessible.");
+            var bounds = label.Current.BoundingRectangle;
+            return new Point(bounds.Left + Math.Min(30, bounds.Width / 2), bounds.Top + bounds.Height / 2);
+        }
+    }
+
     private void SendSecondary(params string[] paths)
     {
         var start = new ProcessStartInfo(_process!.StartInfo.FileName) { UseShellExecute = false, WorkingDirectory = _folder };
