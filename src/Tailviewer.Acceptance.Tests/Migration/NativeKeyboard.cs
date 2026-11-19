@@ -7,11 +7,16 @@ namespace Tailviewer.Acceptance.Tests.Migration;
 
 internal static class NativeKeyboard
 {
-    public static bool IsForeground(Process process)
+    public static uint ForegroundProcessId
     {
-        GetWindowThreadProcessId(GetForegroundWindow(), out var owner);
-        return owner == process.Id;
+        get
+        {
+            GetWindowThreadProcessId(GetForegroundWindow(), out var owner);
+            return owner;
+        }
     }
+
+    public static bool IsForeground(Process process) => ForegroundProcessId == process.Id;
 
     public static void SelectAll(Process process, AutomationElement list)
     {

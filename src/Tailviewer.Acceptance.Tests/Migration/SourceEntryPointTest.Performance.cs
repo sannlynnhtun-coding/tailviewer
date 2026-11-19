@@ -95,7 +95,10 @@ public sealed partial class SourceEntryPointTest
                 stop.Token.ThrowIfCancellationRequested();
                 if (writing.IsFaulted) writing.GetAwaiter().GetResult();
                 Assert.That(_process!.HasExited, Is.False, "The owned viewer must stay alive.");
-                Assert.That(NativeKeyboard.IsForeground(_process), Is.True, "Foreground changed; native display samples are not qualified.");
+                var foreground = NativeKeyboard.ForegroundProcessId;
+                if (foreground != _process.Id)
+                    Report(new { foreground_changed_at_seconds = clock.Elapsed.TotalSeconds, foreground_process_id = foreground, owned_process_id = _process.Id });
+                Assert.That(foreground, Is.EqualTo((uint)_process.Id), "Foreground changed; native display samples are not qualified.");
                 var visible = -1;
                 try { visible = LastVisibleNumericRecord(rows); }
                 catch (ElementNotAvailableException) { Report(new { unavailable_sample = true }); }

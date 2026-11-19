@@ -370,7 +370,10 @@ matrix remain unproven. T023 remains partial. Modern/Core and the full native
 picker/OLE/handoff suite were not rerun for this test-only addition; the previous
 complete native checkpoint was 17/17 and later focused hover coverage is separate.
 
-## Five-minute native live-tail gate (T027, not yet passing)
+## Five-minute native live-tail gate (T027, historical initial attempts)
+
+These notes describe the initial failing checkpoint; the qualified passing run
+is recorded in the later five-minute preflight section below.
 
 Added an explicit Performance-category case using the same paced producer as
 the Core harness: 100 LF-terminated numeric records per 100 ms for 300 seconds.
@@ -542,3 +545,22 @@ unchanged. The full 22-case native suite was not repeated after this targeted
 fix, so its preceding passing result remains a baseline, not a claim of complete
 post-fix native execution. Cleanup audit finds no owned viewer/testhost processes
 or native fixture directories.
+
+## Five-minute native live-tail preflight passes
+
+The next uninterrupted foreground run completes all 3,000 batches over
+300.0069471 seconds, followed by exact native copy of 300,000 records plus the
+terminal newline and paused append/selection/viewport checks: 1 pass, zero
+failures/skips. UIA-visible tail-advance p95 is 422.8352 ms; maximum is
+2,285.3386 ms. Writer p95 deadline lateness is 14.3983 ms. All 906 unavailable
+UIA observations retain pending batch latency; foreground changes are zero.
+
+The fixture now records numeric actual/owned foreground PIDs if ownership is
+lost, while retaining the same qualification guard. The passing run uses the
+same production app code as 6b51481f, SDK 10.0.302, reference i7-13700H host and
+168-DPI owned window. No production change or performance threshold relaxation
+was needed for this pass. See [recovery evidence](recovery-tests.md) for the
+table, observer limits, remaining gates and exact log/TRX/attachment paths.
+
+The previous failures above remain historical evidence. This passing paced gate
+does not close T027, large-file native performance, US1 or the full migration.

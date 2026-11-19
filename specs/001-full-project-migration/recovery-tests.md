@@ -564,3 +564,39 @@ Core availability after writer flush, **not native UI display latency**. It does
 not close all of SC-006 or T027: rendered five-minute tail, interaction/pause,
 broader recovery/performance matrices and prerequisite integration remain pending.
 The full migration remains active and no user-story gate is marked complete.
+
+## Five-minute native live-tail preflight passes (T027)
+
+The interactive Windows x64 run now completes the full paced workload and final
+selection checks: 1 test pass, zero failures/skips, about 5m08s overall. The
+reference host is the same i7-13700H (14 cores / 20 logical processors), SDK
+10.0.302; the owned viewer reports 168 DPI. Its window stays foreground for all
+batch observations. The test adds numeric foreground-owner evidence on failure;
+no window titles, unrelated app data or clipboard contents are logged.
+
+| Measurement | Result |
+|---|---|
+| Writer duration | 300.0069471 seconds |
+| Complete records / observed batches | 300,000 / 3,000 |
+| Native UIA-visible tail advance, nearest-rank p95 | 422.8352 ms (budget 1,000 ms) |
+| Maximum sampled advancement | 2,285.3386 ms |
+| Writer p95 deadline lateness | 14.3983 ms (qualification limit 100 ms) |
+| Unavailable UIA observations | 906, logged without dropping delayed batches |
+| Foreground ownership changes | 0 |
+| Exact native select-all/copy | All records and terminal newline verified |
+| Extra append while paused | Original selection and viewport retained; exact updated copy verified |
+
+Evidence under ignored artifacts/migration: t027-native-tail-qualified.log and
+TRX in t027-native-tail-qualified/. The attached
+native-live-tail-314970530baa453a824a5dfc7cf543ee.jsonl contains numeric progress,
+UIA failure HRESULTs and final results. Every pending batch contributes latency
+after an unavailable observation; the maximum is retained, not hidden by the
+p95 summary. Earlier interrupted runs remain recorded in native-entry-point-tests.md.
+Cleanup audit finds no owned app/testhost process or native fixture directory.
+
+This observes foreground, non-offscreen accessibility text, not an actual pixel
+presentation timestamp. It is one reference-host preflight, not a universal
+hardware claim. No timing threshold, writer rate, duration or focus guard was
+relaxed. Native large-file first-page/application-memory/navigation measurements,
+the wider recovery/source matrix and prerequisite integration remain open.
+T027, US1, P13 and the full migration are not marked complete by this result.
