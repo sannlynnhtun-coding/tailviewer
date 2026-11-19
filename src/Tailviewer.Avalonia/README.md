@@ -1,6 +1,6 @@
-# Avalonia log-viewer prototype
+# Avalonia log viewer — migration in progress
 
-ဤ prototype သည် migrated Core ၏ `StreamingTextLogSourceFactory` ကိုသုံးသော .NET 10 / Avalonia 12.1.6 desktop application ဖြစ်သည်။
+.NET 10 / Avalonia 12.1.6 နှင့် migrated Core ကိုသုံးသော Windows x64 desktop app ဖြစ်သည်။ Legacy Tailviewer feature အားလုံး ပြည့်စုံသေးခြင်းမရှိပါ။ အကောင်အထည်ဖော်ပြီးသောအပိုင်းနှင့် ကျန်ရှိသည့်အလုပ်များကို [feature inventory](../../specs/001-full-project-migration/feature-inventory.md) နှင့် [tasks](../../specs/001-full-project-migration/tasks.md) တွင် ကြည့်နိုင်သည်။
 
 Repository root မှ run ရန်:
 
@@ -8,33 +8,37 @@ Repository root မှ run ရန်:
 dotnet run --project src/Tailviewer.Avalonia
 ```
 
-ဖိုင်တန်းဖွင့်ရန်:
+ဖိုင်များကို command line မှ ဖွင့်ရန်:
 
 ```powershell
-dotnet run --project src/Tailviewer.Avalonia -- "C:\logs\application.log"
+dotnet run --project src/Tailviewer.Avalonia -- "C:\logs\application.log" "C:\logs\service.log"
 ```
 
-Build နှင့် tests:
+Build နှင့် modern tests:
 
 ```powershell
-dotnet build Tailviewer.Avalonia.slnx
-dotnet test Tailviewer.Avalonia.slnx
+dotnet build Tailviewer.Avalonia.slnx -c Release
+dotnet test Tailviewer.Avalonia.slnx -c Release
 ```
 
 အသုံးပြုပုံ:
 
-- **Open file… / Ctrl/Cmd+O** ဖြင့် local log file တစ်ဖိုင်ဖွင့်ပါ။ Cancel လုပ်လျှင် လက်ရှိဖိုင်ကို ဆက်ထားသည်။ ဖိုင်ဖွင့်မရလျှင် error ပြပြီး လက်ရှိဖိုင်ကို မပိတ်ပါ။
-- Vertical/horizontal scrollbars၊ mouse wheel နှင့် keyboard navigation သုံးနိုင်သည်။
-- လိုင်းကို click လုပ်ရွေးပါ။ Shift ဖြင့် range၊ Ctrl/Cmd ဖြင့် လိုင်းများရွေးပြီး **Copy selected / Ctrl/Cmd+C** နှိပ်ပါ။ Clipboard တွင် ဖိုင်အစီအစဉ်အတိုင်း မူလစာသားသာပါပြီး display line numbers မပါပါ။
-- **Follow tail** သည် append ဖြစ်သောလိုင်းများဆီ အလိုအလျောက်ရွှေ့သည်။ Scroll/selection/keyboard navigation လုပ်လျှင် follow ရပ်သော်လည်း Core က ဆက်ဖတ်နေသည်။ Follow tail ကို ပြန်ဖွင့်လျှင် နောက်ဆုံးလိုင်းဆီ ရွှေ့သည်။
-- UTF-8 ကို default သုံးပြီး UTF-8/UTF-16 စသည့် BOM ကို platform StreamReader ဖြင့် detect လုပ်သည်။
+- **Open file… / Ctrl+O** ဖြင့် ဖိုင်များ၊ **Open folder…** ဖြင့် folder ဖွင့်နိုင်သည်။ Local file/folder drop နှင့် existing-instance handoff ပါသည်။ ဖိုင်ဖွင့်မရလျှင် identity/error ကို ထိန်းပြီး လက်ရှိဖတ်နေသော rows ကို ဆက်ထားသည်။
+- Source tree မှ ဖိုင်ပြောင်းခြင်း၊ group ဖွဲ့ခြင်း/အမည်ပြောင်းခြင်း၊ member include/exclude နှင့် close/all လုပ်နိုင်သည်။ Folder options တွင် semicolon ဖြင့် ခွဲထားသော wildcard patterns နှင့် recursive discovery ကို ပြင်နိုင်သည်။ ရွေးထားသော folder/group သည် ပါဝင်သည့် logs များကို timestamp အလိုက် ပေါင်းပြသည်။
+- Vertical/horizontal scroll၊ mouse wheel နှင့် keyboard navigation သုံးနိုင်သည်။ **Ctrl+G** ဖြင့် line number၊ **Ctrl+T** ဖြင့် configured source ကို ရှာရွေးပါ။ **Ctrl+Tab / Ctrl+Shift+Tab** ဖြင့် source ပြောင်းနိုင်သည်။
+- Click၊ Shift နှင့် Ctrl ဖြင့် လိုင်းများရွေးပါ။ **Alt+drag** ဖြင့် character range ရွေးနိုင်သည်။ **Copy selected / Ctrl+C** သည် ပြထားသောအစီအစဉ်အတိုင်း မူလစာသားကို copy လုပ်ပြီး display line number၊ delta/elapsed-time prefix မပါပါ။ ကြီးမားသော selection ကို copy လုပ်လျှင် ထိုစာသားအတွက် memory လိုသည်။
+- **Follow tail** သည် append ဖြစ်သောလိုင်းများဆီ ရွှေ့သည်။ Scroll/selection/navigation လုပ်လျှင် follow ရပ်သော်လည်း background reader က ဆက်ဖတ်သည်။ Follow ကို ပြန်ဖွင့်လျှင် နောက်ဆုံးလိုင်းဆီ ရွှေ့သည်။
+- **Text encoding** မှ Auto detect သို့မဟုတ် explicit encoding ရွေးနိုင်သည်။ Auto သည် BOM ကို detect လုပ်ပြီး BOM မရှိလျှင် UTF-8 သုံးသည်။ Accepted encoding change သည် readers/cache ကို ပြန်ဖန်တီးသည်။
+- Source context menu မှ line numbers၊ delta/elapsed times၊ Single Line mode နှင့် containing-folder actions သုံးနိုင်သည်။
 
-Core က ဖိုင်ကို index လုပ်ပြီး UI က လိုင်းတစ်လိုင်းလျှင် integer index တစ်ခုသာ သိမ်းသည်။ Virtualized ListBox နှင့် စာသား cache အများဆုံး 8 × 128 လိုင်းကိုသုံးသည်။ Column reads ကို background threads တွင်လုပ်ပြီး UI timer က 100 ms တစ်ကြိမ် update ယူသည်။ ဖိုင်တစ်ခုလုံးကို string တစ်ခုအဖြစ် မတင်ပါ။ Selection/copy သည် **လိုင်းအလိုက်** ဖြစ်ပြီး character အပိုင်းတစ်ခုချင်း ရွေးခြင်း မပါပါ။ ကြီးမားသော selection ကို copy လုပ်လျှင် ထိုစာသားအတွက် memory လိုသည်။
+Configured/discovered files များသည် ပထမဆုံးရွေးဖတ်ခြင်းမပြုမီ background တွင် index/tail လုပ်သည်။ Visible text cache ကို အများဆုံး 8 × 128 လိုင်း ထိန်းထားပြီး UI တွင် line တစ်လိုင်းလျှင် integer index သိမ်းသည်။ ပုံမှန် preview အတွက် ဖိုင်တစ်ခုလုံးကို string တစ်ခုအဖြစ် မတင်ပါ။
 
-စစ်ထားသည်: real Core + Avalonia headless integration tests 14 ခုဖြင့် Unicode/BOM၊ whitespace/copy ordering၊ empty file၊ partial-line append၊ selection/clipboard၊ truncation၊ failed-open recovery၊ close during read နှင့် 20,000-line viewport virtualization ကို စမ်းထားသည်။ Same-size rewrite (timestamps မပြောင်းလဲခြင်းအပါအဝင်)၊ rename rotation မှ ပိုကြီးသောဖိုင်၊ truncate-and-regrow နှင့် ဖိုင်ပျောက်ပြီး မူလ metadata ဖြင့်ပြန်ပေါ်လာခြင်းအတွက် regression tests ပါသည်။ Replacement ဖြစ်လျှင် index/cache/selection ကို ပြန်စပြီး ပုံမှန် append တွင် selection ကို ထိန်းသည်။ Logo ကို light/dark themes နှင့် minimum window width တွင် real Skia renderer ဖြင့် စစ်ထားသည်။
+Core က metadata နှင့် ဖတ်ပြီးသား content hash ကို စစ်၍ stable same-size/middle-only rewrites၊ truncate/regrow၊ rotation နှင့် Auto mode BOM encoding replacement ကို detect လုပ်သည်။ Replacement သည် revision/cache/selection ကို invalidate လုပ်ပြီး ပုံမှန် append တွင် selection ကို ထိန်းသည်။ Writer က ဆက်တိုက်ပြောင်းနေသော ဖိုင်အတွက် atomic filesystem snapshot အာမခံချက် မရှိပါ။
 
-Rotation detection က metadata အပြင် ဖတ်ပြီးသား bytes ၏ အစ/အဆုံး 4 KiB စီကို polling တိုင်း စစ်သည်။ File access error ဖြစ်လျှင် offsets နှင့် fingerprint ကို ရှင်းပြီး ပြန်ဖတ်သည်။ Sample နေရာများ မပြောင်းသည့် အလယ်ပိုင်း rewrite ကို metadata ကပါ မခွဲနိုင်လျှင် မဖမ်းနိုင်ပါ။ ဖိုင်အသစ်၏ encoding သည် ဖွင့်စဉ် detect လုပ်ထားသည့် encoding ကို ဆက်သုံးသည်။
+စစ်ဆေးမှုအထောက်အထားနှင့် ကန့်သတ်ချက်များ:
 
-မပြီးသေးသည်: Windows native file picker/rendering ကို desktop capture timeout ကြောင့် မျက်မြင်အတည်မပြုနိုင်သေးပါ။ Linux/macOS execution နှင့် 100 MB/1 GB performance comparisons မစမ်းရသေးပါ။ Search၊ parsed columns၊ plugins နှင့် installer သည် နောက်အဆင့်များဖြစ်သည်။
+- [Source lifecycle tests](../../specs/001-full-project-migration/source-lifecycle-tests.md): file/folder/group၊ background readers၊ selection/copy၊ missing/locked-file recovery နှင့် native clipboard checks။ Native desktop focus/clipboard interference ကြောင့် picker/copy failure စစ်ဆေးမှု ကျန်နေသည်။
+- [Recovery tests](../../specs/001-full-project-migration/recovery-tests.md): replacement၊ encoding နှင့် streaming recovery။ Performance အထောက်အထားများတွင် သတ်မှတ်ထားသော hardware/workload/cache အခြေအနေများအတွက်သာ အကျုံးဝင်သည်။ Full acceptance matrix မပြီးသေးပါ။
+- လက်ရှိ app ၏ source/view settings သည် session အတွင်းသာ ထိန်းထားသည်။ Shipping profile save/restore/import UI၊ search/filter/highlight၊ complete parsed columns၊ plugin lifecycle နှင့် updates migration တို့ ကျန်နေသည်။ Linux/macOS သည် နောက် milestone ဖြစ်သည်။
 
-Multi-target Core restore တွင် legacy log4net 2.0.12 advisory warning ပြနိုင်သည်။ ဤ executable က `net10.0` graph နှင့် log4net 3.6.0 ကိုသာ သုံးသည်။
+Multi-target restore တွင် legacy log4net 2.0.12 ၏ NU1902 advisory ပြနိုင်သည်။ Modern runtime သည် log4net 3.6.0 ကို resolve လုပ်သည်။
