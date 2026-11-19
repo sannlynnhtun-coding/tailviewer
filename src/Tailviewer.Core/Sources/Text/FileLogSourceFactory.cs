@@ -1,5 +1,8 @@
 ﻿using Tailviewer.Api;
 
+using System;
+using System.Threading;
+
 // ReSharper disable once CheckNamespace
 namespace Tailviewer.Core
 {
@@ -8,6 +11,12 @@ namespace Tailviewer.Core
 	/// </summary>
 	public static class FileLogSourceFactory
 	{
+		/// <summary>Creates a multiline view; the caller retains ownership of the input source.</summary>
+		public static ILogSource CreateMultiLineView(ITaskScheduler scheduler, ILogSource source)
+		{
+			return new MultiLineLogSource(scheduler, source, TimeSpan.Zero);
+		}
+
 		/// <summary>Owns a raw text source and adds built-in parsing and original-position columns without buffering the whole file.</summary>
 		public static ILogSource ParseText(ILogSource source)
 		{

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using NUnit.Framework;
 using Moq;
 using Tailviewer.Api;
@@ -9,6 +10,24 @@ namespace Tailviewer.Core.Tests.Sources.Text
     [TestFixture]
     public sealed class GenericTextLogSourceTest
     {
+        [Test]
+        public void MultilineParserViewRetainsInheritedTimestampWhenEntriesAreReadTogether()
+        {
+            using var raw = new InMemoryLogSource();
+            raw.AddEntry("2026-11-19 12:00:01.000 ERROR header", LevelFlags.None);
+            raw.AddEntry("    at original frame", LevelFlags.None);
+            using var parsed = FileLogSourceFactory.ParseText(raw);
+            var scheduler = new ManualTaskScheduler();
+            using var multiline = FileLogSourceFactory.CreateMultiLineView(scheduler, parsed);
+            scheduler.Run(4);
+            var expected = new DateTime(2026, 11, 19, 12, 0, 1);
+            Assert.That(multiline.GetColumn(new LogSourceSection(0, 2), Core.Columns.Timestamp), Is.EqualTo(new DateTime?[] { expected, expected }));
+            var entries = multiline.GetEntries(new LogSourceSection(0, 2), new IColumnDescriptor[]
+                { Core.Columns.Index, Core.Columns.LogEntryIndex, Core.Columns.Timestamp });
+            Assert.That(entries[1].Timestamp, Is.EqualTo(expected));
+            Assert.That(entries[1].LogEntryIndex, Is.EqualTo(new LogEntryIndex(0)));
+        }
+
         [Test]
         public void FactoryParserRedetectsTimestampFormatAfterSourceReset()
         {

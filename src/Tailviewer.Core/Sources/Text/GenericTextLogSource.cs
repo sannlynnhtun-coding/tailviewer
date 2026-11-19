@@ -172,11 +172,11 @@ namespace Tailviewer.Core
 					}
 					for (var i = 0; i < sourceIndices.Count; ++i)
 					{
-						var parsedLogEntry = _parser.Parse(tmp[i]);
-						if (parsedLogEntry != null)
-							destination[destinationIndex + i].CopyFrom(parsedLogEntry);
-						else
-							destination[destinationIndex + i].CopyFrom(_nothingParsed);
+						var parsedLogEntry = _parser.Parse(tmp[i]) ?? _nothingParsed;
+						// Buffer views can expose fewer columns than their underlying row objects.
+						foreach (var column in destination.Columns)
+							if (parsedLogEntry.TryGetValue(column, out var value))
+								destination[destinationIndex + i].SetValue(column, value);
 					}
 				}
 			}

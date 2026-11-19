@@ -1427,3 +1427,26 @@ Native/Framework runtime and performance workloads were not rerun for this
 parser-state fix. Full plugin/custom/multiline parsing, schema changes,
 restart persistence, provenance navigation and full acceptance remain open.
 T026/T043 and the full migration remain incomplete.
+
+## Multiline parser buffer-view contract (T043, shared prerequisite)
+
+A Core integration regression showed that multiline GetColumn(Timestamp) was
+correct while GetEntries(Index/LogEntryIndex/Timestamp) lost an inherited
+continuation timestamp. GenericTextLogSource copied whole parsed rows into a
+buffer view whose row object still exposed excluded backing columns. Retrieving
+the remaining index column could consequently overwrite previously computed
+multiline timestamps/entry indexes. The parser now sets only columns advertised
+by the destination view. Existing underlying-column/provenance copying and
+null-parser-result behavior remain intact; the fix lives in the shared parser,
+not a second multiline implementation.
+
+The regression fails on the combined-entry read before the fix and passes after
+it. FileLogSourceFactory also exposes the existing Core MultiLineLogSource as a
+borrowed-input view; the caller owns its input and explicitly disposes the view.
+Affected parser/multiline/group checks pass 998 with one pre-existing skip.
+Full net10.0 Core passes 7171 with zero failures and the same five pre-existing
+skips. Evidence: artifacts/migration/t043-multiline-columns-red.log/TRX,
+t043-multiline-columns.log/TRX and t043-multiline-core.log/TRX. Application
+binding/menu tests and their final validation are recorded separately below.
+Known legacy NU1902 remains visible. This shared fix alone does not establish
+full custom/plugin parser or full migration completion.
