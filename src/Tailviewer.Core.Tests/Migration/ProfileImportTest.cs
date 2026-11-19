@@ -195,11 +195,18 @@ namespace Tailviewer.Core.Tests.Migration
             Assert.That(settings.DataSources[0].Id.Value.ToString(), Is.EqualTo(SourceId));
         }
 
-        [Test]
-        public async Task RepeatedImportAssignsStableIdentitiesToLegacySourcesWithoutIds()
+        [TestCase(1)]
+        [TestCase(2)]
+        public async Task RepeatedImportAssignsStableIdentitiesToLegacySourcesWithoutIds(int missingCount)
         {
             var xml = XDocument.Load(_source);
-            xml.Root.Element("datasources").Element("datasource").Attribute("id").Remove();
+            var sources = xml.Root.Element("datasources");
+            for (var index = 0; index < missingCount; ++index)
+            {
+                var missing = new XElement(sources.Element("datasource"));
+                missing.Attribute("id").Remove();
+                sources.Add(missing);
+            }
             xml.Save(_source);
             Assert.That((await Import()).Status, Is.EqualTo(ProfileImportStatus.Imported));
             var first = new ApplicationSettings(_target);
@@ -207,7 +214,9 @@ namespace Tailviewer.Core.Tests.Migration
             Assert.That((await Import(ProfileImportChoice.ReplaceExisting)).Status, Is.EqualTo(ProfileImportStatus.Imported));
             var second = new ApplicationSettings(_target);
             second.Restore();
-            Assert.That(second.DataSources.Single().Id, Is.EqualTo(first.DataSources.Single().Id));
+            Assert.That(second.DataSources.Select(item => item.Id), Is.EqualTo(first.DataSources.Select(item => item.Id)));
+            Assert.That(second.DataSources.Select(item => item.Id).Distinct().Count(), Is.EqualTo(missingCount + 1));
+            Assert.That(second.DataSources[0].Id.Value.ToString(), Is.EqualTo(SourceId));
         }
 
         [Test]

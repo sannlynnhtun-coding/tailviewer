@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -70,16 +71,27 @@ namespace Tailviewer.Settings
                         if (backupHash != sourceHash) return Result(ProfileImportStatus.Failed, error);
                         verifiedBackup = backup;
                         error = "InvalidProfile";
-                        var model = ApplicationSettings.FromDocument(targetFile, ProfileStore.Read(backup));
+                        var document = ProfileStore.Read(backup);
+                        var sources = document.Root.Element("datasources")?.Elements("datasource").ToList();
+                        if (sources != null)
+                            for (var index = 0; index < sources.Count; ++index)
+                                if (sources[index].Attribute("id") == null)
+                                {
+                                    // The immutable backup and source position make retries reproducible.
+                                    var identity = SHA256.HashData(Encoding.UTF8.GetBytes(
+                                        "Tailviewer/legacy-source/" + sourceHash + "/" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                                    sources[index].SetAttributeValue("id", new Guid(identity.AsSpan(0, 16)));
+                                }
+                        var model = ApplicationSettings.FromDocument(targetFile, document);
                         if (model.DataSources.GroupBy(item => item.Id).Any(group => group.Count() > 1) ||
                             model.QuickFilters.GroupBy(item => item.Id).Any(group => group.Count() > 1))
                             return Result(ProfileImportStatus.Failed, "DuplicateIdentity");
                         cancellationToken.ThrowIfCancellationRequested();
                         if (File.Exists(targetFile) && choice == ProfileImportChoice.RequireChoice) return Result(ProfileImportStatus.Conflict);
                         error = "PublishFailed";
-                        ProfileStore.Write(targetFile, writer => model.BuildDocument().Save(writer), document =>
+                        ProfileStore.Write(targetFile, writer => model.BuildDocument().Save(writer), candidate =>
                         {
-                            ApplicationSettings.FromDocument(targetFile, document);
+                            ApplicationSettings.FromDocument(targetFile, candidate);
                             cancellationToken.ThrowIfCancellationRequested();
                         }, allowReplace: choice == ProfileImportChoice.ReplaceExisting);
                         return Result(ProfileImportStatus.Imported);

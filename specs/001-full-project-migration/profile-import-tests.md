@@ -33,3 +33,17 @@ and further cancellation/failure edge cases need implementation and verification
 There is no Avalonia import UI integration yet. These tests use disposable files,
 not real user profiles. Non-Windows paths, native alias races and physical power
 loss are not verified by this slice.
+## T014 slice 1 — reproducible missing source identities
+
+The importer assigns missing top-level source IDs in the validated in-memory
+XML before invoking the existing model parser. SHA-256 of the immutable source
+backup plus the source position determines each ID. Existing IDs and original
+backup bytes remain unchanged; ordinary settings restore retains its original
+behavior. A changed original snapshot is a different import identity domain.
+
+Executed contracts now total 17: 16 pass, one bookmark-bundle failure remains.
+The expanded missing-ID cases cover one/two missing sources, distinct IDs,
+unchanged existing IDs and repeated import equality. Default Migration regression
+suite passes 138 tests. Logs: artifacts/migration/t014-stable-identities.log and
+artifacts/migration/t014-stable-migration-regression.log. T014 stays unchecked;
+the temporary contract opt-in guard remains until bundle conversion is complete.
