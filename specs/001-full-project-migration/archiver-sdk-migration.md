@@ -97,17 +97,18 @@ not a clean-checkout validation. Legacy desktop/service runtime integration and
 repository publishing remain outside this verification.
 ### Latest T008 verification
 
-Repeated the requested Archiver-only checks on 2026-11-19 with SDK 10.0.302.
+Repeated the requested Archiver-only checks on 2026-11-20 with SDK 10.0.302.
 Both SDK-style production targets (net452 and net10.0) build with zero errors
-and nine visible legacy NU1902 warnings. All 81 net10.0 Archiver tests pass
+and six visible legacy NU1902 warnings in the no-restore build. All 81 net10.0 Archiver tests pass
 with zero failures or skips. The generated modern dependency manifest resolves
 log4net 3.6.0 and SkiaSharp 3.119.4; no WPF, Metrolib, SharpRemote, PE or
 System.Drawing.Common library entries were found. No additional migration
 code was needed; T008 remains complete.
 
-Evidence: ignored artifacts/migration/t008-latest-request-build.log,
-artifacts/migration/t008-latest-request-tests.log and the generated TRX in
-artifacts/migration/t008-latest-request/. Checks used the working tree;
-four pending Avalonia reader/UI/test edits were preserved and excluded from
+Evidence: ignored artifacts/migration/t008-current-review-build.log,
+artifacts/migration/t008-current-review-tests.log and the generated TRX in
+artifacts/migration/t008-current-review/. The test command restored dependencies;
+the subsequent dual-target build used --no-restore. Checks used the working tree;
+pending Explorer and Core parser edits were preserved and excluded from
 this commit. Legacy desktop/service runtime integration and repository
 publishing were not rerun. The retained legacy log4net advisory remains open.
