@@ -195,3 +195,54 @@ T018/T022/T023 remain incomplete: group activation/cycle/duplicate UI feedback,
 include/exclude/rename, complete loading/error source adapters and saved workspace
 binding remain pending. Native desktop/clipboard acceptance, full Core rerun and
 slow/network IO cancellation were not performed for this UI slice.
+## Slice 6: ordered groups and T018 contract completion
+
+Added SourcesViewModel as the configured-source/group owner used by MainWindow.
+It reuses DataSource models, preserves ordered ID-based membership, and validates
+candidate graphs through the existing Core SourceConfiguration before mutation.
+Group add, idempotent membership, explicit ungroup and group removal are bound
+to the source tree/new-group button/context menus. A member already owned by
+another group must first be removed, matching legacy MergedDataSource.Add.
+Closing groups promotes their members in order rather than discarding their
+configuration; nested promotion retains applicable parent/member exclusions.
+
+Context menus refresh current group targets in the tree's context-request tunnel,
+including keyboard requests on tree item containers. This fixes the stale-menu
+case when a file label was created before a group existed. Tests verify the popup
+actually opens, invoke ID-tagged targets and check original copied file content.
+Cycle errors persist across the normal status refresh without mutating membership.
+Repeated file-open lookup includes configured group members, avoiding root copies.
+Folder-managed discoveries remain under their separate folder owner.
+
+### Requirement-to-evidence mapping
+
+| T018 contract | Executed evidence |
+|---|---|
+| File open/switch/original copy | OpeningAndSwitchingFilesCopiesOnlyTheActiveSource, earlier-source selection/pause case |
+| Folder membership/live discovery | OpeningAFolderRetainsTheFileAndAddsItsMatchingLogs, LiveFolderMembershipKeepsTheSelectedChildAndItsIdentity; eight Core folder pattern/recursion/recovery cases |
+| Group identity/order | NewGroupCreatesANamedSelectableSourceWithAStableIdentity, ContextMenuGroupingPreservesIdsAndClosingTheGroupKeepsItsFile; ordered/idempotent model cases |
+| Close-current/all | Six source close/overlap/ownership/file-release cases from slice 5 |
+| Missing files/folders | MissingOpenRetainsTheCurrentRowsAndCopyableText, MissingConfiguredSourceCanRecoverWithoutChangingItsIdentity, MissingFolderKeepsItsConfiguredIdentityAndRecoversInTheTree |
+| Cycles/duplicates | Self/nested context-menu rejection; duplicate configured-ID and idempotent-member cases; canonical file reopen within a group |
+| Persisted IDs | SavedSelectedSourceReopensWithItsOriginalIdentityAndContent and actual group/member save/reload assertions in the context-menu case |
+
+T018's test task is complete. It is not completion of all source implementation,
+workspace restoration UI or US1 acceptance. Group aggregate/parse behavior remains
+US2; group nodes currently navigate to their members. No concatenation or synthetic
+timestamps were introduced to manufacture aggregate parity.
+
+### Executed results
+
+Initial new-group UI case: one meaningful missing-command failure before code.
+Final modern solution: 81 Archiver + 53 Avalonia passed, zero failures/skips.
+The Avalonia count includes 21 SourcesTest lifecycle cases, nine SourceGroupsTest
+model cases, and 23 existing prototype cases. New cases cover group/member disk
+round-trip, self/nested cycle feedback, missing-folder UI recovery, duplicate IDs,
+ordered promotion, exclusion retention on promotion, and explicit ungroup.
+
+Ignored evidence: artifacts/migration/t018-group-red.log, t018-group-model.log,
+t018-group-ui.log, t018-group-solution-final.log and t018-groups/*.trx. Earlier
+menu diagnostic/failed checkpoints remain evidence; no timeout/assertion was
+weakened or failed case skipped. Native pointer/keyboard/clipboard acceptance,
+full Core rerun, rename/include-exclude UI, drag reorder/automatic group dissolution,
+loading/error source adapters and actual saved-workspace UI binding remain pending.

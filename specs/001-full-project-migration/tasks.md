@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/migration.md), [feature inventory](feature-inventory.md), [dependency inventory](dependency-inventory.md), [validation guide](quickstart.md).
 
-**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T017 complete. Foundation suites and modern dependency/output boundaries verified; T018/T022 file/folder vertical slices are in progress; group operations and complete source-state bindings remain pending. User-story tasks remain pending.
+**Created**: 2026-11-19 | **Git branch**: `master` | **Status**: Implementation started; T001-T018 complete. File/folder/group lifecycle contracts verified; T019 navigation/selection contracts are next. T022/T023 source-view and group-command implementation remains partial. User-story tasks remain pending.
 
 **Tests**: Explicitly requested. Write/port meaningful failing behavior cases before their implementation; a missing type/compiler error is not the expected failure. Reuse existing fixtures. Run targeted suites per task and broader suites when shared contracts change.
 
@@ -83,7 +83,7 @@ One small buildable behavior/project slice with callers and tests per Convention
 
 ### Tests / contract checks
 
-- [ ] T018 [P] [US1] Add file/folder/group/open/close/switch/missing-state tests in `src/Tailviewer.Avalonia.Tests/SourcesTest.cs`, including cycles/duplicates and persisted IDs. **Depends**: T017.
+- [X] T018 [P] [US1] Add file/folder/group/open/close/switch/missing-state tests in `src/Tailviewer.Avalonia.Tests/SourcesTest.cs`, including cycles/duplicates and persisted IDs. **Depends**: T017.
 - [ ] T019 [P] [US1] Add go-to-line/quick-navigation/character-and-line selection tests in `src/Tailviewer.Avalonia.Tests/NavigationTest.cs`; expected copy preserves original text/source order. **Depends**: T017.
 - [ ] T020 [P] [US1] Extend `src/Tailviewer.Core.Tests/Sources/Text/Streaming/StreamingTextLogSourceTest.cs` with middle-only same-size rewrite/indistinguishable metadata, truncate/regrow and changed-encoding fixtures; assert final contents and stale-result rejection. **Depends**: T017.
 - [ ] T021 [P] [US1] Add native picker/drop/clipboard/single-instance scenarios in `src/Tailviewer.Acceptance.Tests/Migration/SourceEntryPointTest.cs`; own test processes/temp paths, keep current tooling until project port. **Depends**: T017.
