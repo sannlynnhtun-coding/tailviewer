@@ -222,15 +222,22 @@ namespace Tailviewer.Core
 
 		private void GetIndices(IReadOnlyList<LogLineIndex> sourceIndices, LogLineIndex[] destination, int destinationIndex)
 		{
+			if (sourceIndices == null) throw new ArgumentNullException(nameof(sourceIndices));
+			if (destination == null) throw new ArgumentNullException(nameof(destination));
+			if (destinationIndex < 0 || destinationIndex > destination.Length)
+				throw new ArgumentOutOfRangeException(nameof(destinationIndex));
+			if (sourceIndices.Count > destination.Length - destinationIndex)
+				throw new ArgumentException("The destination cannot hold the requested positions.", nameof(destination));
 			int count;
 			lock (_index)
 			{
 				count = _index.Count;
 			}
 
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < sourceIndices.Count; ++i)
 			{
-				destination[destinationIndex + i] = sourceIndices[i].Value;
+				var index = sourceIndices[i];
+				destination[destinationIndex + i] = index >= 0 && index < count ? index : Core.Columns.Index.DefaultValue;
 			}
 		}
 

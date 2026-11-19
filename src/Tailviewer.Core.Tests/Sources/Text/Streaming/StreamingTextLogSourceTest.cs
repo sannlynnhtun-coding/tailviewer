@@ -320,6 +320,44 @@ namespace Tailviewer.Core.Tests.Sources.Text.Streaming
             }
         }
 
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        public void IndexColumnUsesRequestedPositionsAndDestinationSlice(int variant)
+        {
+            Write("zero\none\ntwo");
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var source = factory.OpenRead(_path))
+            {
+                _scheduler.RunOnce();
+                var positions = new[] { new int[0], new[] { 2 }, new[] { 2, 0, 2 }, new[] { -1, 3, 1 } }[variant];
+                var requested = positions.Select(position => new LogLineIndex(position)).ToArray();
+                var destination = Enumerable.Repeat(new LogLineIndex(99), requested.Length + 2).ToArray();
+                source.GetColumn(requested, Core.Columns.Index, destination, 1, LogSourceQueryOptions.Default);
+                Assert.That(destination[0], Is.EqualTo(new LogLineIndex(99)));
+                Assert.That(destination[destination.Length - 1], Is.EqualTo(new LogLineIndex(99)));
+                Assert.That(destination.Skip(1).Take(requested.Length), Is.EqualTo(positions.Select(position =>
+                    position >= 0 && position < 3 ? new LogLineIndex(position) : Core.Columns.Index.DefaultValue)));
+            }
+        }
+
+        [TestCase(-1)]
+        [TestCase(2)]
+        public void RejectedIndexDestinationDoesNotPartiallyOverwriteTheBuffer(int destinationIndex)
+        {
+            Write("zero\none\ntwo");
+            var factory = new StreamingTextLogSourceFactory(new Filesystem(_scheduler), _scheduler);
+            using (var source = factory.OpenRead(_path))
+            {
+                _scheduler.RunOnce();
+                var destination = Enumerable.Repeat(new LogLineIndex(99), 3).ToArray();
+                Assert.Catch<ArgumentException>(() => source.GetColumn(new[] { new LogLineIndex(2), new LogLineIndex(1) },
+                    Core.Columns.Index, destination, destinationIndex, LogSourceQueryOptions.Default));
+                Assert.That(destination, Is.All.EqualTo(new LogLineIndex(99)));
+            }
+        }
+
         private sealed class PausedRead : StreamingTextLogSource.AbstractReadRequest
         {
             private readonly ManualResetEventSlim _started;

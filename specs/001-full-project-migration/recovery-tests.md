@@ -241,3 +241,31 @@ T022 remains partial for inactive-source lifecycle/state monitoring. This does
 not complete T027's concurrent rewrite/performance requirements or T028's explicit
 encoding selector/persistence. The entire native gesture matrix was not rerun
 for this file-opening change; the four relevant entry-point cases were executed.
+
+## Streaming index-column request bounds (T026)
+
+While reviewing the source-position path, GetIndices was found to iterate over
+the entire indexed file instead of the requested row list. Empty and sparse
+requests could throw after writing part of the destination; out-of-range rows
+could also be reported as valid indices. The private helper has one caller in
+StreamingTextLogSource.GetColumn; its callers keep the same public API.
+
+The helper now validates the destination slice before writing, fills only the
+requested positions in request order (including duplicates), and uses the Index
+column's Invalid default for absent rows. Six cases cover empty/single/sparse/
+duplicate/out-of-range requests, destination offsets and rejected slices retaining
+all sentinel values. The original four behavior cases recorded three failures
+and one pass before the fix. The complete streaming fixture now passes 34 cases.
+
+Evidence under ignored artifacts/migration: t026-index-red.log and
+t026-index-focused.log. This is a narrow shared-source position fix, not completion
+of T026 or the future filter/merge/provenance integration. Reverse original-index
+lookup and full derived-source integration remain separate work.
+
+Full verification after the index fix: Core 7,134 pass / zero failures / five
+existing skips; modern solution 81 Archiver + 169 Avalonia pass / zero failures
+or skips. Legacy net471 test-project build passes with zero errors and five
+existing warnings. Logs: t026-index-core-full.log, t026-index-modern.log and
+t026-index-legacy-build.log under ignored artifacts/migration. Legacy runtime,
+native entry-point and performance suites were not rerun for this shared helper
+fix. No assertion was weakened or existing skip added.
