@@ -122,6 +122,8 @@ public sealed class MainWindow : Window
                             label.Text = source.DisplayName;
                             ToolTip.SetTip(label, source.DisplayName);
                             AutomationProperties.SetName(label, source.DisplayName);
+                            if (label.FindAncestorOfType<TreeViewItem>() is { } renamedItem)
+                                AutomationProperties.SetName(renamedItem, source.DisplayName);
                             if ((_sourceTree.SelectedItem as DataSource)?.Id == source.Id)
                             {
                                 _path.Text = source.DisplayName;
@@ -152,7 +154,11 @@ public sealed class MainWindow : Window
             label.AttachedToVisualTree += (_, _) =>
             {
                 var item = label.FindAncestorOfType<TreeViewItem>();
-                if (item != null) item.ContextMenu = label.ContextMenu;
+                if (item != null)
+                {
+                    item.ContextMenu = label.ContextMenu;
+                    AutomationProperties.SetName(item, source.File ?? source.LogFileFolderPath ?? source.DisplayName ?? "Merged Data Source");
+                }
             };
             return new SourcesView(source, content);
         }, source => _folderChildren.TryGetValue(source.Id, out var children) ? children : _workspace.GetChildren(source.Id));

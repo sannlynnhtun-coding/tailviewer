@@ -15,6 +15,7 @@ public sealed class SourcesView : StackPanel
     public SourcesView(DataSource source, Control heading)
     {
         Source = source;
+        Background = Brushes.Transparent;
         AutomationProperties.SetName(_status, "Source status");
         Children.Add(new Grid { Children = { heading, _dropPosition } });
         Children.Add(_status);

@@ -534,3 +534,26 @@ t023-tree-hover-focused.log, t023-tree-hover-modern.log and
 t023-tree-hover-capture.log. Native pointer/DPI/accessibility and the full tree
 gesture matrix remain open; T023 is still partial. Shared Core and native
 entry-point suites were not repeated for this UI-only hover state.
+
+## Native source-row accessibility and edge hit-area fixes (T023)
+
+Native inspection found unnamed TreeItem peers; their text peers exposed only
+the rendered basename, despite the label's configured automation name. Source
+containers now receive their configured path/group name directly. Group rename
+updates the container name as well, and reattachment resolves the current name
+rather than a stale template capture. The existing Unicode rename headless case
+also asserts that accessible container name.
+
+The first native top-edge arrange attempt left roots unchanged while center
+grouping and Escape cancellation already passed. Giving SourcesView a transparent
+background makes the entire row hit-testable, including empty edge pixels. The
+same native point then arranges correctly without changing the 20/60/20 bands,
+test deadline or pointer coordinates. This changes hit testing, not visible row
+colors. No filesystem move/copy behavior was introduced.
+
+Complete modern solution: 81 Archiver + 165 Avalonia pass. Complete native
+entry-point suite: 17 pass, all zero failures/skips, with owned pointer-window
+DPI recorded as 168. Native fixture additions and detailed evidence are committed
+separately in native-entry-point-tests.md. Native mixed-monitor DPI, edge-scroll/
+hover gesture coverage and the full accessibility matrix remain open; T023 and
+the full migration are not complete.

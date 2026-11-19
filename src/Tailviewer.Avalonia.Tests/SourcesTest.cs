@@ -811,6 +811,7 @@ public sealed class SourcesTest
                 editor.Text = commit ? "မြန်မာ 😀 group" : "discard this";
                 editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = commit ? Key.Enter : Key.Escape });
                 group.DisplayName.Should().Be("မြန်မာ 😀 group");
+                AutomationProperties.GetName(container).Should().Be(group.DisplayName);
                 ((DataSource)tree.SelectedItem!).Id.Should().Be(file.Id);
                 container.GetVisualDescendants().OfType<TextBlock>().Should().Contain(block => block.Text == group.DisplayName);
                 ((SourcesViewModel)window.DataContext!).FindNavigationMatches("မြန်မာ").Single().DataSource.Id.Should().Be(group.Id);
