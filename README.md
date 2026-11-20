@@ -4,15 +4,17 @@
 
 Tailviewer is an open-source Windows desktop app for monitoring and investigating local logs. Watch new events arrive, search across folders, and inspect structured log data alongside the original messages.
 
-## Download v1.0
+## Download v1.0.1
 
 Both Windows x64 downloads bundle .NET 10. Choose the portable EXE to run directly or the setup EXE to install Tailviewer for your Windows account and add a Start menu shortcut.
 
-- [Portable EXE](https://github.com/sannlynnhtun-coding/tailviewer/releases/download/v1.0/tailviewer-1.0.0-win-x64-portable.exe)
-- [Windows installer](https://github.com/sannlynnhtun-coding/tailviewer/releases/download/v1.0/tailviewer-1.0.0-win-x64-setup.exe)
-- [Release notes and SHA-256 checksums](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v1.0)
+- [Portable EXE](https://github.com/sannlynnhtun-coding/tailviewer/releases/download/v1.0.1/tailviewer-1.0.1-win-x64-portable.exe)
+- [Windows installer](https://github.com/sannlynnhtun-coding/tailviewer/releases/download/v1.0.1/tailviewer-1.0.1-win-x64-setup.exe)
+- [Release notes and SHA-256 checksums](https://github.com/sannlynnhtun-coding/tailviewer/releases/tag/v1.0.1)
 
 The executables are unsigned. The portable EXE extracts its bundled files to the .NET cache on first launch.
+
+After installing, right-click a `.log` or `.txt` file in File Explorer and select **Open with → Tailviewer**. For other text files or the portable build, use **Open with → Choose another app** and browse to the Tailviewer executable.
 
 ## Workflow
 
