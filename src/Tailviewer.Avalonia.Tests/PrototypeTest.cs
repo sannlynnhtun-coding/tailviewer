@@ -93,6 +93,74 @@ public sealed class PrototypeTest
     }
 
     [AvaloniaTest]
+    public async Task DashboardArrowKeysKeepFocusAndRevealRowsBeyondTheViewport()
+    {
+        #region Open the log and focus its first row
+
+        var path = TestContext.Parameters.Get("DashboardNavigationLog", _path);
+        if (path == _path)
+            File.WriteAllLines(path, Enumerable.Range(0, 200).Select(index => $"INFO sample event {index}"));
+
+        var window = new MainWindow(showObservability: true);
+        window.Show();
+        try
+        {
+            await window.OpenFileAsync(path);
+            var rows = window.GetVisualDescendants().OfType<ListBox>().Single();
+            await WaitUntil(() => rows.ItemCount >= 200 && rows.ContainerFromIndex(0) != null);
+            ((ObservedLog)rows.Items[0]!).File.Should().Be(path);
+
+            rows.SelectedIndex = 0;
+            rows.ContainerFromIndex(0)!.Focus().Should().BeTrue();
+            rows.ContainerFromIndex(80).Should().BeNull();
+
+            #endregion
+
+            #region Cross the viewport in both directions
+
+            for (var index = 1; index <= 80; index++)
+                PressArrow(Key.Down, PhysicalKey.ArrowDown, index);
+
+            await WaitUntil(() => rows.ContainerFromIndex(80) != null);
+            rows.ContainerFromIndex(0).Should().BeNull();
+
+            for (var index = 79; index >= 0; index--)
+                PressArrow(Key.Up, PhysicalKey.ArrowUp, index);
+
+            PressArrow(Key.Up, PhysicalKey.ArrowUp, 0);
+            await WaitUntil(() => rows.ContainerFromIndex(0) != null);
+
+            #endregion
+
+            #region Keep focus at the last row
+
+            await WaitUntil(() => window.GetVisualDescendants().OfType<TextBlock>()
+                .Any(block => block.Text?.EndsWith("1/1 files · 0 unreadable", StringComparison.Ordinal) == true));
+            var last = rows.ItemCount - 1;
+            rows.SelectedIndex = last;
+            rows.ScrollIntoView(last);
+            await WaitUntil(() => rows.ContainerFromIndex(last) != null);
+            PressArrow(Key.Down, PhysicalKey.ArrowDown, last);
+
+            #endregion
+
+            void PressArrow(Key key, PhysicalKey physicalKey, int expected)
+            {
+                window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
+                window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
+                window.UpdateLayout();
+
+                rows.SelectedIndex.Should().Be(expected);
+                rows.IsKeyboardFocusWithin.Should().BeTrue($"focus should stay in the table at row {expected}");
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaTest]
     public void DashboardHighlightColorsTokensWithoutChangingTheText()
     {
         const string text = """{"message":"example","status":503,"retry":false}""";

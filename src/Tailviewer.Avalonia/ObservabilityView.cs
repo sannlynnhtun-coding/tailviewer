@@ -45,7 +45,10 @@ internal sealed class ObservabilityView : UserControl, IDisposable
     private bool _cancelled;
     private bool _checkingChanges;
     private readonly ObservableCollection<ObservedLog> _matches = [];
-    private readonly ListBox _rows = new();
+    private readonly ListBox _rows = new()
+    {
+        Focusable = true
+    };
     private readonly TextBlock _status = new();
     private readonly TextBlock _detail = new() { FontFamily = Mono, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _timeline = new() { Spacing = 4 };
@@ -258,8 +261,26 @@ internal sealed class ObservabilityView : UserControl, IDisposable
         if (e.KeyModifiers != KeyModifiers.None ||
             e.Source is Visual origin && origin.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox)) return false;
         if (e.Key == Key.OemQuestion) { _search.Focus(); _search.SelectAll(); return true; }
-        if (e.Key == Key.J || e.Key == Key.Down && e.Source is ListBoxItem or ListBox) { Navigate(1); return true; }
-        if (e.Key == Key.K || e.Key == Key.Up && e.Source is ListBoxItem or ListBox) { Navigate(-1); return true; }
+        #region Navigate dashboard rows
+
+        if (_rows.IsKeyboardFocusWithin && e.Key is Key.Up or Key.Down)
+        {
+            // Keep focus on the list when scrolling recycles the previously focused row.
+            _rows.Focus();
+            Navigate(e.Key == Key.Down ? 1 : -1);
+
+            return true;
+        }
+
+        if (e.Key == Key.J || e.Key == Key.K)
+        {
+            Navigate(e.Key == Key.J ? 1 : -1);
+
+            return true;
+        }
+
+        #endregion
+
         return false;
     }
 
